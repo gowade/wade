@@ -1,0 +1,29 @@
+{
+  "name": "wadejs",
+  "version": "0.0.0",
+  "homepage": "https://github.com/phaikawl/wade",
+  "authors": [
+    "phaikawl <phaikawl@gmail.com>"
+  ],
+  "description": "The effective and no-magic Javascript framework.",
+  "main": "wade.js",
+  "keywords": [
+    "framework",
+    "spa",
+    "rivetsjs"
+  ],
+  "license": "BSD 3-clause",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "rivets": "master",
+    "jquery": "~2.1.1",
+    "route-recognizer": "~0.1.1",
+    "html5-history-api": "~4.1.0"
+  }
+}
