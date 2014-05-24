@@ -15,8 +15,10 @@
   "license": "BSD 3-clause",
   "ignore": [
     "**/.*",
+    "*.go",
     "node_modules",
     "bower_components",
+    "testapp",
     "test",
     "tests"
   ],
