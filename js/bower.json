@@ -15,10 +15,10 @@
   "license": "BSD 3-clause",
   "ignore": [
     "**/.*",
-    "*.go",
+    "../*.go",
     "node_modules",
     "bower_components",
-    "testapp",
+    "../testapp",
     "test",
     "tests"
   ],
@@ -26,6 +26,8 @@
     "rivets": "master",
     "jquery": "~2.1.1",
     "route-recognizer": "~0.1.1",
-    "html5-history-api": "~4.1.0"
+    "html5-history-api": "~4.1.0",
+    "bluebird": "~1.2.4",
+    "strongly-typed": "*"
   }
 }
