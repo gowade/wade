@@ -34,13 +34,6 @@ WadePageManager.prototype = {
 		path = (path==="/") ? this.pathForPage(this.startPage) : path;
 		this.updatePage(path);	
 		history.replaceState(null, null, this.basePath+path);
-		if (!this.currentPage) {
-			if (this.notFoundPage != "") {
-				this.updatePage(this.notFoundPage);
-			} else {
-				throw "Page not found.";
-			}
-		}
 	},
     init: function() {
         var master = this;
@@ -87,8 +80,8 @@ WadePageManager.prototype = {
         });
     },
 
-    setRouteForPage: function(path, pageElem) {
-        /*var parent = pageElem.parent("wpage");
+    /*setRouteForPage: function(path, pageElem) {
+        var parent = pageElem.parent("wpage");
         var proute = "";
         if (parent.length !== 0) {
             proute = parent.data("route");
@@ -97,21 +90,19 @@ WadePageManager.prototype = {
             }
         }
         var nroute = proute + (proute ? "/" : "") + pageElem.attr("page");
-		*/
-        this.router.add([{ path: path, handler: function() {
-            return pageElem;
-        } }]);
 		
-		pageElem.hide();
-        return pageElem.data("route", path);
-    },
+    },*/
 
     updatePage: function (href) {
 		href = this.cutPath(href);
         var matches = this.router.recognize(href);
 		console.log("path: "+href);
-        if (!matches) {
-            return;
+        if (matches.length === 0) {
+			/*if (this.notFoundPage != "") {
+				this.updatePage(this.notFoundPage);
+			} else {
+				throw "Page not found.";
+			}*/
         }
         var page = matches[0].handler();
 		if (this.currentPage) {
@@ -126,32 +117,33 @@ WadePageManager.prototype = {
 			});
 		}
 		
-		var lparent = page;
+		//var lparent = page;
 		page.parents("wpage").each(function() {
-			var th = $(this);
-			th.show();
-			th.children("wpage").each(function() {
+			$(this).show();
+			/*th.children("wpage").each(function() {
 				if (this !== lparent.get(0)) {
-					$(this).hide();
+					//$(this).hide();
 				}
 			});
-			lparent = th;
+			lparent = th;*/
 		});
 
         page.show();
         this.currentPage = page;
-        var handler = page.attr("handler");
-        if (handler !== undefined) {
-            if (this.pageHandlers[handler] === undefined) {
-                throw "Page handler `"+handler+"` has not been registered.";
-            }
-            var model = this.pageHandlers[handler]();
-            rivets.bind(page, model);
-        }
+		var handlers = this.pageHandlers[page.attr("id")];
+		if (handlers !== undefined) {
+			for (var i in handlers) {
+	            var model = handlers[i]();
+	            rivets.bind(page, model);
+			}
+		}
     },
 
-    registerHandler: function (name, handlerFn) {
-        this.pageHandlers[name] = handlerFn;
+    registerHandler: function (pageId, handlerFn) {
+		if (this.pageHandlers[pageId] === undefined) {
+			this.pageHandlers[pageId] = [];
+		}
+        this.pageHandlers[pageId].push(handlerFn);
     },
 	
 	registerPages: function(pages) {
@@ -164,7 +156,13 @@ WadePageManager.prototype = {
 			if (!pageElem.length) {
 				throw "There is no such page element #"+pageId+".";
 			}
-			this.setRouteForPage(path, pageElem);
+			
+			(function(page, router, path) {
+				router.add([{ path: path, handler: function() {
+	            	return page;
+	        	} }]);
+			})(pageElem, this.router, path);
+		
 			this.pages[pageId] = path;
 		}
 	}
@@ -221,6 +219,7 @@ Wade.prototype = {
     },
     
     start: function() {
+		$("wpage").hide();
         this.pageMan.init();
     }
 };

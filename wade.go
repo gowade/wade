@@ -14,8 +14,8 @@ func (w *Wade) RegisterElement(tagName string, model interface{}) {
 
 type PageHandler func() interface{}
 
-func (w *Wade) RegisterPageHandler(handlerName string, fn PageHandler) {
-	w.pageMan.Call("registerHandler", handlerName, fn)
+func (w *Wade) RegisterPageHandler(pageId string, fn PageHandler) {
+	w.pageMan.Call("registerHandler", pageId, fn)
 }
 
 func (w *Wade) Start() {
