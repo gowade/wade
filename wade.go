@@ -4,6 +4,8 @@ import "github.com/gopherjs/gopherjs/js"
 
 type Wade struct {
 	js.Object
+
+	pageMan js.Object
 }
 
 func (w *Wade) RegisterElement(tagName string, model interface{}) {
@@ -13,11 +15,19 @@ func (w *Wade) RegisterElement(tagName string, model interface{}) {
 type PageHandler func() interface{}
 
 func (w *Wade) RegisterPageHandler(handlerName string, fn PageHandler) {
-	w.Call("registerPageHandler", handlerName, fn)
+	w.pageMan.Call("registerHandler", handlerName, fn)
 }
 
 func (w *Wade) Start() {
 	w.Call("start")
+}
+
+func (w *Wade) RegisterPages(pages map[string]string) {
+	w.pageMan.Call("registerPages", pages)
+}
+
+func (w *Wade) SetNotFoundPage(pageId string) {
+	w.pageMan.Call("setNotFoundPage", pageId)
 }
 
 func WadeUp(jsVarName string) *Wade {
@@ -27,6 +37,7 @@ func WadeUp(jsVarName string) *Wade {
 	}
 
 	return &Wade{
-		Object: wd,
+		Object:  wd,
+		pageMan: wd.Get("pageMan"),
 	}
 }

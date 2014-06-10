@@ -8,6 +8,8 @@ function WadePageManager(startPage, basePath) {
     this.pageHandlers = {};
 	this.startPage = startPage;
 	this.basePath = basePath;
+	this.pages = {};
+	this.notFoundPage = "";
 }
 
 WadePageManager.prototype = {
@@ -17,13 +19,27 @@ WadePageManager.prototype = {
 		}
 		return path
 	},
-	setStartingPage: function() {
+	pathForPage: function(pageId) {
+		var path = this.pages[pageId];
+		if (path === undefined) {
+			throw "no such page #"+pageId+" registered.";
+		}
+		return path;
+	},
+	setNotFoundPage: function(pageId) {
+		this.notFoundPage = this.pathForPage(pageId);
+	},
+	setPageOnLoad: function() {
 		var path = this.cutPath(document.location.pathname);
-		path = (path==="/") ? this.startPage : path;
+		path = (path==="/") ? this.pathForPage(this.startPage) : path;
 		this.updatePage(path);	
 		history.replaceState(null, null, this.basePath+path);
 		if (!this.currentPage) {
-			throw "Starting page `"+this.startPage+"` not found.";
+			if (this.notFoundPage != "") {
+				this.updatePage(this.notFoundPage);
+			} else {
+				throw "Page not found.";
+			}
 		}
 	},
     init: function() {
@@ -32,16 +48,17 @@ WadePageManager.prototype = {
             // looking for all the links and hang on the event, all references in this document
             $("a").on('click', function() {
                 var href = $(this).attr("href");
-                if (href !== "" && href.indexOf("http://") === 0) {
+                if (href !== "" && href.indexOf(":") !== 0) {
                     return true;
                 }
                 //if (href.indexOf("/") !== 0) {
                 //     href = $gCurrentPage.data("route") + "/" + href;
                 //}
                 // keep the link in the browser history
-				history.pushState(null, null, href);
+				var path = master.pathForPage(href.substring(1, href.length));
+				history.pushState(null, null, master.basePath+path);
                 try {
-					master.updatePage(href);
+					master.updatePage(path);
 				} catch (error) {
 					console.error(error);
 				}
@@ -62,16 +79,16 @@ WadePageManager.prototype = {
             //!!!!!!!
             //
             $("welement").hide();
-            $("wpage").each(function() {
-                master.setRouteForPage($(this));
-            });
+            /*$("wpage").each(function() {
+                master.setRoute	wade.SetStartingPage("home")ForPage($(this));
+            });*/
 			
-			master.setStartingPage();
+			master.setPageOnLoad();
         });
     },
 
-    setRouteForPage: function(pageElem) {
-        var parent = pageElem.parent("wpage");
+    setRouteForPage: function(path, pageElem) {
+        /*var parent = pageElem.parent("wpage");
         var proute = "";
         if (parent.length !== 0) {
             proute = parent.data("route");
@@ -79,19 +96,20 @@ WadePageManager.prototype = {
                 proute = master.setRouteForPage(parent);
             }
         }
-        var nroute = proute + (proute ? "~" : "") + pageElem.attr("page");
-        this.router.add([{ path: nroute, handler: function() {
+        var nroute = proute + (proute ? "/" : "") + pageElem.attr("page");
+		*/
+        this.router.add([{ path: path, handler: function() {
             return pageElem;
         } }]);
 		
 		pageElem.hide();
-        return pageElem.data("route", nroute);
+        return pageElem.data("route", path);
     },
 
     updatePage: function (href) {
 		href = this.cutPath(href);
         var matches = this.router.recognize(href);
-		console.log(href);
+		console.log("path: "+href);
         if (!matches) {
             return;
         }
@@ -110,7 +128,6 @@ WadePageManager.prototype = {
 		
 		var lparent = page;
 		page.parents("wpage").each(function() {
-			console.log("^^");
 			var th = $(this);
 			th.show();
 			th.children("wpage").each(function() {
@@ -135,7 +152,22 @@ WadePageManager.prototype = {
 
     registerHandler: function (name, handlerFn) {
         this.pageHandlers[name] = handlerFn;
-    }
+    },
+	
+	registerPages: function(pages) {
+		for (var path in pages) {
+			var pageId = pages[path];
+			if (this.pages[pageId] != undefined) {
+				throw "Page #"+pageId+" has already been registered.";
+			}
+			var pageElem = $("#"+pageId);
+			if (!pageElem.length) {
+				throw "There is no such page element #"+pageId+".";
+			}
+			this.setRouteForPage(path, pageElem);
+			this.pages[pageId] = path;
+		}
+	}
 };
 
 function Wade(startPage, basePath) {
@@ -178,7 +210,6 @@ Wade.prototype = {
 				var attr = publicAttrs[i];
                 var val = elem.attr(attrPrefix+attr);
                 if (val !== undefined) {
-					console.log(attr+":"+val);
                     mclone[attr] = val;
                 }
             }
@@ -187,10 +218,6 @@ Wade.prototype = {
                 rivets.bind(elem, mclone);
             }, 20);
         });
-    },
-
-    registerPageHandler: function(name, fn) {
-        this.pageMan.registerHandler(name, fn);
     },
     
     start: function() {
