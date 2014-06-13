@@ -21,12 +21,16 @@ func (p *Promise) Model() interface{} {
 }
 
 //Model updater type assertion
-func (p *Promise) muTypeAssert(fn ModelUpdater) {
+func (p *Promise) muTypeAssert(fn ModelUpdater) reflect.Kind {
 	tpFn := reflect.TypeOf(fn)
 	if tpFn.Kind() != reflect.Func {
 		panic("The return of promise handler must be a function.")
 	}
 	paramType := tpFn.In(0).Name()
+	if tpFn.In(0).Kind() == reflect.Interface {
+		return reflect.Interface
+	}
+
 	if paramType == "" {
 		paramType = tpFn.In(0).Elem().Name()
 	}
@@ -38,6 +42,8 @@ func (p *Promise) muTypeAssert(fn ModelUpdater) {
 		panic(fmt.Sprintf(`The parameter of the promise modelUpdater function (now has type %v) must be of the same type as
 		the promise's model (of type %v).`, paramType, modelType))
 	}
+
+	return reflect.Struct
 }
 
 type ModelUpdater interface{}
@@ -46,6 +52,9 @@ type PromiseHandlerFunc func(data *http.Response) ModelUpdater
 func (p *Promise) handle(fn PromiseHandlerFunc) http.HttpDoneHandler {
 	return func(r *http.Response) {
 		mu := fn(r)
+		if mu == nil {
+			return
+		}
 		p.muTypeAssert(mu)
 		reflect.ValueOf(mu).Call([]reflect.Value{reflect.ValueOf(p.model)})
 	}

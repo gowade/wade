@@ -9,7 +9,7 @@ type Wade struct {
 }
 
 func (w *Wade) RegisterElement(tagName string, model interface{}) {
-	w.Call("register", tagName, model)
+	w.Call("registerElement", tagName, model)
 }
 
 type PageHandler func() interface{}

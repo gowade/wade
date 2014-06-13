@@ -30,7 +30,11 @@ func (r *Response) Status() string {
 }
 
 func (r *Response) DecodeDataTo(dest interface{}) error {
-	return json.Unmarshal([]byte(r.data), dest)
+	err := json.Unmarshal([]byte(r.data), dest)
+	if err != nil {
+		println(err.Error())
+	}
+	return err
 }
 
 type Deferred struct {
@@ -109,6 +113,7 @@ func (h HttpHeader) Del(key string) {
 type Request struct {
 	Headers HttpHeader
 	Method  HttpMethod
+	data    []byte
 	Url     *url.URL
 }
 
@@ -124,13 +129,27 @@ func NewRequest(method HttpMethod, reqUrl string) *Request {
 	}
 }
 
+func (r *Request) SetData(d interface{}) {
+	var err error
+	r.data, err = json.Marshal(d)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
 func (r *Request) DoAsync() Deferred {
 	desturl := r.Url.String()
-	return Deferred{jquery.Ajax(map[string]interface{}{
-		"type":     string(r.Method),
-		"url":      desturl,
-		"dataType": "text",
-	})}
+	m := map[string]interface{}{
+		"type":        string(r.Method),
+		"url":         desturl,
+		"dataType":    "text",
+		"processData": false,
+		"headers":     r.Headers,
+	}
+	if len(r.data) != 0 {
+		m["data"] = r.data
+	}
+	return Deferred{jquery.Ajax(m)}
 }
 
 type HttpInterceptor func(*Request)

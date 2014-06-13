@@ -60,3 +60,7 @@ func (stg *Storage) Set(key string, v interface{}) {
 func init() {
 	gStorage = Storage{js.Global.Get("localStorage")}
 }
+
+func Service() *Storage {
+	return &gStorage
+}

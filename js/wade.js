@@ -1,6 +1,13 @@
 rivets.configure({
-  prefix: 'w'
+  prefix: 'rv'
 });
+
+function createObj() {
+	return {
+		"Username": ":D:D",
+		"Password": "kkk"
+	}
+}
 
 function WadePageManager(startPage, basePath) {
     this.router = new RouteRecognizer();
@@ -10,6 +17,7 @@ function WadePageManager(startPage, basePath) {
 	this.basePath = basePath;
 	this.pages = {};
 	this.notFoundPage = "";
+	this.pageModels = {};
 }
 
 WadePageManager.prototype = {
@@ -20,11 +28,11 @@ WadePageManager.prototype = {
 		return path
 	},
 	pathForPage: function(pageId) {
-		var path = this.pages[pageId];
-		if (path === undefined) {
+		var page = this.pages[pageId];
+		if (page === undefined) {
 			throw "no such page #"+pageId+" registered.";
 		}
-		return path;
+		return page.path;
 	},
 	setNotFoundPage: function(pageId) {
 		this.notFoundPage = this.pathForPage(pageId);
@@ -37,19 +45,20 @@ WadePageManager.prototype = {
 	},
     init: function() {
         var master = this;
-        $(document).ready(function() {
+        //$(document).ready(function() {
             // looking for all the links and hang on the event, all references in this document
             $("a").on('click', function() {
                 var href = $(this).attr("href");
-                if (href !== "" && href.indexOf(":") !== 0) {
+                if (!href || href.indexOf(":") !== 0) {
                     return true;
                 }
                 //if (href.indexOf("/") !== 0) {
                 //     href = $gCurrentPage.data("route") + "/" + href;
                 //}
                 // keep the link in the browser history
-				var path = master.pathForPage(href.substring(1, href.length));
-				history.pushState(null, null, master.basePath+path);
+				var pageId = href.substring(1, href.length);
+				var path = master.pathForPage(pageId);
+				history.pushState(null, master.pages[pageId].title, master.basePath+path);
                 try {
 					master.updatePage(path);
 				} catch (error) {
@@ -77,7 +86,7 @@ WadePageManager.prototype = {
             });*/
 			
 			master.setPageOnLoad();
-        });
+        //});
     },
 
     /*setRouteForPage: function(path, pageElem) {
@@ -98,13 +107,15 @@ WadePageManager.prototype = {
         var matches = this.router.recognize(href);
 		console.log("path: "+href);
         if (matches.length === 0) {
-			/*if (this.notFoundPage != "") {
+			if (this.notFoundPage != "") {
 				this.updatePage(this.notFoundPage);
 			} else {
 				throw "Page not found.";
-			}*/
+			}
         }
-        var page = matches[0].handler();
+        var pageId = matches[0].handler();
+		var pageElem = $("#"+pageId);
+		$("title").text(this.pages[pageId].title);
 		if (this.currentPage) {
 	        /*if (page.closest(this.currentPage).length === 0) {
 	            this.currentPage.hide();
@@ -118,7 +129,7 @@ WadePageManager.prototype = {
 		}
 		
 		//var lparent = page;
-		page.parents("wpage").each(function() {
+		pageElem.parents("wpage").each(function() {
 			$(this).show();
 			/*th.children("wpage").each(function() {
 				if (this !== lparent.get(0)) {
@@ -128,13 +139,16 @@ WadePageManager.prototype = {
 			lparent = th;*/
 		});
 
-        page.show();
-        this.currentPage = page;
-		var handlers = this.pageHandlers[page.attr("id")];
+        pageElem.show();
+        this.currentPage = pageElem;
+		 
+		var handlers = this.pageHandlers[pageId];
 		if (handlers !== undefined) {
 			for (var i in handlers) {
 	            var model = handlers[i]();
-	            rivets.bind(page, model);
+				//console.log(model);
+	            this.pageModels = rivets.bind(pageElem, model).models;
+				console.log(this.pageModels);
 			}
 		}
     },
@@ -157,13 +171,13 @@ WadePageManager.prototype = {
 				throw "There is no such page element #"+pageId+".";
 			}
 			
-			(function(page, router, path) {
+			(function(pageId, router, path) {
 				router.add([{ path: path, handler: function() {
-	            	return page;
+	            	return pageId;
 	        	} }]);
-			})(pageElem, this.router, path);
+			})(pageId, this.router, path);
 		
-			this.pages[pageId] = path;
+			this.pages[pageId] = {path: path, title: pageElem.attr("title")};
 		}
 	}
 };
@@ -172,27 +186,46 @@ function Wade(startPage, basePath) {
     this.sign = "1'M_7763_W4D3,_817C76!";
     this.pageMan = new WadePageManager(startPage, basePath);
     this._attrPrefix = "attr-";
+	this.elements = {};
 }
 
 Wade.prototype = {
-    register: function(tagid, model) {
+    registerElement: function(tagid, model) {
         var te = $("#"+tagid);
-		var attrPrefix = this._attrPrefix;
         if (te.length === 0) {
             throw "Such welement does not exist.";
         }
         if (te.prop("tagName") !== "WELEMENT") {
             throw "The registered `"+tagid+"` is not a welement!";
         }
-
-        var publicAttrs = te.attr("attributes").split(" ");
-		for (var i in publicAttrs) {
+		this.elements[tagid] = model;
+    },
+    
+    start: function() {
+		var wade = this;
+		$(document).ready(function() {
+			$("wpage").hide();
+	        wade.pageMan.init();
+			
+			for (var tagid in wade.elements) {
+				wade.bind(tagid, wade.elements[tagid]);
+			}
+		});
+    },
+	
+	bind: function(tagid, model) {
+		var wade = this;
+		var te = $("#"+tagid);
+		var attrPrefix = this._attrPrefix;
+		var bindPrefix = "bind-";
+		var publicAttrs = te.attr("attributes").split(" ");
+		/*for (var i in publicAttrs) {
 			var attr = publicAttrs[i];
 			if (attr.indexOf(attrPrefix) !== 0) {
                 throw tagid+": Custom element attribute must have prefix `"+attrPrefix+"`!";
             }
             publicAttrs[i] = attr.substring(attrPrefix.length, attr.length);
-		}
+		}*/
         for (var i in publicAttrs) {
 			var attr = publicAttrs[i];
             if (model[attr] === undefined) {
@@ -210,16 +243,33 @@ Wade.prototype = {
                 if (val !== undefined) {
                     mclone[attr] = val;
                 }
+				val = elem.attr(bindPrefix+attrPrefix+attr);
+				if (val !== undefined) {
+					var pageModels = wade.pageMan.pageModels;
+					for (i in pageModels) {
+						var attrModel = pageModels[i][attr];
+						if (attrModel != undefined) {
+							mclone[attr] = function() {
+								return [attrModel.Username, attrModel.Password];
+							}
+							break;
+						}
+					}
+				}
             }
+			/*if (mclone.Errors !== undefined) {
+				mclone["Errors"].Username = function() {
+					return "Du`";
+				}
+				console.log("(");
+				console.log(mclone);
+				console.log(")");
+			}*/
             elem.append(te.html());
             setTimeout(function() {
+				//console.log(mclone);
                 rivets.bind(elem, mclone);
             }, 20);
         });
-    },
-    
-    start: function() {
-		$("wpage").hide();
-        this.pageMan.init();
-    }
+	}
 };
