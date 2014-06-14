@@ -1,4 +1,4 @@
-wade
+Wade
 ====
 
-Modern client-side web framework for Go (gopherjs)
+The no-magic client-side web framework for Go (gopherjs)
