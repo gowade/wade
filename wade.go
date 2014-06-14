@@ -26,6 +26,29 @@ type Wade struct {
 	custags map[string]interface{} //custom tags
 }
 
+type ErrorMap map[string]map[string]interface{}
+
+type Validated struct {
+	Errors ErrorMap
+}
+
+type ErrorsBinding struct {
+	Errors *ErrorMap
+}
+
+func (v *Validated) Init(dataModel interface{}) {
+	m := make(ErrorMap)
+	typ := reflect.TypeOf(dataModel)
+	if typ.Kind() != reflect.Struct {
+		panic("Validated data model passed to Init() must be a struct.")
+	}
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		m[f.Name] = make(map[string]interface{})
+	}
+	v.Errors = m
+}
+
 type pageInfo struct {
 	path  string
 	title string
@@ -326,9 +349,18 @@ func (wd *Wade) bind(tagid string, model reflect.Type) {
 			if target := elem.Attr(BindPrefix + bdb); target != "" {
 				ok := false
 				for _, pgmodel := range wd.pm.pageModels {
-					m := pgmodel.Get(target)
-					if !m.IsUndefined() {
-						clone.FieldByName(bdb).Set(reflect.ValueOf(m.Interface()))
+					pgm := reflect.ValueOf(pgmodel.Interface())
+					if pgm.Kind() == reflect.Ptr {
+						pgm = pgm.Elem()
+					}
+					m := pgm.FieldByName(target)
+					if m.IsValid() {
+						f := clone.FieldByName(bdb)
+						if f.Kind() != reflect.Ptr {
+							panic(fmt.Sprintf(`Field "%v" of custom tag "%v" is not bindable because it's not a pointer.`, tagid, bdb))
+						}
+						f.Set(m.Addr())
+						//println(f.Interface())
 						ok = true
 						break
 					}
@@ -340,7 +372,6 @@ func (wd *Wade) bind(tagid string, model reflect.Type) {
 			}
 		}
 
-		println(cptr.Interface())
 		gRivets.Call("bind", elem.Underlying(), cptr.Interface())
 	})
 }
