@@ -266,6 +266,7 @@ func (wd *Wade) Pager() *PageManager {
 }
 
 func (wd *Wade) Start() {
+	rivetsInstallDotAdapter()
 	gJQ(js.Global.Get("document")).Ready(func() {
 		pageHide(gJQ("wpage"))
 		wd.pm.getReady()
