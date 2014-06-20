@@ -137,7 +137,7 @@ func (r *Request) SetData(d interface{}) {
 	}
 }
 
-func (r *Request) DoAsync() Deferred {
+func (r *Request) makeJqConfig() map[string]interface{} {
 	desturl := r.Url.String()
 	m := map[string]interface{}{
 		"type":        string(r.Method),
@@ -149,7 +149,21 @@ func (r *Request) DoAsync() Deferred {
 	if len(r.data) != 0 {
 		m["data"] = r.data
 	}
-	return Deferred{jquery.Ajax(m)}
+
+	return m
+}
+
+func (r *Request) DoAsync() Deferred {
+	return Deferred{jquery.Ajax(r.makeJqConfig())}
+}
+
+func (r *Request) DoSync() (data string) {
+	conf := r.makeJqConfig()
+	conf["async"] = false
+	Deferred{jquery.Ajax(conf)}.Done(func(r *Response) {
+		data = r.Data()
+	})
+	return data
 }
 
 type HttpInterceptor func(*Request)

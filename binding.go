@@ -128,7 +128,7 @@ func (b *binding) bind(elem jq.JQuery, model interface{}) {
 
 					if binder.watch != nil {
 						binder.watch(elem, func(newVal string) {
-							println(newVal)
+							//println(newVal)
 							if !fmodel.CanSet() {
 								panic("Cannot set field.")
 							}

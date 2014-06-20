@@ -8,6 +8,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
+	"github.com/phaikawl/wade/services/http"
 )
 
 var (
@@ -50,16 +51,35 @@ func (v *Validated) Init(dataModel interface{}) {
 	v.Errors = m
 }
 
-func WadeUp(startPage, basePath string) *Wade {
-	return &Wade{
+func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
+	wd := &Wade{
 		pm:      newPageManager(startPage, basePath),
 		binding: newBindEngine(),
 		custags: make(map[string]interface{}),
 	}
+	wd.Init()
+	initFn(wd)
+	return wd
 }
 
 func (wd *Wade) Pager() *PageManager {
 	return wd.pm
+}
+
+func (wd *Wade) htmlImport(parent jq.JQuery, origin string) {
+	parent.Find("import").Each(func(i int, elem jq.JQuery) {
+		src := elem.Attr("src")
+		req := http.NewRequest(http.MethodGet, origin+src)
+		html := req.DoSync()
+		elem.Hide()
+		elem.Append(html)
+		wd.htmlImport(elem, origin)
+	})
+}
+
+func (wd *Wade) Init() {
+	origin := js.Global.Get("document").Get("location").Get("origin").Str()
+	wd.htmlImport(gJQ("body"), origin)
 }
 
 func (wd *Wade) Start() {
@@ -85,6 +105,8 @@ func (wd *Wade) Start() {
 		//	})
 		//}
 	})
+
+	gJQ("import").Show()
 }
 
 func (wd *Wade) prepare(tagid string, model reflect.Type) {
