@@ -7,6 +7,10 @@ import (
 	"github.com/phaikawl/wade/services/http"
 )
 
+func init() {
+	stubInit()
+}
+
 type JsStub struct{}
 
 func (j *JsStub) Get(name string) js.Object {
@@ -72,7 +76,6 @@ type Test struct {
 }
 
 func TestPromise(t *testing.T) {
-	stubInit()
 	model := &Test{ok: false}
 	p := NewPromise(model, http.Service().NewRequest(http.MethodGet, "/").DoAsync())
 	hdler := func(r *http.Response) ModelUpdater {

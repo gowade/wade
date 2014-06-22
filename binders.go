@@ -6,12 +6,31 @@ import (
 	jq "github.com/gopherjs/jquery"
 )
 
+func defaultBinders() map[string]DomBinder {
+	return map[string]DomBinder{
+		"value": DomBinder{
+			update: valueUpdateFn,
+			watch:  valueWatchFn,
+			bind:   nil,
+		},
+		"html": DomBinder{
+			update: htmlUpdateFn,
+			watch:  nil,
+			bind:   nil,
+		},
+		"on": DomBinder{
+			update: nil,
+			watch:  nil,
+			bind:   eventBindFn,
+		},
+	}
+}
+
 func htmlUpdateFn(elem jq.JQuery, value interface{}, arg []string) {
 	elem.SetHtml(value.(string))
 }
 
 func valueUpdateFn(elem jq.JQuery, value interface{}, arg []string) {
-	println(value)
 	elem.SetVal(value.(string))
 }
 

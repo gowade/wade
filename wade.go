@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	gHistory = js.Global.Get("history")
+	gHistory js.Object
 	gJQ      = jq.NewJQuery
 )
 
@@ -52,6 +52,7 @@ func (v *Validated) Init(dataModel interface{}) {
 }
 
 func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
+	gHistory = js.Global.Get("history")
 	wd := &Wade{
 		pm:      newPageManager(startPage, basePath),
 		binding: newBindEngine(),
