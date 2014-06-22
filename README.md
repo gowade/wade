@@ -31,7 +31,7 @@ Each custom element is bound to a specified model, which declares the datatype f
 
 ##Binding
 Wade has support for data binding between HTML and Go/Js model.
-For each page, a *page handler* could be registered with `wade.Pager().RegisterHandler` to control the page. Each page handler could return a model, it binds to the whole page.
+For each page, a *page handler* could be registered with `wade.Pager().RegisterHandler`, which will be called every time the specified page loads to control the page. Each page handler could return a model, it binds to the whole page.
 For example:
 If we have a struct
 
