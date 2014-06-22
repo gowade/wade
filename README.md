@@ -26,7 +26,7 @@ We define a custom element tag called "t-userinfo":
 
 It's considered a html tag with attributes `attr-Name` and `attr-Country` now, we can use it like this:
 
-    <t-userinfo attr-Name="Hai Thanh Nguyen" attr-Country="Vietnam">
+    <t-userinfo attr-Name="Hai Thanh Nguyen" attr-Country="Vietnam"></t-userinfo>
 Each custom element is bound to a specified model, which declares the datatype for attributes of that element. More on data binding below.
 
 ##Binding
