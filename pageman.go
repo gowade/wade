@@ -150,7 +150,7 @@ func (pm *PageManager) bindPage(b *binding) {
 	if handlers, ok := pm.pageHandlers[pm.currentPage]; ok {
 		for _, handler := range handlers {
 			model := handler()
-			b.bind(gJQ("#"+pm.currentPage), model)
+			b.Bind(gJQ("#"+pm.currentPage), model)
 			//println(gJQ("#" + pm.currentPage).Underlying().Interface())
 		}
 	}
@@ -191,15 +191,4 @@ func (pm *PageManager) RegisterPages(pages map[string]string) {
 
 		pm.pages[pageId] = pageInfo{path: path, title: pageElem.Attr("title")}
 	}
-}
-
-func (wd *Wade) RegisterNewTag(tagid string, model interface{}) {
-	tagElem := gJQ("#" + tagid)
-	if tagElem.Length == 0 {
-		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
-	}
-	if tagElem.Prop("tagName") != "WELEMENT" {
-		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
-	}
-	wd.custags[tagid] = model
 }

@@ -12,22 +12,25 @@ import (
 )
 
 type UpdateDomFn func(elem jq.JQuery, value interface{}, arg []string)
+type BindDomFn func(elem jq.JQuery, value interface{}, arg, outputs []string)
 type ModelUpdateFn func(value string)
 type WatchDomFn func(elem jq.JQuery, updateFn ModelUpdateFn)
 
 type DomBinder struct {
 	update UpdateDomFn
 	watch  WatchDomFn
-	bind   UpdateDomFn
+	bind   BindDomFn
 }
 
 type binding struct {
+	wade       *Wade
 	domBinders map[string]DomBinder
 	helpers    map[string]interface{}
 }
 
-func newBindEngine() *binding {
+func newBindEngine(wade *Wade) *binding {
 	return &binding{
+		wade:       wade,
 		domBinders: defaultBinders(),
 		helpers:    defaultHelpers(),
 	}
@@ -50,11 +53,11 @@ func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
 	case reflect.Map:
 		rv = o.MapIndex(reflect.ValueOf(field))
 	default:
-		return rv, fmt.Errorf("Unhandled type for accessing %v.", field)
+		return rv, fmt.Errorf("Unhandled type for accessing %v", field)
 	}
 
 	if !rv.IsValid() {
-		return rv, fmt.Errorf("Unable to access %v, field not available.", field)
+		return rv, fmt.Errorf("No such field %v", field)
 	}
 
 	//if !rv.CanSet() {
@@ -82,7 +85,11 @@ type Expr struct {
 	eval *ObjEval
 }
 
-//tokenize simply splits the bind string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
+func isValidExprChar(c rune) bool {
+	return c == '.' || unicode.IsLetter(c) || unicode.IsDigit(c)
+}
+
+//tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
 //it a little bit easier to parse
 func tokenize(spec string) (tokens []Token, err error) {
 	tokens = make([]Token, 0)
@@ -109,7 +116,7 @@ func tokenize(spec string) (tokens []Token, err error) {
 			flush()
 			tokens = append(tokens, Token{PuncToken, string(c)})
 		default:
-			if c == '.' || unicode.IsLetter(c) || unicode.IsDigit(c) {
+			if isValidExprChar(c) {
 				token += string(c)
 			} else {
 				err = fmt.Errorf("Character '%v' is not allowed", c)
@@ -122,12 +129,12 @@ func tokenize(spec string) (tokens []Token, err error) {
 	return
 }
 
-//parse parses the bind string, populate information into a tree of Expr pointers.
+//parse parses the bind target string, populate information into a tree of Expr pointers.
 //Each helper call has a list arguments, each argument may be another helper call or an object expression.
 func parse(spec string) (root *Expr, err error) {
 	tokens, err := tokenize(spec)
 	if err != nil {
-		panic(fmt.Sprintf(err.Error()+" in bind string `%v`.", spec))
+		bindStringPanic(err.Error(), spec)
 	}
 	invalid := func() {
 		err = errors.New("Invalid syntax")
@@ -193,7 +200,10 @@ func (b *binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 	err = nil
 	if len(expr.args) == 0 {
 		if expr.eval == nil {
-			expr.eval = evaluateObj(expr.name, model)
+			expr.eval, err = evaluateObj(expr.name, model)
+			if err != nil {
+				return
+			}
 		}
 		v = expr.eval.fieldRefl
 		return
@@ -217,16 +227,20 @@ func (b *binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 	return
 }
 
+func bindStringPanic(mess, bindstring string) {
+	panic(fmt.Sprintf(mess+", while processing bind string `%v`.", bindstring))
+}
+
 //evaluateBindstring evaluates the bind string, returns the needed information for binding
 func (b *binding) evaluateBindString(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
 	var err error
 	root, err = parse(spec)
 	if err != nil {
-		panic(fmt.Sprintf(err.Error()+" in bind string `%v`.", spec))
+		bindStringPanic(err.Error(), spec)
 	}
 	v, err := b.evaluateRec(root, model)
 	if err != nil {
-		panic(fmt.Sprintf(err.Error()+" in bind string `%v`.", spec))
+		bindStringPanic(err.Error(), spec)
 	}
 	value = v.Interface()
 	blist = make([]*Expr, 0)
@@ -248,16 +262,19 @@ func getBindList(expr *Expr, list *([]*Expr)) {
 
 //evaluateObj uses reflection to access the field hierarchy in an object string
 //and return the necessary values
-func evaluateObj(obj string, model interface{}) *ObjEval {
+func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	flist := strings.Split(obj, ".")
 	vals := make([]reflect.Value, len(flist)+1)
 	o := reflect.ValueOf(model)
+	if o.Kind() == reflect.Ptr {
+		o = o.Elem()
+	}
 	vals[0] = o
 	var err error
 	for i, field := range flist {
 		o, err = getReflectField(o, field)
 		if err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 		vals[i+1] = o
 	}
@@ -266,21 +283,91 @@ func evaluateObj(obj string, model interface{}) *ObjEval {
 		fieldRefl: vals[len(vals)-1],
 		modelRefl: vals[len(vals)-2],
 		field:     flist[len(flist)-1],
+	}, nil
+}
+
+func (b *binding) watch(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
+	for _, expr := range binds {
+		//use watchjs to watch for changes to the model
+		(func(expr *Expr) {
+			js.Global.Call("watch",
+				expr.eval.modelRefl.Interface(),
+				expr.eval.field,
+				func(prop string, action string,
+					newVal interface{},
+					oldVal js.Object) {
+
+					expr.eval.fieldRefl.Set(reflect.ValueOf(newVal))
+					newResult, _ := b.evaluateRec(root, model)
+					callback(newResult.Interface())
+				})
+		})(expr)
 	}
 }
 
 //bind parses the bind string, binds the element with a model
-func (b *binding) bind(elem jq.JQuery, model interface{}) {
-	elem.Find("*").Each(func(i int, elem jq.JQuery) {
-		if elem.Length == 0 {
-			panic("Incorrect element for bind.")
-		}
+func (b *binding) Bind(relem jq.JQuery, model interface{}) {
+	if relem.Length == 0 {
+		panic("Incorrect element for bind.")
+	}
+
+	relem.Find("*").Each(func(i int, elem jq.JQuery) {
+		_, isCustag := b.wade.custags[elem.Prop("tagName").(string)]
 
 		attrs := elem.Get(0).Get("attributes")
 		for i := 0; i < attrs.Length(); i++ {
 			attr := attrs.Index(i)
 			name := attr.Get("name").Str()
-			if strings.HasPrefix(name, BindPrefix) {
+			bstr := attr.Get("value").Str()
+			if name == "bind" { //attribute binding
+				if !isCustag {
+					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
+				}
+				fbinds := strings.Split(bstr, ";")
+
+				for i, fb := range fbinds {
+					if i == len(fbinds)-1 && fb == "" {
+						continue
+					}
+					fv := strings.Split(fb, ":")
+					if len(fv) != 2 {
+						bindStringPanic(`There should be one ":" in each attribute bind`, bstr)
+					}
+					field := strings.TrimSpace(fv[0])
+					value := strings.TrimSpace(fv[1])
+					for _, c := range field {
+						if !isValidExprChar(c) {
+							bindStringPanic(fmt.Sprintf("invalid character %v", c), field)
+						}
+					}
+					roote, binds, v := b.evaluateBindString(value, model)
+
+					//if tModel == nil {
+					//	tModelm[field] = v
+					//	(func(field string) {
+					//		b.watch(binds, roote, model, func(newResult interface{}) {
+					//			tModelm[field] = newResult
+					//		})
+					//	})(field)
+					//} else {
+					tModel := b.wade.modelForCustomElem(elem)
+					oe, err := evaluateObj(field, tModel)
+					if err != nil {
+						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
+					}
+					oe.fieldRefl.Set(reflect.ValueOf(v))
+					b.watch(binds, roote, model, func(newResult interface{}) {
+						oe.fieldRefl.Set(reflect.ValueOf(newResult))
+					})
+					//}
+				}
+			} else if strings.HasPrefix(name, BindPrefix) { //dom binding
+				if isCustag {
+					panic(`Dom binding is not allowed for custom element tags (they should not actually be rendered
+, so there's no point; but of course inside the custom element's contents it's allowed normally).
+If you want to bind the attributes of a custom element, use the field binding syntax instead.`)
+				}
+
 				parts := strings.Split(name, "-")
 				if len(parts) <= 1 {
 					panic(`Illegal "bind-".`)
@@ -293,7 +380,6 @@ func (b *binding) bind(elem jq.JQuery, model interface{}) {
 						}
 					}
 
-					bstr := attr.Get("value").Str()
 					roote, binds, v := b.evaluateBindString(bstr, model)
 
 					if binder.watch != nil {
@@ -312,27 +398,17 @@ Consider using a one-way binder instead or use only 1 argument object in the bin
 
 					(func(args []string) {
 						if binder.bind != nil {
-							binder.bind(elem, v, args)
+							binder.bind(elem, v, args, make([]string, 0))
 						}
 						if binder.update != nil {
 							binder.update(elem, v, args)
-							for _, expr := range binds {
-								//use watchjs to watch for changes to the model
-								(func(expr *Expr) {
-									js.Global.Call("watch",
-										expr.eval.modelRefl.Interface(),
-										expr.eval.field,
-										func(prop string, action string,
-											newVal interface{},
-											oldVal js.Object) {
-											expr.eval.fieldRefl.Set(reflect.ValueOf(newVal))
-											v, _ := b.evaluateRec(roote, model)
-											binder.update(elem,
-												v.Interface(),
-												args)
-										})
-								})(expr)
-							}
+							b.watch(binds, roote, model, func(newResult interface{}) {
+								//println(newResult)
+								//println(bstr)
+								binder.update(elem,
+									newResult,
+									args)
+							})
 						}
 					})(args)
 				} else {

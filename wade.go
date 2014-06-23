@@ -25,7 +25,12 @@ type Wade struct {
 	pm         *PageManager
 	binding    *binding
 	elemModels []interface{}
-	custags    map[string]interface{} //custom tags
+	custags    map[string]*CustomTag
+}
+
+type CustomTag struct {
+	meid  string //id of the model welement used to declare the tag content
+	model interface{}
 }
 
 type ErrorMap map[string]map[string]interface{}
@@ -55,9 +60,10 @@ func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
 	wd := &Wade{
 		pm:      newPageManager(startPage, basePath),
-		binding: newBindEngine(),
-		custags: make(map[string]interface{}),
+		binding: newBindEngine(nil),
+		custags: make(map[string]*CustomTag),
 	}
+	wd.binding.wade = wd
 	wd.Init()
 	initFn(wd)
 	return wd
@@ -83,34 +89,48 @@ func (wd *Wade) Init() {
 	wd.htmlImport(gJQ("body"), origin)
 }
 
+func (wd *Wade) modelForCustomElem(elem jq.JQuery) interface{} {
+	modelId := int(elem.Data("modelId").(float64))
+	return wd.elemModels[modelId]
+}
+
 func (wd *Wade) Start() {
 	gJQ(js.Global.Get("document")).Ready(func() {
 		pageHide(gJQ("wpage"))
 		wd.pm.getReady()
-		//for tagid, model := range wd.custags {
-		//	mtype := reflect.TypeOf(model)
-		//	if mtype.Kind() != reflect.Struct {
-		//		panic(fmt.Sprintf("Wrong type for the model of tag #%v, it must be a struct (non-pointer).", tagid))
-		//	}
-		//	wd.prepare(tagid, mtype)
-		//}
-
+		for _, tag := range wd.custags {
+			mtype := reflect.TypeOf(tag.model)
+			if mtype.Kind() != reflect.Struct {
+				panic(fmt.Sprintf("Wrong type for the model of tag #%v, it must be a struct (non-pointer).", tag.meid))
+			}
+			wd.prepareCustomTags(tag.meid, mtype)
+		}
 		wd.pm.bindPage(wd.binding)
-		//for tagid, _ := range wd.custags {
-		//	tagElem := gJQ("#" + tagid)
-		//	elems := gJQ(tagid)
-		//	elems.Each(func(i int, elem jq.JQuery) {
-		//		modelId := int(elem.Data("modelId").(float64))
-		//		elem.Append("<div>" + tagElem.Html() + "</div>")
-		//		gRivets.Call("bind", elem.Children("").First().Underlying(), wd.elemModels[modelId])
-		//	})
-		//}
+		for tagName, tag := range wd.custags {
+			tagElem := gJQ("#" + tag.meid)
+			elems := gJQ(tagName)
+			elems.Each(func(i int, elem jq.JQuery) {
+				elem.Append(tagElem.Html())
+				wd.binding.Bind(elem, wd.modelForCustomElem(elem))
+			})
+		}
 	})
 
 	gJQ("import").Show()
 }
 
-func (wd *Wade) prepare(tagid string, model reflect.Type) {
+func (wd *Wade) RegisterNewTag(tagid string, model interface{}) {
+	tagElem := gJQ("#" + tagid)
+	if tagElem.Length == 0 {
+		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
+	}
+	if tagElem.Prop("tagName") != "WELEMENT" {
+		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
+	}
+	wd.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, model}
+}
+
+func (wd *Wade) prepareCustomTags(tagid string, model reflect.Type) {
 	tagElem := gJQ("#" + tagid)
 	publicAttrs := []string{}
 	if attrs := tagElem.Attr("attributes"); attrs != "" {
@@ -118,16 +138,6 @@ func (wd *Wade) prepare(tagid string, model reflect.Type) {
 		for _, attr := range publicAttrs {
 			if _, ok := model.FieldByName(attr); !ok {
 				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tagid))
-			}
-		}
-	}
-
-	bindables := []string{}
-	if bdbs := tagElem.Attr("bindables"); bdbs != "" {
-		bindables = strings.Split(bdbs, " ")
-		for _, bdb := range bindables {
-			if _, ok := model.FieldByName(bdb); !ok {
-				panic(fmt.Sprintf(`Bindable "%v" is not available in the model for custom tag "%v".`, bdb, tagid))
 			}
 		}
 	}
@@ -142,7 +152,8 @@ func (wd *Wade) prepare(tagid string, model reflect.Type) {
 				var err error = nil
 				var v interface{}
 				ftype, _ := model.FieldByName(attr)
-				switch ftype.Type.Kind() {
+				kind := ftype.Type.Kind()
+				switch kind {
 				case reflect.Int:
 					v, err = strconv.Atoi(val)
 				case reflect.Uint:
@@ -158,7 +169,11 @@ func (wd *Wade) prepare(tagid string, model reflect.Type) {
 				case reflect.String:
 					v = val
 				default:
-					err = fmt.Errorf(`Unhandled type for attribute "%v" of custom tag "%v".`, attr, tagid)
+					if kind == reflect.Map {
+						v = reflect.MakeMap(ftype.Type)
+					}
+					err = fmt.Errorf(`Unhandled type "%v", cannot use normal html to set the attribute "%v" of custom tag "%v".
+consider using attribute binding instead.`, kind, attr, tagid)
 				}
 
 				if err != nil {
@@ -167,15 +182,6 @@ func (wd *Wade) prepare(tagid string, model reflect.Type) {
 				}
 
 				field.Set(reflect.ValueOf(v))
-			}
-		}
-
-		for _, bdb := range bindables {
-			f := clone.FieldByName(bdb)
-			ftyp, _ := model.FieldByName(bdb)
-			switch f.Type().Kind() {
-			case reflect.Map:
-				f.Set(reflect.MakeMap(ftyp.Type))
 			}
 		}
 
