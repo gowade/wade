@@ -54,7 +54,7 @@ The returned UserReg instance will be bound to the page, and for example within 
 
 The input field text will be bound/synchronized with the model's Data.Username field (that means, if the user changes input, the model field will change, if the model field is updated, the input element will be updated)
 
-The binding mechanism is heavily inspired by [rivets js](http://rivetsjs.com), you could read some of its docs for some understanding of the original idea.
+The binding mechanism is heavily inspired by [rivets js](http://rivetsjs.com), you could read its docs for some understanding of the original idea.
 
 #License
 
