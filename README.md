@@ -27,9 +27,9 @@ We define a custom element tag called "t-userinfo":
 It's considered a html tag with attributes `attr-Name` and `attr-Country` now, we can use it like this:
 
     <t-userinfo attr-Name="Hai Thanh Nguyen" attr-Country="Vietnam"></t-userinfo>
-Each custom element is bound to a specified model, which declares the datatype for attributes of that element. More on data binding below.
+Each custom element is bound to a unique model, which holds the datatype and value for attributes of that element. More on data binding below.
 
-##Binding
+##Data binding
 Wade has support for data binding between HTML and Go/Js model.
 For each page, a *page handler* could be registered with `wade.Pager().RegisterHandler`, which will be called every time the specified page loads to control the page. Each page handler could return a model, it binds to the whole page.
 For example:
@@ -52,9 +52,9 @@ The returned UserReg instance will be bound to the page, and for example within 
 
     Username: <input type="text" bind-value="Data.Username"/>
 
-The input field text will be bound/synchronized with the model's Data.Username field (specifically, if the user changes input, the model field changes, if the model field is updated, the input element is changed.
+The input field text will be bound/synchronized with the model's Data.Username field (that means, if the user changes input, the model field will change, if the model field is updated, the input element will be updated)
 
-The binding mechanism is heavily influenced by [RivetsJs](http://rivetsjs.com), you could read some of its docs to gain more understanding.
+The binding mechanism is heavily inspired by [rivets js](http://rivetsjs.com), you could read its docs for some understanding of the original idea.
 
 #License
 
