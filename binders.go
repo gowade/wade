@@ -1,6 +1,7 @@
 package wade
 
 import (
+	"fmt"
 	"reflect"
 
 	jq "github.com/gopherjs/jquery"
@@ -59,6 +60,30 @@ func eventBindFn(elem jq.JQuery, value interface{}, args, outputs []string) {
 	elem.On(args[0], value)
 }
 
-//func eachBindFn(elem jq.JQuery, value interface{}, args, outputs []string) {
+func eachBindFn(elem jq.JQuery, collection interface{}, args, outputs []string) {
+	cv := reflect.ValueOf(collection)
+	ki := cv.Type().Kind()
+	var indexFn func(i int) reflect.Value
+	var keys []reflect.Value
+	switch ki {
+	case reflect.Slice:
+		indexFn = func(i int) reflect.Value {
+			return cv.Index(i)
+		}
+	case reflect.Map:
+		keys = cv.MapKeys()
+		indexFn = func(i int) reflect.Value {
+			return cv.MapIndex(keys[i])
+		}
+	default:
+		panic(fmt.Sprintf("Wrong kind %v of target for the each binder, must be a slice or map.", ki.String()))
+	}
 
-//}
+	cl := elem.Clone()
+	cl.RemoveAttr(BindPrefix + "each")
+	marker := elem.Before("<!-- wade each -->")
+	for i := 0; i < cv.Len(); i++ {
+		v := indexFn(i)
+		cl.Clone()
+	}
+}
