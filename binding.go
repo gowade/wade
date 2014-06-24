@@ -342,14 +342,6 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 					}
 					roote, binds, v := b.evaluateBindString(value, model)
 
-					//if tModel == nil {
-					//	tModelm[field] = v
-					//	(func(field string) {
-					//		b.watch(binds, roote, model, func(newResult interface{}) {
-					//			tModelm[field] = newResult
-					//		})
-					//	})(field)
-					//} else {
 					tModel := b.wade.modelForCustomElem(elem)
 					oe, err := evaluateObj(field, tModel)
 					if err != nil {
@@ -403,8 +395,6 @@ Consider using a one-way binder instead or use only 1 argument object in the bin
 						if binder.update != nil {
 							binder.update(elem, v, args)
 							b.watch(binds, roote, model, func(newResult interface{}) {
-								//println(newResult)
-								//println(bstr)
 								binder.update(elem,
 									newResult,
 									args)

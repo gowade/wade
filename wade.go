@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	gHistory js.Object
-	gJQ      = jq.NewJQuery
+	gHistory    js.Object
+	gJQ         = jq.NewJQuery
+	WadeDevMode = true
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 
 type Wade struct {
 	pm         *PageManager
+	tcontainer jq.JQuery
 	binding    *binding
 	elemModels []interface{}
 	custags    map[string]*CustomTag
@@ -56,12 +58,22 @@ func (v *Validated) Init(dataModel interface{}) {
 	v.Errors = m
 }
 
-func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
+func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
+	origin := js.Global.Get("document").Get("location").Get("origin").Str()
+	tempContainer := gJQ("script[type='text/wadin']#" + tempcontainer)
+	if tempContainer.Length == 0 {
+		panic(fmt.Sprintf("Template container #%v not found or is wrong kind of element, must be script[type='text/wadin'].",
+			tempContainer))
+	}
+	xml := js.Global.Get(jq.JQ).Call("parseXML", "<root>"+tempContainer.Html()+"</root>")
+	tempElem := gJQ(xml)
+	htmlImport(tempElem, origin)
 	wd := &Wade{
-		pm:      newPageManager(startPage, basePath),
-		binding: newBindEngine(nil),
-		custags: make(map[string]*CustomTag),
+		pm:         newPageManager(startPage, basePath, container, tempElem),
+		binding:    newBindEngine(nil),
+		custags:    make(map[string]*CustomTag),
+		tcontainer: tempElem,
 	}
 	wd.binding.wade = wd
 	wd.Init()
@@ -73,20 +85,17 @@ func (wd *Wade) Pager() *PageManager {
 	return wd.pm
 }
 
-func (wd *Wade) htmlImport(parent jq.JQuery, origin string) {
-	parent.Find("import").Each(func(i int, elem jq.JQuery) {
+func htmlImport(parent jq.JQuery, origin string) {
+	parent.Find("wimport").Each(func(i int, elem jq.JQuery) {
 		src := elem.Attr("src")
 		req := http.NewRequest(http.MethodGet, origin+src)
 		html := req.DoSync()
-		elem.Hide()
 		elem.Append(html)
-		wd.htmlImport(elem, origin)
+		htmlImport(elem, origin)
 	})
 }
 
 func (wd *Wade) Init() {
-	origin := js.Global.Get("document").Get("location").Get("origin").Str()
-	wd.htmlImport(gJQ("body"), origin)
 }
 
 func (wd *Wade) modelForCustomElem(elem jq.JQuery) interface{} {
@@ -96,7 +105,6 @@ func (wd *Wade) modelForCustomElem(elem jq.JQuery) interface{} {
 
 func (wd *Wade) Start() {
 	gJQ(js.Global.Get("document")).Ready(func() {
-		pageHide(gJQ("wpage"))
 		wd.pm.getReady()
 		for _, tag := range wd.custags {
 			mtype := reflect.TypeOf(tag.model)
@@ -107,7 +115,7 @@ func (wd *Wade) Start() {
 		}
 		wd.pm.bindPage(wd.binding)
 		for tagName, tag := range wd.custags {
-			tagElem := gJQ("#" + tag.meid)
+			tagElem := wd.tcontainer.Find("#" + tag.meid)
 			elems := gJQ(tagName)
 			elems.Each(func(i int, elem jq.JQuery) {
 				elem.Append(tagElem.Html())
@@ -115,23 +123,21 @@ func (wd *Wade) Start() {
 			})
 		}
 	})
-
-	gJQ("import").Show()
 }
 
 func (wd *Wade) RegisterNewTag(tagid string, model interface{}) {
-	tagElem := gJQ("#" + tagid)
+	tagElem := wd.tcontainer.Find("#" + tagid)
 	if tagElem.Length == 0 {
 		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
 	}
-	if tagElem.Prop("tagName") != "WELEMENT" {
+	if !tagElem.Is("welement") {
 		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
 	}
 	wd.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, model}
 }
 
 func (wd *Wade) prepareCustomTags(tagid string, model reflect.Type) {
-	tagElem := gJQ("#" + tagid)
+	tagElem := wd.tcontainer.Find("#" + tagid)
 	publicAttrs := []string{}
 	if attrs := tagElem.Attr("attributes"); attrs != "" {
 		publicAttrs = strings.Split(attrs, " ")
