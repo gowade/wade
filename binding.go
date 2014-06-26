@@ -286,18 +286,20 @@ func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	}, nil
 }
 
+var iii int = 0
+
 func (b *binding) watch(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
 	for _, expr := range binds {
 		//use watchjs to watch for changes to the model
+		//println(js.InternalObject(expr.eval.modelRefl.Interface()))
 		(func(expr *Expr) {
 			js.Global.Call("watch",
-				expr.eval.modelRefl.Interface(),
+				js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val"),
 				expr.eval.field,
 				func(prop string, action string,
 					newVal interface{},
 					oldVal js.Object) {
-
-					expr.eval.fieldRefl.Set(reflect.ValueOf(newVal))
+					newVal = expr.eval.fieldRefl.Interface()
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
 				})
