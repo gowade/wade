@@ -3,8 +3,6 @@ package wade
 import (
 	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
@@ -24,15 +22,9 @@ const (
 
 type Wade struct {
 	pm         *PageManager
+	tm         *CustagMan
 	tcontainer jq.JQuery
 	binding    *binding
-	elemModels []interface{}
-	custags    map[string]*CustomTag
-}
-
-type CustomTag struct {
-	meid  string //id of the model welement used to declare the tag content
-	model interface{}
 }
 
 type ErrorMap map[string]map[string]interface{}
@@ -67,15 +59,16 @@ func WadeUp(startPage, basePath string, tempcontainer, container string, initFn 
 			tempContainer))
 	}
 	xml := js.Global.Get(jq.JQ).Call("parseXML", "<root>"+tempContainer.Html()+"</root>")
-	tempElem := gJQ(xml)
-	htmlImport(tempElem, origin)
+	tElem := gJQ(xml)
+	htmlImport(tElem, origin)
+	tm := newCustagMan(tElem)
+	binding := newBindEngine(tm)
 	wd := &Wade{
-		pm:         newPageManager(startPage, basePath, container, tempElem),
-		binding:    newBindEngine(nil),
-		custags:    make(map[string]*CustomTag),
-		tcontainer: tempElem,
+		pm:         newPageManager(startPage, basePath, container, tElem, binding, tm),
+		tm:         tm,
+		binding:    binding,
+		tcontainer: tElem,
 	}
-	wd.binding.wade = wd
 	wd.Init()
 	initFn(wd)
 	return wd
@@ -83,6 +76,10 @@ func WadeUp(startPage, basePath string, tempcontainer, container string, initFn 
 
 func (wd *Wade) Pager() *PageManager {
 	return wd.pm
+}
+
+func (wd *Wade) Custags() *CustagMan {
+	return wd.tm
 }
 
 func htmlImport(parent jq.JQuery, origin string) {
@@ -98,100 +95,9 @@ func htmlImport(parent jq.JQuery, origin string) {
 func (wd *Wade) Init() {
 }
 
-func (wd *Wade) modelForCustomElem(elem jq.JQuery) interface{} {
-	modelId := int(elem.Data("modelId").(float64))
-	return wd.elemModels[modelId]
-}
-
 func (wd *Wade) Start() {
 	gJQ(js.Global.Get("document")).Ready(func() {
+		wd.tm.prepare()
 		wd.pm.getReady()
-		for _, tag := range wd.custags {
-			mtype := reflect.TypeOf(tag.model)
-			if mtype.Kind() != reflect.Struct {
-				panic(fmt.Sprintf("Wrong type for the model of tag #%v, it must be a struct (non-pointer).", tag.meid))
-			}
-			wd.prepareCustomTags(tag.meid, mtype)
-		}
-		wd.pm.bindPage(wd.binding)
-		for tagName, tag := range wd.custags {
-			tagElem := wd.tcontainer.Find("#" + tag.meid)
-			elems := gJQ(tagName)
-			elems.Each(func(i int, elem jq.JQuery) {
-				elem.Append(tagElem.Html())
-				wd.binding.Bind(elem, wd.modelForCustomElem(elem))
-			})
-		}
-	})
-}
-
-func (wd *Wade) RegisterNewTag(tagid string, model interface{}) {
-	tagElem := wd.tcontainer.Find("#" + tagid)
-	if tagElem.Length == 0 {
-		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
-	}
-	if !tagElem.Is("welement") {
-		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
-	}
-	wd.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, model}
-}
-
-func (wd *Wade) prepareCustomTags(tagid string, model reflect.Type) {
-	tagElem := wd.tcontainer.Find("#" + tagid)
-	publicAttrs := []string{}
-	if attrs := tagElem.Attr("attributes"); attrs != "" {
-		publicAttrs = strings.Split(attrs, " ")
-		for _, attr := range publicAttrs {
-			if _, ok := model.FieldByName(attr); !ok {
-				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tagid))
-			}
-		}
-	}
-
-	elems := gJQ(tagid)
-	elems.Each(func(idx int, elem jq.JQuery) {
-		cptr := reflect.New(model)
-		clone := cptr.Elem()
-		for _, attr := range publicAttrs {
-			if val := elem.Attr(AttrPrefix + attr); val != "" {
-				field := clone.FieldByName(attr)
-				var err error = nil
-				var v interface{}
-				ftype, _ := model.FieldByName(attr)
-				kind := ftype.Type.Kind()
-				switch kind {
-				case reflect.Int:
-					v, err = strconv.Atoi(val)
-				case reflect.Uint:
-					var m uint32
-					var n uint64
-					n, err = strconv.ParseUint(val, 10, 32)
-					m = uint32(n)
-					v = m
-				case reflect.Float32:
-					v, err = strconv.ParseFloat(val, 32)
-				case reflect.Bool:
-					v, err = strconv.ParseBool(val)
-				case reflect.String:
-					v = val
-				default:
-					if kind == reflect.Map {
-						v = reflect.MakeMap(ftype.Type)
-					}
-					err = fmt.Errorf(`Unhandled type "%v", cannot use normal html to set the attribute "%v" of custom tag "%v".
-consider using attribute binding instead.`, kind, attr, tagid)
-				}
-
-				if err != nil {
-					panic(fmt.Sprintf(`Invalid value "%v" for attribute "%v" of custom tag "%v": type mismatch. Parse info: %v.`,
-						val, attr, tagid, err))
-				}
-
-				field.Set(reflect.ValueOf(v))
-			}
-		}
-
-		wd.elemModels = append(wd.elemModels, cptr.Interface())
-		elem.SetData("modelId", len(wd.elemModels)-1)
 	})
 }

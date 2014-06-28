@@ -2,6 +2,7 @@ package wade
 
 import (
 	"reflect"
+	"strings"
 
 	jq "github.com/gopherjs/jquery"
 )
@@ -35,7 +36,7 @@ func valueUpdateFn(elem jq.JQuery, value interface{}, args []string) {
 }
 
 func valueWatchFn(elem jq.JQuery, ufn ModelUpdateFn) {
-	tagname := elem.Prop("tagName")
+	tagname := strings.ToUpper(elem.Prop("tagName").(string))
 	if tagname != "INPUT" && tagname != "TEXTAREA" && tagname != "SELECT" {
 		panic("Can only watch for changes on html input, textarea and select.")
 	}

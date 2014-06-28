@@ -26,11 +26,14 @@ type PageManager struct {
 	pages           map[string]pageInfo
 	notFoundPage    string
 	container       jq.JQuery
-	tempElem        jq.JQuery
+	tcontainer      jq.JQuery
+	binding         *binding
+	tm              *CustagMan
 	//pageModels   []js.Object
 }
 
-func newPageManager(startPage, basePath string, container string, tempElem jq.JQuery) *PageManager {
+func newPageManager(startPage, basePath string, container string,
+	tcontainer jq.JQuery, binding *binding, tm *CustagMan) *PageManager {
 	return &PageManager{
 		router:          js.Global.Get("RouteRecognizer").New(),
 		currentPage:     "",
@@ -41,7 +44,9 @@ func newPageManager(startPage, basePath string, container string, tempElem jq.JQ
 		pages:           make(map[string]pageInfo),
 		notFoundPage:    "",
 		container:       gJQ("#" + container),
-		tempElem:        tempElem,
+		tcontainer:      tcontainer,
+		binding:         binding,
+		tm:              tm,
 		//pageModels:   make([]js.Object, 0),
 	}
 }
@@ -108,7 +113,7 @@ func (pm *PageManager) getReady() {
 		panic(fmt.Sprintf("Cannot find the page container #%v.", pm.container))
 	}
 
-	pm.tempElem.Find("a").Each(func(idx int, a jq.JQuery) {
+	pm.tcontainer.Find("a").Each(func(idx int, a jq.JQuery) {
 		href := a.Attr("href")
 		if strings.HasPrefix(href, ":") {
 			pageId := string([]rune(href)[1:])
@@ -138,7 +143,7 @@ func (pm *PageManager) updatePage(url string) {
 
 	pageId := matches.Index(0).Get("handler").Invoke().Str()
 
-	pageElem := elemForPage(pm.tempElem, pageId)
+	pageElem := elemForPage(pm.tcontainer, pageId)
 	gJQ("title").SetText(pm.page(pageId).title)
 	if pm.currentPage != pageId {
 		jqparents := pageElem.Parents("wpage")
@@ -149,21 +154,32 @@ func (pm *PageManager) updatePage(url string) {
 			parents[i] = jqparents.Eq(leng - i - 1)
 			clone := gJQ(parents[i].Get(0).Call("cloneNode"))
 			resultElems[i] = clone
-			if i > 0 {
+			if i == 0 {
+				c := pm.container.Children("*")
+				if c.Length > 1 {
+					panic("Page container should only have 1 child element. Something is wrong?")
+				}
+				if c.Length == 0 {
+					pm.container.Append(resultElems[0])
+				} else {
+					c.First().ReplaceWith(resultElems[0])
+				}
+			} else {
 				resultElems[i-1].Append(clone)
 			}
 		}
+
 		parents[leng] = pageElem
 		for i := leng - 1; i >= 0; i-- {
 			p := parents[i]
 			p.Children("*").Each(func(_ int, e jq.JQuery) {
 				if !e.Is("wpage") || e.Is(parents[i+1].Get(0)) {
-					resultElems[i].Append(e.Clone())
+					resultElems[i].Append(e.Get(0).Get("outerHTML"))
 				}
 			})
 		}
 
-		pm.container.SetHtml(resultElems[0].Html())
+		pm.currentPage = pageId
 
 		//Rebind link events
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
@@ -181,11 +197,12 @@ func (pm *PageManager) updatePage(url string) {
 			pm.updatePage(pageInf.path)
 		})
 
-		pm.currentPage = pageId
+		pm.bind()
 	}
 }
 
-func (pm *PageManager) bindPage(b *binding) {
+func (pm *PageManager) bind() {
+	pageElem := elemForPage(pm.container, pm.currentPage)
 	if handlers, ok := pm.pageHandlers[pm.currentPage]; ok {
 		for _, handler := range handlers {
 			handler()
@@ -193,7 +210,16 @@ func (pm *PageManager) bindPage(b *binding) {
 	}
 	if controller, exist := pm.pageControllers[pm.currentPage]; exist {
 		model := controller()
-		b.Bind(elemForPage(pm.container, pm.currentPage), model)
+		pm.binding.Bind(pageElem, model)
+	}
+
+	for tagName, tag := range pm.tm.custags {
+		tagElem := pm.tcontainer.Find("#" + tag.meid)
+		elems := pageElem.Find(tagName)
+		elems.Each(func(i int, elem jq.JQuery) {
+			elem.Append(tagElem.Html())
+			pm.binding.Bind(elem, pm.tm.modelForElem(elem))
+		})
 	}
 }
 
@@ -216,7 +242,7 @@ func (pm *PageManager) RegisterPages(pages map[string]string) {
 		if _, exist := pm.pages[pageId]; exist {
 			panic(fmt.Sprintf("Page #%v has already been registered.", pageId))
 		}
-		pageElem := pm.tempElem.Find("#" + pageId)
+		pageElem := pm.tcontainer.Find("#" + pageId)
 		if pageElem.Length == 0 {
 			panic(fmt.Sprintf("There is no such page element #%v.", pageId))
 		}

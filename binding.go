@@ -23,14 +23,14 @@ type DomBinder struct {
 }
 
 type binding struct {
-	wade       *Wade
+	tm         *CustagMan
 	domBinders map[string]DomBinder
 	helpers    map[string]interface{}
 }
 
-func newBindEngine(wade *Wade) *binding {
+func newBindEngine(tm *CustagMan) *binding {
 	return &binding{
-		wade:       wade,
+		tm:         tm,
 		domBinders: defaultBinders(),
 		helpers:    defaultHelpers(),
 	}
@@ -314,7 +314,7 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 	}
 
 	relem.Find("*").Each(func(i int, elem jq.JQuery) {
-		_, isCustag := b.wade.custags[elem.Prop("tagName").(string)]
+		isCustag := b.tm.IsCustomElem(elem)
 
 		attrs := elem.Get(0).Get("attributes")
 		for i := 0; i < attrs.Length(); i++ {
@@ -344,7 +344,7 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 					}
 					roote, binds, v := b.evaluateBindString(value, model)
 
-					tModel := b.wade.modelForCustomElem(elem)
+					tModel := b.tm.modelForElem(elem)
 					oe, err := evaluateObj(field, tModel)
 					if err != nil {
 						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
