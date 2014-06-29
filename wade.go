@@ -24,7 +24,7 @@ type Wade struct {
 	pm         *PageManager
 	tm         *CustagMan
 	tcontainer jq.JQuery
-	binding    *binding
+	binding    *Binding
 }
 
 type ErrorMap map[string]map[string]interface{}
@@ -58,8 +58,8 @@ func WadeUp(startPage, basePath string, tempcontainer, container string, initFn 
 		panic(fmt.Sprintf("Template container #%v not found or is wrong kind of element, must be script[type='text/wadin'].",
 			tempContainer))
 	}
-	xml := js.Global.Get(jq.JQ).Call("parseXML", "<root>"+tempContainer.Html()+"</root>")
-	tElem := gJQ(xml)
+	html := js.Global.Get(jq.JQ).Call("parseHTML", "<div>"+tempContainer.Html()+"</div>")
+	tElem := gJQ(html)
 	htmlImport(tElem, origin)
 	tm := newCustagMan(tElem)
 	binding := newBindEngine(tm)

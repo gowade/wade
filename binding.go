@@ -11,25 +11,23 @@ import (
 	jq "github.com/gopherjs/jquery"
 )
 
-type UpdateDomFn func(elem jq.JQuery, value interface{}, arg []string)
-type BindDomFn func(elem jq.JQuery, value interface{}, arg, outputs []string)
 type ModelUpdateFn func(value string)
-type WatchDomFn func(elem jq.JQuery, updateFn ModelUpdateFn)
 
-type DomBinder struct {
-	update UpdateDomFn
-	watch  WatchDomFn
-	bind   BindDomFn
+type DomBinder interface {
+	Update(elem jq.JQuery, value interface{}, arg, outputs []string)
+	Bind(b *Binding, elem jq.JQuery, value interface{}, arg, outputs []string)
+	Watch(elem jq.JQuery, updateFn ModelUpdateFn)
+	BindInstance() DomBinder
 }
 
-type binding struct {
+type Binding struct {
 	tm         *CustagMan
 	domBinders map[string]DomBinder
 	helpers    map[string]interface{}
 }
 
-func newBindEngine(tm *CustagMan) *binding {
-	return &binding{
+func newBindEngine(tm *CustagMan) *Binding {
+	return &Binding{
 		tm:         tm,
 		domBinders: defaultBinders(),
 		helpers:    defaultHelpers(),
@@ -53,11 +51,11 @@ func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
 	case reflect.Map:
 		rv = o.MapIndex(reflect.ValueOf(field))
 	default:
-		return rv, fmt.Errorf("Unhandled type for accessing %v", field)
+		return rv, fmt.Errorf(`Unhandled type for accessing "%v"`, field)
 	}
 
 	if !rv.IsValid() {
-		return rv, fmt.Errorf("No such field %v", field)
+		return rv, fmt.Errorf(`No such field "%v" in %+v`, field, o.Interface())
 	}
 
 	//if !rv.CanSet() {
@@ -196,7 +194,7 @@ type ObjEval struct {
 
 //evaluateRec recursively evaluates the parsed expressions and return the result value, it also
 //populates the tree of Expr with the value evaluated with evaluateObj if not available
-func (b *binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
+func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
 	err = nil
 	if len(expr.args) == 0 {
 		if expr.eval == nil {
@@ -215,7 +213,6 @@ func (b *binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 			args[i], err = b.evaluateRec(e, model)
 		}
 		if reflect.TypeOf(helper).NumIn() != len(args) {
-			println()
 			err = fmt.Errorf(`Invalid number of arguments to helper "%v"`, expr.name)
 			return
 		}
@@ -232,7 +229,7 @@ func bindStringPanic(mess, bindstring string) {
 }
 
 //evaluateBindstring evaluates the bind string, returns the needed information for binding
-func (b *binding) evaluateBindString(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
+func (b *Binding) evaluateBindString(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
 	var err error
 	root, err = parse(spec)
 	if err != nil {
@@ -288,13 +285,19 @@ func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 
 var iii int = 0
 
-func (b *binding) watch(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
+func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
 	for _, expr := range binds {
 		//use watchjs to watch for changes to the model
 		//println(js.InternalObject(expr.eval.modelRefl.Interface()))
 		(func(expr *Expr) {
+			obj := js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val")
+			//workaround for gopherjs's protection disallowing js access to maps
+			hopfn := obj.Get("hasOwnProperty")
+			obj.Set("hasOwnProperty", func(prop string) bool {
+				return true
+			})
 			js.Global.Call("watch",
-				js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val"),
+				obj,
 				expr.eval.field,
 				func(prop string, action string,
 					newVal interface{},
@@ -303,18 +306,20 @@ func (b *binding) watch(binds []*Expr, root *Expr, model interface{}, callback f
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
 				})
+			obj.Set("hasOwnProperty", hopfn)
 		})(expr)
 	}
 }
 
 //bind parses the bind string, binds the element with a model
-func (b *binding) Bind(relem jq.JQuery, model interface{}) {
+func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
 
-	relem.Find("*").Each(func(i int, elem jq.JQuery) {
+	relem.Children("*").Each(func(i int, elem jq.JQuery) {
 		isCustag := b.tm.IsCustomElem(elem)
+		//println(elem.Html())
 
 		attrs := elem.Get(0).Get("attributes")
 		for i := 0; i < attrs.Length(); i++ {
@@ -323,7 +328,7 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 			bstr := attr.Get("value").Str()
 			if name == "bind" { //attribute binding
 				if !isCustag {
-					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
+					panic(fmt.Sprintf("Attribute binding syntax can only be used for registered custom elements."))
 				}
 				fbinds := strings.Split(bstr, ";")
 
@@ -342,6 +347,7 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 							bindStringPanic(fmt.Sprintf("invalid character %v", c), field)
 						}
 					}
+
 					roote, binds, v := b.evaluateBindString(value, model)
 
 					tModel := b.tm.modelForElem(elem)
@@ -350,12 +356,16 @@ func (b *binding) Bind(relem jq.JQuery, model interface{}) {
 						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
 					}
 					oe.fieldRefl.Set(reflect.ValueOf(v))
-					b.watch(binds, roote, model, func(newResult interface{}) {
-						oe.fieldRefl.Set(reflect.ValueOf(newResult))
-					})
-					//}
+					if !once {
+						b.watchModel(binds, roote, model, func(newResult interface{}) {
+							oe.fieldRefl.Set(reflect.ValueOf(newResult))
+						})
+					}
 				}
-			} else if strings.HasPrefix(name, BindPrefix) { //dom binding
+
+				return
+			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
+				elem.Parents("html").Length != 0 { //element still exists
 				if isCustag {
 					panic(`Dom binding is not allowed for custom element tags (they should not actually be rendered
 , so there's no point; but of course inside the custom element's contents it's allowed normally).
@@ -367,6 +377,7 @@ If you want to bind the attributes of a custom element, use the field binding sy
 					panic(`Illegal "bind-".`)
 				}
 				if binder, ok := b.domBinders[parts[1]]; ok {
+					binder = binder.BindInstance()
 					args := make([]string, 0)
 					if len(parts) >= 2 {
 						for _, part := range parts[2:] {
@@ -374,15 +385,28 @@ If you want to bind the attributes of a custom element, use the field binding sy
 						}
 					}
 
-					roote, binds, v := b.evaluateBindString(bstr, model)
-
-					if binder.watch != nil {
-						if len(binds) > 1 {
-							panic(`Cannot use two-way data binding with multiple bound objects, it's illogical.
-Consider using a one-way binder instead or use only 1 argument object in the bind string.`)
+					parts := strings.Split(bstr, "->")
+					var bexpr string
+					outputs := make([]string, 0)
+					if len(parts) == 1 {
+						bexpr = bstr
+					} else {
+						bexpr = strings.TrimSpace(parts[0])
+						outputs = strings.Split(parts[1], ",")
+						for i, ostr := range outputs {
+							outputs[i] = strings.TrimSpace(ostr)
+							for _, c := range outputs[i] {
+								if !isValidExprChar(c) {
+									bindStringPanic(fmt.Sprintf("invalid character %v", c), outputs[i])
+								}
+							}
 						}
+					}
+					roote, binds, v := b.evaluateBindString(bexpr, model)
+
+					if len(binds) == 1 {
 						fmodel := binds[0].eval.fieldRefl
-						binder.watch(elem, func(newVal string) {
+						binder.Watch(elem, func(newVal string) {
 							if !fmodel.CanSet() {
 								panic("Cannot set field.")
 							}
@@ -390,23 +414,27 @@ Consider using a one-way binder instead or use only 1 argument object in the bin
 						})
 					}
 
-					(func(args []string) {
-						if binder.bind != nil {
-							binder.bind(elem, v, args, make([]string, 0))
-						}
-						if binder.update != nil {
-							binder.update(elem, v, args)
-							b.watch(binds, roote, model, func(newResult interface{}) {
-								binder.update(elem,
+					(func(args, outputs []string) {
+						binder.Bind(b, elem, v, args, outputs)
+						binder.Update(elem, v, args, outputs)
+						if !once {
+							b.watchModel(binds, roote, model, func(newResult interface{}) {
+								binder.Update(elem,
 									newResult,
-									args)
+									args, outputs)
 							})
 						}
-					})(args)
+					})(args, outputs)
 				} else {
 					panic(fmt.Sprintf(`Dom binder "%v" does not exist.`, binder))
 				}
+
+				//prevent processing again
+				elem.RemoveAttr(name)
+				elem.SetAttr("bound"+string([]rune(name)[4:]), bstr)
 			}
+
 		}
+		b.Bind(elem, model, once)
 	})
 }

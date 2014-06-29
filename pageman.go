@@ -27,13 +27,13 @@ type PageManager struct {
 	notFoundPage    string
 	container       jq.JQuery
 	tcontainer      jq.JQuery
-	binding         *binding
+	binding         *Binding
 	tm              *CustagMan
 	//pageModels   []js.Object
 }
 
 func newPageManager(startPage, basePath string, container string,
-	tcontainer jq.JQuery, binding *binding, tm *CustagMan) *PageManager {
+	tcontainer jq.JQuery, binding *Binding, tm *CustagMan) *PageManager {
 	return &PageManager{
 		router:          js.Global.Get("RouteRecognizer").New(),
 		currentPage:     "",
@@ -210,7 +210,7 @@ func (pm *PageManager) bind() {
 	}
 	if controller, exist := pm.pageControllers[pm.currentPage]; exist {
 		model := controller()
-		pm.binding.Bind(pageElem, model)
+		pm.binding.Bind(pageElem, model, false)
 	}
 
 	for tagName, tag := range pm.tm.custags {
@@ -218,7 +218,7 @@ func (pm *PageManager) bind() {
 		elems := pageElem.Find(tagName)
 		elems.Each(func(i int, elem jq.JQuery) {
 			elem.Append(tagElem.Html())
-			pm.binding.Bind(elem, pm.tm.modelForElem(elem))
+			pm.binding.Bind(elem, pm.tm.modelForElem(elem), false)
 		})
 	}
 }
