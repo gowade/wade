@@ -12,6 +12,7 @@ func defaultBinders() map[string]DomBinder {
 	return map[string]DomBinder{
 		"value": &ValueBinder{},
 		"html":  &HtmlBinder{},
+		"attr":  &AttrBinder{},
 		"on":    &EventBinder{},
 		"each":  new(EachBinder),
 	}
@@ -49,6 +50,20 @@ func (b *HtmlBinder) Update(elem jq.JQuery, value interface{}, args, outputs []s
 }
 func (b *HtmlBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
 func (b *HtmlBinder) BindInstance() DomBinder                 { return b }
+
+type AttrBinder struct{}
+
+func (b *AttrBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
+}
+func (b *AttrBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
+	if len(args) != 1 {
+		panic(fmt.Sprintf(`Incorrect number of args %v for html attribute binder.
+Usage: bind-attr-the_attr_name=the_attr_value.`, len(args)))
+	}
+	elem.SetAttr(args[0], toString(value))
+}
+func (b *AttrBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
+func (b *AttrBinder) BindInstance() DomBinder                 { return b }
 
 type EventBinder struct{}
 

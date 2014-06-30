@@ -309,6 +309,69 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 	}
 }
 
+func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interface{}, once bool) {
+	parts := strings.Split(astr, "-")
+	if len(parts) <= 1 {
+		panic(`Illegal "bind-".`)
+	}
+	if binder, ok := b.domBinders[parts[1]]; ok {
+		binder = binder.BindInstance()
+		args := make([]string, 0)
+		if len(parts) >= 2 {
+			for _, part := range parts[2:] {
+				args = append(args, part)
+			}
+		}
+
+		parts := strings.Split(bstr, "->")
+		var bexpr string
+		outputs := make([]string, 0)
+		if len(parts) == 1 {
+			bexpr = bstr
+		} else {
+			bexpr = strings.TrimSpace(parts[0])
+			outputs = strings.Split(parts[1], ",")
+			for i, ostr := range outputs {
+				outputs[i] = strings.TrimSpace(ostr)
+				for _, c := range outputs[i] {
+					if !isValidExprChar(c) {
+						bindStringPanic(fmt.Sprintf("invalid character %v", c), outputs[i])
+					}
+				}
+			}
+		}
+		roote, binds, v := b.evaluateBindString(bexpr, model)
+
+		if len(binds) == 1 {
+			fmodel := binds[0].eval.fieldRefl
+			binder.Watch(elem, func(newVal string) {
+				if !fmodel.CanSet() {
+					panic("Cannot set field.")
+				}
+				fmodel.Set(reflect.ValueOf(newVal))
+			})
+		}
+
+		(func(args, outputs []string) {
+			binder.Bind(b, elem, v, args, outputs)
+			binder.Update(elem, v, args, outputs)
+			if !once {
+				b.watchModel(binds, roote, model, func(newResult interface{}) {
+					binder.Update(elem,
+						newResult,
+						args, outputs)
+				})
+			}
+		})(args, outputs)
+	} else {
+		panic(fmt.Sprintf(`Dom binder "%v" does not exist.`, parts[1]))
+	}
+
+	//prevent processing again
+	elem.RemoveAttr(astr)
+	elem.SetAttr("bound"+string([]rune(astr)[4:]), bstr)
+}
+
 //bind parses the bind string, binds the element with a model
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 	if relem.Length == 0 {
@@ -317,13 +380,14 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 
 	relem.Children("*").Each(func(i int, elem jq.JQuery) {
 		isCustag := b.tm.IsCustomElem(elem)
-		//println(elem.Html())
 
-		attrs := elem.Get(0).Get("attributes")
-		for i := 0; i < attrs.Length(); i++ {
-			attr := attrs.Index(i)
-			name := attr.Get("name").Str()
-			bstr := attr.Get("value").Str()
+		htmla := elem.Get(0).Get("attributes")
+		attrs := make(map[string]string)
+		for i := 0; i < htmla.Length(); i++ {
+			attr := htmla.Index(i)
+			attrs[attr.Get("name").Str()] = attr.Get("value").Str()
+		}
+		for name, bstr := range attrs {
 			if name == "bind" { //attribute binding
 				if !isCustag {
 					panic(fmt.Sprintf("Attribute binding syntax can only be used for registered custom elements."))
@@ -363,77 +427,16 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 					}
 				}
 
-				return
+				continue
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
 				elem.Parents("html").Length != 0 { //element still exists
 				if isCustag {
 					panic(`Dom binding is not allowed for custom element tags (they should not actually be rendered
-, so there's no point; but of course inside the custom element's contents it's allowed normally).
-If you want to bind the attributes of a custom element, use the field binding syntax instead.`)
+			, so there's no point; but of course inside the custom element's contents it's allowed normally).
+			If you want to bind the attributes of a custom element, use the field binding syntax instead.`)
 				}
-
-				parts := strings.Split(name, "-")
-				if len(parts) <= 1 {
-					panic(`Illegal "bind-".`)
-				}
-				if binder, ok := b.domBinders[parts[1]]; ok {
-					binder = binder.BindInstance()
-					args := make([]string, 0)
-					if len(parts) >= 2 {
-						for _, part := range parts[2:] {
-							args = append(args, part)
-						}
-					}
-
-					parts := strings.Split(bstr, "->")
-					var bexpr string
-					outputs := make([]string, 0)
-					if len(parts) == 1 {
-						bexpr = bstr
-					} else {
-						bexpr = strings.TrimSpace(parts[0])
-						outputs = strings.Split(parts[1], ",")
-						for i, ostr := range outputs {
-							outputs[i] = strings.TrimSpace(ostr)
-							for _, c := range outputs[i] {
-								if !isValidExprChar(c) {
-									bindStringPanic(fmt.Sprintf("invalid character %v", c), outputs[i])
-								}
-							}
-						}
-					}
-					roote, binds, v := b.evaluateBindString(bexpr, model)
-
-					if len(binds) == 1 {
-						fmodel := binds[0].eval.fieldRefl
-						binder.Watch(elem, func(newVal string) {
-							if !fmodel.CanSet() {
-								panic("Cannot set field.")
-							}
-							fmodel.Set(reflect.ValueOf(newVal))
-						})
-					}
-
-					(func(args, outputs []string) {
-						binder.Bind(b, elem, v, args, outputs)
-						binder.Update(elem, v, args, outputs)
-						if !once {
-							b.watchModel(binds, roote, model, func(newResult interface{}) {
-								binder.Update(elem,
-									newResult,
-									args, outputs)
-							})
-						}
-					})(args, outputs)
-				} else {
-					panic(fmt.Sprintf(`Dom binder "%v" does not exist.`, binder))
-				}
-
-				//prevent processing again
-				elem.RemoveAttr(name)
-				elem.SetAttr("bound"+string([]rune(name)[4:]), bstr)
+				b.processDomBind(name, bstr, elem, model, once)
 			}
-
 		}
 		b.Bind(elem, model, once)
 	})
