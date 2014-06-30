@@ -101,7 +101,6 @@ func (b *EachBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, a
 	b.marker = gJQ("<!-- wade each -->").InsertBefore(elem).First()
 	b.prototype = elem.Clone()
 	b.binding = binding
-	println("Remove that shit!")
 	elem.Remove()
 }
 
@@ -116,6 +115,8 @@ func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, output
 		b.marker.After(b.prototype.Clone())
 	}
 
+	b.size = val.Len()
+
 	prev := b.marker
 	m := make(map[string]interface{})
 	noutput := len(outputs)
@@ -123,9 +124,10 @@ func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, output
 		panic(fmt.Sprintf("Wrong output specification %v for the Each binder: only up to 2 outputs are allowed.", outputs))
 	}
 	if noutput != 0 {
-		for i := val.Len() - 1; i >= 0; i-- {
+		for i := 0; i < b.size; i++ {
 			k, v := b.indexFn(i, val)
-			nx := prev.Next()
+			nx := b.prototype.Clone()
+			prev.Next().ReplaceWith(nx)
 			if noutput == 1 {
 				m[outputs[0]] = v.Interface()
 			} else {

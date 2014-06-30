@@ -1,11 +1,6 @@
 package wade
 
-import (
-	"testing"
-
-	"github.com/gopherjs/gopherjs/js"
-	"github.com/phaikawl/wade/services/http"
-)
+import "github.com/gopherjs/gopherjs/js"
 
 func init() {
 	stubInit()
@@ -69,34 +64,4 @@ func (j *JsStub) IsNull() bool {
 
 func stubInit() {
 	js.Global = &JsStub{}
-}
-
-type Test struct {
-	ok bool
-}
-
-func TestPromise(t *testing.T) {
-	model := &Test{ok: false}
-	p := NewPromise(model, http.Service().NewRequest(http.MethodGet, "/").DoAsync())
-	hdler := func(r *http.Response) ModelUpdater {
-		return func(m *Test) {
-			m.ok = true
-		}
-	}
-	p.OnSuccess(hdler)
-	p.fakeResolve(hdler)
-	if !model.ok {
-		t.Fatalf("The promise handler and/or the updater have not been called.")
-	}
-	ehdler := func(r *http.Response) ModelUpdater {
-		return func(a int) {
-		}
-	}
-	p.OnSuccess(ehdler)
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("There was no panic when calling the model updater of wrong type.")
-		}
-	}()
-	p.fakeResolve(ehdler)
 }

@@ -157,13 +157,13 @@ func (r *Request) DoAsync() Deferred {
 	return Deferred{jquery.Ajax(r.makeJqConfig())}
 }
 
-func (r *Request) DoSync() (data string) {
+func (r *Request) DoSync() (resp *Response) {
 	conf := r.makeJqConfig()
 	conf["async"] = false
 	Deferred{jquery.Ajax(conf)}.Done(func(r *Response) {
-		data = r.Data()
+		resp = r
 	})
-	return data
+	return
 }
 
 type HttpInterceptor func(*Request)

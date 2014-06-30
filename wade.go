@@ -2,7 +2,6 @@ package wade
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
@@ -25,29 +24,6 @@ type Wade struct {
 	tm         *CustagMan
 	tcontainer jq.JQuery
 	binding    *Binding
-}
-
-type ErrorMap map[string]map[string]interface{}
-
-type Validated struct {
-	Errors ErrorMap
-}
-
-type ErrorsBinding struct {
-	Errors *ErrorMap
-}
-
-func (v *Validated) Init(dataModel interface{}) {
-	m := make(ErrorMap)
-	typ := reflect.TypeOf(dataModel)
-	if typ.Kind() != reflect.Struct {
-		panic("Validated data model passed to Init() must be a struct.")
-	}
-	for i := 0; i < typ.NumField(); i++ {
-		f := typ.Field(i)
-		m[f.Name] = make(map[string]interface{})
-	}
-	v.Errors = m
 }
 
 func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
@@ -86,7 +62,7 @@ func htmlImport(parent jq.JQuery, origin string) {
 	parent.Find("wimport").Each(func(i int, elem jq.JQuery) {
 		src := elem.Attr("src")
 		req := http.NewRequest(http.MethodGet, origin+src)
-		html := req.DoSync()
+		html := req.DoSync().Data()
 		elem.Append(html)
 		htmlImport(elem, origin)
 	})

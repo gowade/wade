@@ -197,11 +197,9 @@ type ObjEval struct {
 func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
 	err = nil
 	if len(expr.args) == 0 {
-		if expr.eval == nil {
-			expr.eval, err = evaluateObj(expr.name, model)
-			if err != nil {
-				return
-			}
+		expr.eval, err = evaluateObj(expr.name, model)
+		if err != nil {
+			return
 		}
 		v = expr.eval.fieldRefl
 		return
@@ -292,21 +290,21 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 		(func(expr *Expr) {
 			obj := js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val")
 			//workaround for gopherjs's protection disallowing js access to maps
-			hopfn := obj.Get("hasOwnProperty")
-			obj.Set("hasOwnProperty", func(prop string) bool {
-				return true
-			})
+			//hopfn := obj.Get("hasOwnProperty")
+			//obj.Set("hasOwnProperty", func(prop string) bool {
+			//	return true
+			//})
 			js.Global.Call("watch",
 				obj,
 				expr.eval.field,
 				func(prop string, action string,
 					newVal interface{},
 					oldVal js.Object) {
-					newVal = expr.eval.fieldRefl.Interface()
+					//v = expr.eval.fieldRefl.Interface()
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
 				})
-			obj.Set("hasOwnProperty", hopfn)
+			//obj.Set("hasOwnProperty", hopfn)
 		})(expr)
 	}
 }
@@ -358,6 +356,8 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 					oe.fieldRefl.Set(reflect.ValueOf(v))
 					if !once {
 						b.watchModel(binds, roote, model, func(newResult interface{}) {
+							//println("yay!")
+							//println(newResult)
 							oe.fieldRefl.Set(reflect.ValueOf(newResult))
 						})
 					}
