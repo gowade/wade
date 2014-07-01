@@ -58,6 +58,10 @@ func (wd *Wade) Custags() *CustagMan {
 	return wd.tm
 }
 
+func (wd *Wade) Binding() *Binding {
+	return wd.binding
+}
+
 func htmlImport(parent jq.JQuery, origin string) {
 	parent.Find("wimport").Each(func(i int, elem jq.JQuery) {
 		src := elem.Attr("src")

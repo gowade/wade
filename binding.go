@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -32,6 +33,24 @@ func newBindEngine(tm *CustagMan) *Binding {
 		domBinders: defaultBinders(),
 		helpers:    defaultHelpers(),
 	}
+}
+
+func (b *Binding) RegisterHelper(name string, fn interface{}) {
+	typ := reflect.TypeOf(fn)
+	if typ.Kind() != reflect.Func {
+		panic("Invalid helper, must be a function.")
+	}
+
+	if typ.NumOut() == 0 {
+		panic("A helper must return something.")
+	}
+
+	if _, exist := b.helpers[name]; !exist {
+		b.helpers[name] = fn
+		return
+	}
+	panic(fmt.Sprintf("Helper with name %v already exists.", name))
+	return
 }
 
 //getReflectField returns the field value of an object, be it a struct instance
@@ -84,7 +103,7 @@ type Expr struct {
 }
 
 func isValidExprChar(c rune) bool {
-	return c == '.' || unicode.IsLetter(c) || unicode.IsDigit(c)
+	return c == '"' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 //tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
@@ -103,23 +122,34 @@ func tokenize(spec string) (tokens []Token, err error) {
 		}
 		token = ""
 	}
+	strlitMode := false //string literal mode
 	for _, c := range spec {
-		switch c {
-		case ' ':
-			if token != "" {
-				err = errors.New("Invalid space")
-				return
-			}
-		case '(', ')', ',':
-			flush()
-			tokens = append(tokens, Token{PuncToken, string(c)})
-		default:
-			if isValidExprChar(c) {
+		if !strlitMode {
+			switch c {
+			case ' ':
+				if token != "" {
+					err = errors.New("Invalid space")
+					return
+				}
+			case '(', ')', ',':
+				flush()
+				tokens = append(tokens, Token{PuncToken, string(c)})
+			case '"':
+				strlitMode = true
 				token += string(c)
-			} else {
-				err = fmt.Errorf("Character '%v' is not allowed", c)
-				return
+			default:
+				if isValidExprChar(c) {
+					token += string(c)
+				} else {
+					err = fmt.Errorf("Character '%q' is not allowed", c)
+					return
+				}
 			}
+		} else {
+			if c == '"' {
+				strlitMode = false
+			}
+			token += string(c)
 		}
 	}
 	flush()
@@ -132,7 +162,7 @@ func tokenize(spec string) (tokens []Token, err error) {
 func parse(spec string) (root *Expr, err error) {
 	tokens, err := tokenize(spec)
 	if err != nil {
-		bindStringPanic(err.Error(), spec)
+		return
 	}
 	invalid := func() {
 		err = errors.New("Invalid syntax")
@@ -192,16 +222,38 @@ type ObjEval struct {
 	field     string
 }
 
+type Value struct {
+	oe    *ObjEval
+	value interface{}
+}
+
+func (val *Value) Set(v reflect.Value) {
+	if val.oe != nil {
+		val.oe.fieldRefl.Set(v)
+		return
+	}
+	panic("Unexpected, cannot set value for literal expression.")
+}
+
+func (val *Value) Val() reflect.Value {
+	if val.oe != nil {
+		return val.oe.fieldRefl
+	}
+	return reflect.ValueOf(val.value)
+}
+
 //evaluateRec recursively evaluates the parsed expressions and return the result value, it also
 //populates the tree of Expr with the value evaluated with evaluateObj if not available
 func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
 	err = nil
 	if len(expr.args) == 0 {
-		expr.eval, err = evaluateObj(expr.name, model)
+		var val *Value
+		val, err = evaluateExpr(expr.name, model)
 		if err != nil {
 			return
 		}
-		v = expr.eval.fieldRefl
+		expr.eval = val.oe
+		v = val.Val()
 		return
 	}
 
@@ -209,6 +261,9 @@ func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 		args := make([]reflect.Value, len(expr.args))
 		for i, e := range expr.args {
 			args[i], err = b.evaluateRec(e, model)
+			if err != nil {
+				return
+			}
 		}
 		if reflect.TypeOf(helper).NumIn() != len(args) {
 			err = fmt.Errorf(`Invalid number of arguments to helper "%v"`, expr.name)
@@ -227,15 +282,14 @@ func bindStringPanic(mess, bindstring string) {
 }
 
 //evaluateBindstring evaluates the bind string, returns the needed information for binding
-func (b *Binding) evaluateBindString(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
-	var err error
+func (b *Binding) evaluate(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}, err error) {
 	root, err = parse(spec)
 	if err != nil {
-		bindStringPanic(err.Error(), spec)
+		return
 	}
 	v, err := b.evaluateRec(root, model)
 	if err != nil {
-		bindStringPanic(err.Error(), spec)
+		return
 	}
 	value = v.Interface()
 	blist = make([]*Expr, 0)
@@ -243,9 +297,18 @@ func (b *Binding) evaluateBindString(spec string, model interface{}) (root *Expr
 	return
 }
 
+func (b *Binding) evaluateBindString(bstr string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
+	var err error
+	root, blist, value, err = b.evaluate(bstr, model)
+	if err != nil {
+		bindStringPanic(err.Error(), bstr)
+	}
+	return
+}
+
 //getBindList fetches the list of objects that need to be bound from the *Expr tree into a list
 func getBindList(expr *Expr, list *([]*Expr)) {
-	if len(expr.args) == 0 {
+	if len(expr.args) == 0 && expr != nil {
 		*list = append(*list, expr)
 		return
 	}
@@ -281,7 +344,75 @@ func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	}, nil
 }
 
-var iii int = 0
+func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
+	err = nil
+	expr = strings.TrimSpace(expr)
+	re := []rune(expr)
+	numberMode := false
+	floatMode := false
+	strlitMode := false
+	for i, c := range expr {
+		switch {
+		case c == '"':
+			if i == 0 {
+				strlitMode = true
+			} else if i == len(expr)-1 {
+				if strlitMode {
+					v = &Value{nil, string(re[1 : len(re)-1])}
+					return
+				}
+
+				err = fmt.Errorf("No matching double quote")
+				return
+			} else {
+				err = fmt.Errorf("Invalid double quote")
+				return
+			}
+		case unicode.IsDigit(c):
+			if i == 0 {
+				numberMode = true
+			}
+		case unicode.IsLetter(c) || c == '_':
+			if numberMode {
+				err = fmt.Errorf("Invalid: dynamic expression cannot start with a number")
+				return
+			}
+		case c == '.':
+			if floatMode {
+				err = fmt.Errorf("Multiple dot '.' for a number, invalid")
+				return
+			}
+			if numberMode {
+				floatMode = true
+			}
+		default:
+			err = fmt.Errorf("Invalid character '%q'", c)
+			return
+		}
+	}
+
+	switch {
+	case strlitMode:
+		err = fmt.Errorf("No matching double quote")
+		return
+	case floatMode:
+		var f float64
+		f, err = strconv.ParseFloat(expr, 32)
+		v = &Value{nil, float32(f)}
+		return
+	case numberMode:
+		var i int
+		i, err = strconv.Atoi(expr)
+		v = &Value{nil, i}
+		return
+	default:
+		var oe *ObjEval
+		oe, err = evaluateObj(expr, model)
+		v = &Value{oe, nil}
+	}
+
+	return
+}
 
 func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
 	for _, expr := range binds {
@@ -335,7 +466,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 				outputs[i] = strings.TrimSpace(ostr)
 				for _, c := range outputs[i] {
 					if !isValidExprChar(c) {
-						bindStringPanic(fmt.Sprintf("invalid character %v", c), outputs[i])
+						bindStringPanic(fmt.Sprintf("invalid character %q", c), outputs[i])
 					}
 				}
 			}
@@ -406,7 +537,7 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 					value := strings.TrimSpace(fv[1])
 					for _, c := range field {
 						if !isValidExprChar(c) {
-							bindStringPanic(fmt.Sprintf("invalid character %v", c), field)
+							bindStringPanic(fmt.Sprintf("invalid character %q", c), field)
 						}
 					}
 
@@ -420,8 +551,6 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 					oe.fieldRefl.Set(reflect.ValueOf(v))
 					if !once {
 						b.watchModel(binds, roote, model, func(newResult interface{}) {
-							//println("yay!")
-							//println(newResult)
 							oe.fieldRefl.Set(reflect.ValueOf(newResult))
 						})
 					}
