@@ -15,6 +15,7 @@ func defaultBinders() map[string]DomBinder {
 		"attr":  &AttrBinder{},
 		"on":    &EventBinder{},
 		"each":  new(EachBinder),
+		"page":  &PageBinder{},
 	}
 }
 
@@ -155,3 +156,15 @@ func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, output
 	}
 }
 func (b *EachBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
+
+type PageBinder struct{}
+
+func (b *PageBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
+}
+func (b *PageBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
+	uinf := value.(UrlInfo)
+	elem.SetAttr("href", uinf.fullUrl)
+	elem.SetAttr(WadePageAttr, uinf.path)
+}
+func (b *PageBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
+func (b *PageBinder) BindInstance() DomBinder                 { return b }

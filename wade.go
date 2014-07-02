@@ -72,7 +72,19 @@ func htmlImport(parent jq.JQuery, origin string) {
 	})
 }
 
+type UrlInfo struct {
+	path    string
+	fullUrl string
+}
+
 func (wd *Wade) Init() {
+	wd.binding.RegisterHelper("url", func(pageid string, params ...interface{}) UrlInfo {
+		url, err := wd.pm.PageUrl(pageid, params)
+		if err != nil {
+			panic(fmt.Errorf(`url helper error: "%v", when getting url for page "%v"`, err.Error(), pageid))
+		}
+		return UrlInfo{url, wd.pm.Url(url)}
+	})
 }
 
 func (wd *Wade) Start() {

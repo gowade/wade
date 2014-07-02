@@ -2,10 +2,20 @@ package wade
 
 import (
 	"fmt"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
+)
+
+const (
+	WadePageAttr = "data-wade-page"
+)
+
+var (
+	gRouteParamRegexp = regexp.MustCompile(`\:\w+`)
 )
 
 type pageInfo struct {
@@ -13,7 +23,7 @@ type pageInfo struct {
 	title string
 }
 
-type PageController func() interface{}
+type PageController func(*PageData) interface{}
 type PageHandler func()
 
 type PageManager struct {
@@ -30,6 +40,29 @@ type PageManager struct {
 	binding         *Binding
 	tm              *CustagMan
 	//pageModels   []js.Object
+}
+
+type PageData struct {
+	params map[string]interface{}
+}
+
+//ExportParam sets the value of a parameter to a target.
+//The target must be a pointer, typically it would be a pointer to a model's field,
+//for example
+//	pd.ExportParam("postid", &pmodel.PostId)
+func (pd *PageData) ExportParam(param string, target interface{}) {
+	v, ok := pd.params[param]
+	if !ok {
+		panic(fmt.Errorf("Request invalid parameter %v.", param))
+	}
+	if reflect.TypeOf(target).Kind() != reflect.Ptr {
+		panic("The target for saving the parameter value must be a pointer so that it could be modified.")
+	}
+	_, err := fmt.Sscan(v.(string), target)
+	if err != nil {
+		panic(err.Error())
+	}
+	return
 }
 
 func newPageManager(startPage, basePath string, container string,
@@ -105,7 +138,7 @@ func (pm *PageManager) setupPageOnLoad() {
 		path = pm.page(pm.startPage).path
 		gHistory.Call("replaceState", nil, pm.pages[pm.startPage].title, pm.Url(path))
 	}
-	pm.updatePage(path)
+	pm.updatePage(path, false)
 }
 
 func (pm *PageManager) getReady() {
@@ -113,35 +146,44 @@ func (pm *PageManager) getReady() {
 		panic(fmt.Sprintf("Cannot find the page container #%v.", pm.container))
 	}
 
-	pm.tcontainer.Find("a").Each(func(idx int, a jq.JQuery) {
-		href := a.Attr("href")
-		if strings.HasPrefix(href, ":") {
-			pageId := string([]rune(href)[1:])
-			a.SetAttr("href", pm.Url(pm.page(pageId).path))
-			a.SetAttr("data-wade-page", pageId)
-		}
-	})
+	//pm.tcontainer.Find("a").Each(func(idx int, a jq.JQuery) {
+	//	href := a.Attr("href")
+	//	if strings.HasPrefix(href, ":") {
+	//		pageId := string([]rune(href)[1:])
+	//		a.SetAttr("href", pm.Url(pm.page(pageId).path))
+	//		a.SetAttr("data-wade-page", pageId)
+	//	}
+	//})
 
 	gJQ(js.Global.Get("window")).On("popstate", func() {
-		pm.updatePage(documentUrl())
+		pm.updatePage(documentUrl(), false)
 	})
 
 	pm.setupPageOnLoad()
 }
 
-func (pm *PageManager) updatePage(url string) {
+func (pm *PageManager) updatePage(url string, pushState bool) {
 	url = pm.cutPath(url)
 	matches := pm.router.Call("recognize", url)
 	println("path: " + url)
 	if matches.IsUndefined() || matches.Length() == 0 {
 		if pm.notFoundPage != "" {
-			pm.updatePage(pm.page(pm.notFoundPage).path)
+			pm.updatePage(pm.page(pm.notFoundPage).path, false)
 		} else {
 			panic("Page not found. No 404 handler declared.")
 		}
 	}
 
-	pageId := matches.Index(0).Get("handler").Invoke().Str()
+	match := matches.Index(0)
+	pageId := match.Get("handler").Invoke().Str()
+	if pushState {
+		gHistory.Call("pushState", nil, pm.page(pageId).title, pm.Url(url))
+	}
+	params := make(map[string]interface{})
+	prs := match.Get("params")
+	if !prs.IsUndefined() {
+		params = prs.Interface().(map[string]interface{})
+	}
 
 	pageElem := elemForPage(pm.tcontainer, pageId)
 	gJQ("title").SetText(pm.page(pageId).title)
@@ -149,7 +191,7 @@ func (pm *PageManager) updatePage(url string) {
 		jqparents := pageElem.Parents("wpage")
 		leng := jqparents.Length
 		parents := make([]jq.JQuery, leng+1)
-		resultElems := make([]jq.JQuery, leng)
+		resultElems := make([]jq.JQuery, leng+1)
 		for i := 0; i < leng; i++ {
 			parents[i] = jqparents.Eq(leng - i - 1)
 			clone := gJQ(parents[i].Get(0).Call("cloneNode"))
@@ -169,49 +211,92 @@ func (pm *PageManager) updatePage(url string) {
 			}
 		}
 
+		resultElems[leng] = gJQ(pageElem.Get(0).Call("cloneNode"))
 		parents[leng] = pageElem
-		for i := leng - 1; i >= 0; i-- {
+		for i := leng; i >= 0; i-- {
 			p := parents[i]
-			p.Children("*").Each(func(_ int, e jq.JQuery) {
-				if !e.Is("wpage") || e.Is(parents[i+1].Get(0)) {
-					resultElems[i].Append(e.Get(0).Get("outerHTML"))
+			p.Contents().Each(func(_ int, e jq.JQuery) {
+				if !e.Is("wpage") {
+					nodeType := e.Get(0).Get("nodeType").Int()
+					if nodeType == 1 {
+						resultElems[i].Append(e.Get(0).Get("outerHTML"))
+					} else if nodeType == 3 {
+						resultElems[i].Append(e.Text())
+					}
+				} else if e.Is(pageElem.Get(0)) {
+					resultElems[leng-1].Append(resultElems[leng])
 				}
 			})
 		}
 
 		pm.currentPage = pageId
 
+		pm.bind(params)
+
 		//Rebind link events
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
 			a := gJQ(e.Target)
 
-			pageId := a.Attr("data-wade-page")
-			if pageId == "" { //not a wade page link, let the browser do its job
+			pagepath := a.Attr(WadePageAttr)
+			if pagepath == "" { //not a wade page link, let the browser do its job
 				return
 			}
 
 			e.PreventDefault()
 
-			pageInf := pm.page(pageId)
-			gHistory.Call("pushState", nil, pageInf.title, pm.Url(pageInf.path))
-			pm.updatePage(pageInf.path)
+			pm.updatePage(pagepath, true)
 		})
-
-		pm.bind()
 	}
 }
 
-func (pm *PageManager) bind() {
+func (pm *PageManager) PageUrl(pageid string, params []interface{}) (u string, err error) {
+	err = nil
+	route, ok := pm.pages[pageid]
+	if !ok {
+		err = fmt.Errorf(`No such page with id "%v".`, pageid)
+	}
+
+	n := len(params)
+	if n == 0 {
+		u = route.path
+		return
+	}
+
+	i := 0
+	repl := func(src string) (out string) {
+		out = src
+		if i >= n {
+			err = fmt.Errorf("Not enough parameters supplied for the route.")
+			return
+		}
+		out = fmt.Sprintf("%v", params[i])
+		i += 1
+		return
+	}
+
+	u = gRouteParamRegexp.ReplaceAllStringFunc(route.path, repl)
+	if i != n {
+		err = fmt.Errorf("Too many parameters supplied for the route")
+		return
+	}
+	return
+}
+
+func (pm *PageManager) bind(params map[string]interface{}) {
 	pageElem := elemForPage(pm.container, pm.currentPage)
 	if handlers, ok := pm.pageHandlers[pm.currentPage]; ok {
 		for _, handler := range handlers {
 			handler()
 		}
 	}
+
+	pdata := &PageData{params}
 	if controller, exist := pm.pageControllers[pm.currentPage]; exist {
-		model := controller()
+		model := controller(pdata)
 		pm.binding.Bind(pageElem, model, false)
 	}
+
+	pm.binding.Bind(pm.container, nil, true)
 
 	for tagName, tag := range pm.tm.custags {
 		tagElem := pm.tcontainer.Find("#" + tag.meid)

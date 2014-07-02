@@ -70,7 +70,7 @@ func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
 	case reflect.Map:
 		rv = o.MapIndex(reflect.ValueOf(field))
 	default:
-		return rv, fmt.Errorf(`Unhandled type for accessing "%v"`, field)
+		return rv, fmt.Errorf(`Unhandled type %v for accessing "%v"`, o.Type().Name(), field)
 	}
 
 	if !rv.IsValid() {
@@ -103,7 +103,7 @@ type Expr struct {
 }
 
 func isValidExprChar(c rune) bool {
-	return c == '"' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
+	return c == '\'' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 //tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
@@ -134,7 +134,7 @@ func tokenize(spec string) (tokens []Token, err error) {
 			case '(', ')', ',':
 				flush()
 				tokens = append(tokens, Token{PuncToken, string(c)})
-			case '"':
+			case '\'':
 				strlitMode = true
 				token += string(c)
 			default:
@@ -146,7 +146,7 @@ func tokenize(spec string) (tokens []Token, err error) {
 				}
 			}
 		} else {
-			if c == '"' {
+			if c == '\'' {
 				strlitMode = false
 			}
 			token += string(c)
@@ -265,7 +265,15 @@ func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 				return
 			}
 		}
-		if reflect.TypeOf(helper).NumIn() != len(args) {
+		ftype := reflect.TypeOf(helper)
+		nin := ftype.NumIn()
+		var ok bool
+		if ftype.IsVariadic() {
+			ok = len(args) >= nin-1
+		} else {
+			ok = nin == len(args)
+		}
+		if !ok {
 			err = fmt.Errorf(`Invalid number of arguments to helper "%v"`, expr.name)
 			return
 		}
@@ -308,7 +316,11 @@ func (b *Binding) evaluateBindString(bstr string, model interface{}) (root *Expr
 
 //getBindList fetches the list of objects that need to be bound from the *Expr tree into a list
 func getBindList(expr *Expr, list *([]*Expr)) {
-	if len(expr.args) == 0 && expr != nil {
+	if expr == nil {
+		return
+	}
+
+	if len(expr.args) == 0 && expr.eval != nil {
 		*list = append(*list, expr)
 		return
 	}
@@ -321,6 +333,9 @@ func getBindList(expr *Expr, list *([]*Expr)) {
 //evaluateObj uses reflection to access the field hierarchy in an object string
 //and return the necessary values
 func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
+	if obj != "" && model == nil {
+		return nil, fmt.Errorf(`The model is nil, cannot bind to its "%v"`, obj)
+	}
 	flist := strings.Split(obj, ".")
 	vals := make([]reflect.Value, len(flist)+1)
 	o := reflect.ValueOf(model)
@@ -350,22 +365,18 @@ func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
 	re := []rune(expr)
 	numberMode := false
 	floatMode := false
-	strlitMode := false
 	for i, c := range expr {
 		switch {
-		case c == '"':
-			if i == 0 {
-				strlitMode = true
-			} else if i == len(expr)-1 {
-				if strlitMode {
+		case c == '\'':
+			if i == 0 { //string literal
+				if re[len(expr)-1] == '\'' {
 					v = &Value{nil, string(re[1 : len(re)-1])}
 					return
 				}
-
-				err = fmt.Errorf("No matching double quote")
+				err = fmt.Errorf("No matching quote.")
 				return
 			} else {
-				err = fmt.Errorf("Invalid double quote")
+				err = fmt.Errorf("Invalid quote")
 				return
 			}
 		case unicode.IsDigit(c):
@@ -392,9 +403,6 @@ func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
 	}
 
 	switch {
-	case strlitMode:
-		err = fmt.Errorf("No matching double quote")
-		return
 	case floatMode:
 		var f float64
 		f, err = strconv.ParseFloat(expr, 32)
@@ -445,6 +453,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 	if len(parts) <= 1 {
 		panic(`Illegal "bind-".`)
 	}
+
 	if binder, ok := b.domBinders[parts[1]]; ok {
 		binder = binder.BindInstance()
 		args := make([]string, 0)
@@ -555,6 +564,10 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 						})
 					}
 				}
+
+				//prevent processing again
+				elem.RemoveAttr(name)
+				elem.SetAttr("bound", bstr)
 
 				continue
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
