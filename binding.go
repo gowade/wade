@@ -53,6 +53,10 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
+func jqExists(elem jq.JQuery) bool {
+	return elem.Parents("html").Length > 0
+}
+
 //getReflectField returns the field value of an object, be it a struct instance
 //or a map
 func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
@@ -571,7 +575,7 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 
 				continue
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
-				elem.Parents("html").Length != 0 { //element still exists
+				jqExists(elem) { //element still exists
 				if isCustag {
 					panic(`Dom binding is not allowed for custom element tags (they should not actually be rendered
 			, so there's no point; but of course inside the custom element's contents it's allowed normally).

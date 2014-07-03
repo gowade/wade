@@ -16,17 +16,24 @@ func defaultBinders() map[string]DomBinder {
 		"on":    &EventBinder{},
 		"each":  new(EachBinder),
 		"page":  &PageBinder{},
+		"if":    new(IfBinder),
+		"ifn":   &UnlessBinder{&IfBinder{}},
 	}
 }
 
-type ValueBinder struct{}
+type BaseBinder struct{}
+
+func (b *BaseBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
+}
+func (b *BaseBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {}
+func (b *BaseBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn)                          {}
+
+type ValueBinder struct{ *BaseBinder }
 
 func toString(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
-func (b *ValueBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, arg, outputs []string) {
-}
 func (b *ValueBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	elem.SetVal(toString(value))
 }
@@ -40,22 +47,18 @@ func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
 		ufn(elem.Val())
 	})
 }
+
 func (b *ValueBinder) BindInstance() DomBinder { return b }
 
-type HtmlBinder struct{}
+type HtmlBinder struct{ BaseBinder }
 
-func (b *HtmlBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, arg, outputs []string) {
-}
 func (b *HtmlBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	elem.SetHtml(toString(value))
 }
-func (b *HtmlBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
-func (b *HtmlBinder) BindInstance() DomBinder                 { return b }
+func (b *HtmlBinder) BindInstance() DomBinder { return b }
 
-type AttrBinder struct{}
+type AttrBinder struct{ BaseBinder }
 
-func (b *AttrBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
-}
 func (b *AttrBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	if len(args) != 1 {
 		panic(fmt.Sprintf(`Incorrect number of args %v for html attribute binder.
@@ -63,10 +66,9 @@ Usage: bind-attr-the_attr_name=the_attr_value.`, len(args)))
 	}
 	elem.SetAttr(args[0], toString(value))
 }
-func (b *AttrBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
-func (b *AttrBinder) BindInstance() DomBinder                 { return b }
+func (b *AttrBinder) BindInstance() DomBinder { return b }
 
-type EventBinder struct{}
+type EventBinder struct{ BaseBinder }
 
 func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
 	fnt := reflect.TypeOf(value)
@@ -81,11 +83,10 @@ func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, 
 	}
 	elem.On(args[0], value)
 }
-func (b *EventBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {}
-func (b *EventBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn)                          {}
-func (b *EventBinder) BindInstance() DomBinder                                          { return b }
+func (b *EventBinder) BindInstance() DomBinder { return b }
 
 type EachBinder struct {
+	*BaseBinder
 	marker    jq.JQuery
 	prototype jq.JQuery
 	indexFn   func(i int, v reflect.Value) (interface{}, reflect.Value)
@@ -155,16 +156,47 @@ func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, output
 		}
 	}
 }
-func (b *EachBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
 
-type PageBinder struct{}
+type PageBinder struct{ BaseBinder }
 
-func (b *PageBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
-}
 func (b *PageBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	uinf := value.(UrlInfo)
 	elem.SetAttr("href", uinf.fullUrl)
 	elem.SetAttr(WadePageAttr, uinf.path)
 }
-func (b *PageBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
-func (b *PageBinder) BindInstance() DomBinder                 { return b }
+func (b *PageBinder) BindInstance() DomBinder { return b }
+
+type IfBinder struct {
+	*BaseBinder
+	placeholder jq.JQuery
+}
+
+func (b *IfBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
+	b.placeholder = gJQ("<!-- hidden elem -->")
+}
+
+func (b *IfBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
+	shown := value.(bool)
+	if shown && !jqExists(elem) {
+		if jqExists(b.placeholder) {
+			b.placeholder.ReplaceWith(elem)
+			return
+		}
+		panic("Unexpected case, there might be a bug.")
+	}
+
+	if !shown && jqExists(elem) {
+		elem.ReplaceWith(b.placeholder)
+	}
+}
+func (b *IfBinder) BindInstance() DomBinder { return new(IfBinder) }
+
+type UnlessBinder struct {
+	*IfBinder
+}
+
+func (b *UnlessBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
+	shown := !(value.(bool))
+	b.IfBinder.Update(elem, shown, args, outputs)
+}
+func (b *UnlessBinder) BindInstance() DomBinder { return &UnlessBinder{new(IfBinder)} }
