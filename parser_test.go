@@ -35,7 +35,7 @@ func TestParser(t *testing.T) {
 		"concat(toUpper(Data.Username), toLower(Data.Password))": "HAIpk",
 		"addInt(1, 2)":       3,
 		"addFloat(1.0, 2.0)": float32(3),
-		`fooAdd('bar-*+/')`:  "foobar-*+/",
+		"fooAdd(`bar-,`)":    "foobar-,",
 	}
 
 	for bs, result := range tests {
@@ -49,11 +49,12 @@ func TestParser(t *testing.T) {
 	}
 
 	errtests := []string{
-		`fooAdd('bar)`,
+		"fooAdd(`bar)",
 		`kdf*`,
 		`toUpper(Data.Username.)`,
 		`addInt(1a)`,
-		`addInt(''')`,
+		"addInt(```)",
+		"addInt(`*,`)",
 	}
 	for _, et := range errtests {
 		_, _, _, err := b.evaluate(et, model)

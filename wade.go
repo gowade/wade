@@ -2,6 +2,8 @@ package wade
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
@@ -26,6 +28,18 @@ type Wade struct {
 	binding    *Binding
 }
 
+var (
+	TempReplaceRegexp = regexp.MustCompile(`<%([\(\)\.\-_` + "`" + `\w\s]+)%>`)
+)
+
+//parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
+func parseTemplate(source string) string {
+	return TempReplaceRegexp.ReplaceAllStringFunc(source, func(m string) string {
+		bindstr := strings.TrimSpace(TempReplaceRegexp.FindStringSubmatch(m)[1])
+		return fmt.Sprintf(`<span bind-html="%v"></span>`, bindstr)
+	})
+}
+
 func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
 	origin := js.Global.Get("document").Get("location").Get("origin").Str()
@@ -34,7 +48,7 @@ func WadeUp(startPage, basePath string, tempcontainer, container string, initFn 
 		panic(fmt.Sprintf("Template container #%v not found or is wrong kind of element, must be script[type='text/wadin'].",
 			tempContainer))
 	}
-	html := js.Global.Get(jq.JQ).Call("parseHTML", "<div>"+tempContainer.Html()+"</div>")
+	html := js.Global.Get(jq.JQ).Call("parseHTML", "<div>"+parseTemplate(tempContainer.Html())+"</div>")
 	tElem := gJQ(html)
 	htmlImport(tElem, origin)
 	tm := newCustagMan(tElem)
@@ -67,7 +81,7 @@ func htmlImport(parent jq.JQuery, origin string) {
 		src := elem.Attr("src")
 		req := http.NewRequest(http.MethodGet, origin+src)
 		html := req.DoSync().Data()
-		elem.Append(html)
+		elem.Append(parseTemplate(html))
 		htmlImport(elem, origin)
 	})
 }

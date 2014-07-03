@@ -107,7 +107,7 @@ type Expr struct {
 }
 
 func isValidExprChar(c rune) bool {
-	return c == '\'' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
+	return c == '`' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 //tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
@@ -138,7 +138,7 @@ func tokenize(spec string) (tokens []Token, err error) {
 			case '(', ')', ',':
 				flush()
 				tokens = append(tokens, Token{PuncToken, string(c)})
-			case '\'':
+			case '`':
 				strlitMode = true
 				token += string(c)
 			default:
@@ -150,8 +150,16 @@ func tokenize(spec string) (tokens []Token, err error) {
 				}
 			}
 		} else {
-			if c == '\'' {
+			if c == '`' {
 				strlitMode = false
+			} else if !unicode.IsDigit(c) && !unicode.IsLetter(c) && !strings.ContainsRune(",(-_.)", c) {
+				err = fmt.Errorf("Use of characters other than numbers, " +
+					"letters, parentheses ('(', ')'), dash ('-'), comma (','), " +
+					"underscore ('_'), and dot ('.') is forbidden " +
+					"inside string literals of bind string, " +
+					"heavy processing and logic should not be in html template. Consider " +
+					"moving your data to the model instead of putting it into the bind string.")
+				return
 			}
 			token += string(c)
 		}
@@ -371,9 +379,9 @@ func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
 	floatMode := false
 	for i, c := range expr {
 		switch {
-		case c == '\'':
+		case c == '`':
 			if i == 0 { //string literal
-				if re[len(expr)-1] == '\'' {
+				if re[len(expr)-1] == '`' {
 					v = &Value{nil, string(re[1 : len(re)-1])}
 					return
 				}
