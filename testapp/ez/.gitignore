@@ -4,7 +4,7 @@ app.js.map
 bower_components
 server/server
 tmp
-brogpal
+ez
 *.o
 *.a
 *.so
