@@ -1,6 +1,6 @@
-Wade
+WadeGo [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)](http://godoc.org/github.com/phaikawl/wade)
 ====
-The no-magic client-side web framework for Go (gopherjs)
+The no-magic client-side web framework for Go->js.  
 
   
 Instructions on running the companion app Brogpal: https://github.com/phaikawl/brogpal.  
