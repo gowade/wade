@@ -7,6 +7,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
+	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/services/http"
 )
 
@@ -18,21 +19,20 @@ var (
 
 const (
 	AttrPrefix = "attr-"
-	BindPrefix = "bind-"
 )
 
 type Wade struct {
 	pm         *PageManager
 	tm         *CustagMan
 	tcontainer jq.JQuery
-	binding    *Binding
+	binding    *bind.Binding
 }
 
 var (
 	TempReplaceRegexp = regexp.MustCompile(`<%([\(\)\.\-_` + "`" + `\w\s]+)%>`)
 )
 
-//parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
+// parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
 func parseTemplate(source string) string {
 	return TempReplaceRegexp.ReplaceAllStringFunc(source, func(m string) string {
 		bindstr := strings.TrimSpace(TempReplaceRegexp.FindStringSubmatch(m)[1])
@@ -40,6 +40,7 @@ func parseTemplate(source string) string {
 	})
 }
 
+// WadeUp initializes the Wade engine and performs HTML imports
 func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
 	origin := js.Global.Get("document").Get("location").Get("origin").Str()
@@ -52,30 +53,34 @@ func WadeUp(startPage, basePath string, tempcontainer, container string, initFn 
 	tElem := gJQ(html)
 	htmlImport(tElem, origin)
 	tm := newCustagMan(tElem)
-	binding := newBindEngine(tm)
+	binding := bind.NewBindEngine(tm)
 	wd := &Wade{
 		pm:         newPageManager(startPage, basePath, container, tElem, binding, tm),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: tElem,
 	}
-	wd.Init()
+	wd.init()
 	initFn(wd)
 	return wd
 }
 
+// Pager returns the Page Manager
 func (wd *Wade) Pager() *PageManager {
 	return wd.pm
 }
 
+// Custags returns the Custom Tags Manager
 func (wd *Wade) Custags() *CustagMan {
 	return wd.tm
 }
 
-func (wd *Wade) Binding() *Binding {
+// Binding returns the binding engine
+func (wd *Wade) Binding() *bind.Binding {
 	return wd.binding
 }
 
+// htmlImport performs importing of HTML source
 func htmlImport(parent jq.JQuery, origin string) {
 	parent.Find("wimport").Each(func(i int, elem jq.JQuery) {
 		src := elem.Attr("src")
@@ -86,21 +91,11 @@ func htmlImport(parent jq.JQuery, origin string) {
 	})
 }
 
-type UrlInfo struct {
-	path    string
-	fullUrl string
+func (wd *Wade) init() {
+	bind.RegisterUrlHelper(wd.pm, wd.binding)
 }
 
-func (wd *Wade) Init() {
-	wd.binding.RegisterHelper("url", func(pageid string, params ...interface{}) UrlInfo {
-		url, err := wd.pm.PageUrl(pageid, params)
-		if err != nil {
-			panic(fmt.Errorf(`url helper error: "%v", when getting url for page "%v"`, err.Error(), pageid))
-		}
-		return UrlInfo{url, wd.pm.Url(url)}
-	})
-}
-
+// Start starts the real operation, meant to be called at the end of everything.
 func (wd *Wade) Start() {
 	gJQ(js.Global.Get("document")).Ready(func() {
 		wd.tm.prepare()

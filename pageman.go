@@ -8,10 +8,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
-)
-
-const (
-	WadePageAttr = "data-wade-page"
+	"github.com/phaikawl/wade/bind"
 )
 
 var (
@@ -23,9 +20,15 @@ type pageInfo struct {
 	title string
 }
 
+// PageController is the function to be run on the load of a specific page.
+// It returns a model to be used in bindings of the elements in the page.
 type PageController func(*PageData) interface{}
+
+// PageHandler is an additional function to be run on the load of a specific page,
+// does not return anything.
 type PageHandler func()
 
+// PageManager is Page Manager
 type PageManager struct {
 	router          js.Object
 	currentPage     string
@@ -37,18 +40,19 @@ type PageManager struct {
 	notFoundPage    string
 	container       jq.JQuery
 	tcontainer      jq.JQuery
-	binding         *Binding
+	binding         *bind.Binding
 	tm              *CustagMan
 	//pageModels   []js.Object
 }
 
+// PageData provides access to the page-specific data inside a controller func
 type PageData struct {
 	params map[string]interface{}
 }
 
-//ExportParam sets the value of a parameter to a target.
-//The target must be a pointer, typically it would be a pointer to a model's field,
-//for example
+// ExportParam sets the value of a parameter to a target.
+// The target must be a pointer, typically it would be a pointer to a model's field,
+// for example
 //	pd.ExportParam("postid", &pmodel.PostId)
 func (pd *PageData) ExportParam(param string, target interface{}) {
 	v, ok := pd.params[param]
@@ -66,7 +70,7 @@ func (pd *PageData) ExportParam(param string, target interface{}) {
 }
 
 func newPageManager(startPage, basePath string, container string,
-	tcontainer jq.JQuery, binding *Binding, tm *CustagMan) *PageManager {
+	tcontainer jq.JQuery, binding *bind.Binding, tm *CustagMan) *PageManager {
 	return &PageManager{
 		router:          js.Global.Get("RouteRecognizer").New(),
 		currentPage:     "",
@@ -103,6 +107,7 @@ func (pm *PageManager) SetNotFoundPage(pageId string) {
 	pm.notFoundPage = pageId
 }
 
+// Url returns the full url for a path
 func (pm *PageManager) Url(path string) string {
 	return pm.basePath + path
 }
@@ -237,7 +242,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
 			a := gJQ(e.Target)
 
-			pagepath := a.Attr(WadePageAttr)
+			pagepath := a.Attr(bind.WadePageAttr)
 			if pagepath == "" { //not a wade page link, let the browser do its job
 				return
 			}
@@ -249,6 +254,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 	}
 }
 
+// PageUrl returns the url and route parameters for the specified pageid
 func (pm *PageManager) PageUrl(pageid string, params []interface{}) (u string, err error) {
 	err = nil
 	route, ok := pm.pages[pageid]
@@ -303,11 +309,13 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 		elems := pageElem.Find(tagName)
 		elems.Each(func(i int, elem jq.JQuery) {
 			elem.Append(tagElem.Html())
-			pm.binding.Bind(elem, pm.tm.modelForElem(elem), false)
+			pm.binding.Bind(elem, pm.tm.ModelForElem(elem), false)
 		})
 	}
 }
 
+// RegisterController assigns a PageController function to handle the specified
+// page.
 func (pm *PageManager) RegisterController(pageId string, fn PageController) {
 	if _, exist := pm.pageControllers[pageId]; exist {
 		panic(fmt.Sprintf("That page #%v already has a controller.", pageId))
@@ -315,6 +323,7 @@ func (pm *PageManager) RegisterController(pageId string, fn PageController) {
 	pm.pageControllers[pageId] = fn
 }
 
+// RegisterHandler hooks a PageHandler to the specified page
 func (pm *PageManager) RegisterHandler(pageId string, fn PageHandler) {
 	if _, exist := pm.pageHandlers[pageId]; !exist {
 		pm.pageHandlers[pageId] = make([]PageHandler, 0)
@@ -322,6 +331,8 @@ func (pm *PageManager) RegisterHandler(pageId string, fn PageHandler) {
 	pm.pageHandlers[pageId] = append(pm.pageHandlers[pageId], fn)
 }
 
+// RegisterPages receives a map of "route" => "pageid" and registers those pages
+// Pages are not recognized unless registered with this method.
 func (pm *PageManager) RegisterPages(pages map[string]string) {
 	for path, pageId := range pages {
 		if _, exist := pm.pages[pageId]; exist {

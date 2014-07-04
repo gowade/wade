@@ -4,34 +4,8 @@ import (
 	"reflect"
 	"unicode"
 
-	"github.com/phaikawl/wade/lib"
 	"github.com/phaikawl/wade/services/http"
 )
-
-type ErrorMap map[string]map[string]interface{}
-
-type Validated struct {
-	Errors ErrorMap
-}
-
-type ErrorsBinding struct {
-	Errors *ErrorMap
-}
-
-func (v *Validated) Init(dataModel interface{}) {
-	m := make(ErrorMap)
-	typ := reflect.TypeOf(dataModel)
-	if typ.Kind() != reflect.Struct {
-		panic("Validated data model passed to Init() must be a struct.")
-	}
-	for i := 0; i < typ.NumField(); i++ {
-		f := typ.Field(i)
-		m[f.Name] = make(map[string]interface{})
-	}
-	v.Errors = m
-}
-
-type FormResp lib.FormResp
 
 func camelize(src string) string {
 	res := []rune{}
@@ -51,11 +25,21 @@ func camelize(src string) string {
 	return string(res)
 }
 
-func SendFormTo(url string, data interface{}, valdErrs *Validated) *http.Response {
+type UrlInfo struct {
+	path    string
+	fullUrl string
+}
+
+// SendFormTo sends a "form" with the specified data to a specified url and decode
+// the validation errors to valdErrs, valdErrs must be a pointer
+func SendFormTo(url string, data interface{}, valdErrs interface{}) *http.Response {
+	if reflect.TypeOf(valdErrs).Kind() != reflect.Ptr {
+		panic("valErrs target argument must be a pointer")
+	}
 	req := http.Service().NewRequest(http.MethodPost, url)
 	req.SetData(data)
 	r := req.DoSync()
-	err := r.DecodeDataTo(&valdErrs.Errors)
+	err := r.DecodeDataTo(valdErrs)
 	if err != nil {
 		panic(err.Error())
 	}

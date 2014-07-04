@@ -1,4 +1,4 @@
-package wade
+package bind
 
 import (
 	"errors"
@@ -12,22 +12,52 @@ import (
 	jq "github.com/gopherjs/jquery"
 )
 
-type ModelUpdateFn func(value string)
+var (
+	gJQ = jq.NewJQuery
+)
 
+const (
+	BindPrefix = "bind-"
+)
+
+func toString(value interface{}) string {
+	return fmt.Sprintf("%v", value)
+}
+
+// DomBinder is the common interface for Dom binders.
 type DomBinder interface {
+	// Update is called whenever the model's field changes, to perform
+	// dom updating, like setting the html content or setting
+	// an html attribute for the elem
 	Update(elem jq.JQuery, value interface{}, arg, outputs []string)
+
+	// Bind is similar to Update, but is called only once at the start, when
+	// the bind is being processed
 	Bind(b *Binding, elem jq.JQuery, value interface{}, arg, outputs []string)
+
+	// Watch is used in 2-way binders, it watches the html element for changes
+	// and updates the model field accordingly
 	Watch(elem jq.JQuery, updateFn ModelUpdateFn)
+
+	// BindInstance is useful for binders that need to save some data for each
+	// separate element. This method returns an instance of the binder to be used.
 	BindInstance() DomBinder
 }
 
+type ModelUpdateFn func(value string)
+
+type CustomElemManager interface {
+	IsCustomElem(jq.JQuery) bool
+	ModelForElem(jq.JQuery) interface{}
+}
+
 type Binding struct {
-	tm         *CustagMan
+	tm         CustomElemManager
 	domBinders map[string]DomBinder
 	helpers    map[string]interface{}
 }
 
-func newBindEngine(tm *CustagMan) *Binding {
+func NewBindEngine(tm CustomElemManager) *Binding {
 	return &Binding{
 		tm:         tm,
 		domBinders: defaultBinders(),
@@ -57,8 +87,8 @@ func jqExists(elem jq.JQuery) bool {
 	return elem.Parents("html").Length > 0
 }
 
-//getReflectField returns the field value of an object, be it a struct instance
-//or a map
+// getReflectField returns the field value of an object, be it a struct instance
+// or a map
 func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
 	if o.Kind() == reflect.Ptr {
 		o = o.Elem()
@@ -110,8 +140,8 @@ func isValidExprChar(c rune) bool {
 	return c == '`' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
-//tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
-//it a little bit easier to parse
+// tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
+// it a little bit easier to parse
 func tokenize(spec string) (tokens []Token, err error) {
 	tokens = make([]Token, 0)
 	err = nil
@@ -169,8 +199,8 @@ func tokenize(spec string) (tokens []Token, err error) {
 	return
 }
 
-//parse parses the bind target string, populate information into a tree of Expr pointers.
-//Each helper call has a list arguments, each argument may be another helper call or an object expression.
+// parse parses the bind target string, populate information into a tree of Expr pointers.
+// Each helper call has a list arguments, each argument may be another helper call or an object expression.
 func parse(spec string) (root *Expr, err error) {
 	tokens, err := tokenize(spec)
 	if err != nil {
@@ -254,8 +284,8 @@ func (val *Value) Val() reflect.Value {
 	return reflect.ValueOf(val.value)
 }
 
-//evaluateRec recursively evaluates the parsed expressions and return the result value, it also
-//populates the tree of Expr with the value evaluated with evaluateObj if not available
+// evaluateRec recursively evaluates the parsed expressions and return the result value, it also
+// populates the tree of Expr with the value evaluated with evaluateObj if not available
 func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
 	err = nil
 	if len(expr.args) == 0 {
@@ -301,7 +331,7 @@ func bindStringPanic(mess, bindstring string) {
 	panic(fmt.Sprintf(mess+", while processing bind string `%v`.", bindstring))
 }
 
-//evaluateBindstring evaluates the bind string, returns the needed information for binding
+// evaluateBindstring evaluates the bind string, returns the needed information for binding
 func (b *Binding) evaluate(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}, err error) {
 	root, err = parse(spec)
 	if err != nil {
@@ -326,7 +356,7 @@ func (b *Binding) evaluateBindString(bstr string, model interface{}) (root *Expr
 	return
 }
 
-//getBindList fetches the list of objects that need to be bound from the *Expr tree into a list
+// getBindList fetches the list of objects that need to be bound from the *Expr tree into a list
 func getBindList(expr *Expr, list *([]*Expr)) {
 	if expr == nil {
 		return
@@ -342,8 +372,8 @@ func getBindList(expr *Expr, list *([]*Expr)) {
 	}
 }
 
-//evaluateObj uses reflection to access the field hierarchy in an object string
-//and return the necessary values
+// evaluateObj uses reflection to access the field hierarchy in an object string
+// and return the necessary values
 func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	if obj != "" && model == nil {
 		return nil, fmt.Errorf(`The model is nil, cannot bind to its "%v"`, obj)
@@ -524,7 +554,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 	elem.SetAttr("bound"+string([]rune(astr)[4:]), bstr)
 }
 
-//bind parses the bind string, binds the element with a model
+// bind parses the bind string, binds the element with a model
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
@@ -564,7 +594,7 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 
 					roote, binds, v := b.evaluateBindString(value, model)
 
-					tModel := b.tm.modelForElem(elem)
+					tModel := b.tm.ModelForElem(elem)
 					oe, err := evaluateObj(field, tModel)
 					if err != nil {
 						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)

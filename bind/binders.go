@@ -1,4 +1,4 @@
-package wade
+package bind
 
 import (
 	"fmt"
@@ -6,6 +6,10 @@ import (
 	"strings"
 
 	jq "github.com/gopherjs/jquery"
+)
+
+const (
+	WadePageAttr = "data-wade-page"
 )
 
 func defaultBinders() map[string]DomBinder {
@@ -21,6 +25,8 @@ func defaultBinders() map[string]DomBinder {
 	}
 }
 
+// BaseBinder provides the base so that binders will not have to provide empty
+// implement for the methods
 type BaseBinder struct{}
 
 func (b *BaseBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
@@ -28,18 +34,23 @@ func (b *BaseBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, a
 func (b *BaseBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {}
 func (b *BaseBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn)                          {}
 
+// ValueBinder is a 2-way binder that binds an element's value attribute.
+// It takes no extra dash args.
+// Meant to be used for <input>.
+//
+// Usage:
+//	bind-value="Expression"
 type ValueBinder struct{ *BaseBinder }
 
-func toString(value interface{}) string {
-	return fmt.Sprintf("%v", value)
-}
-
+// Update sets the element's value attribute to a new value
 func (b *ValueBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	elem.SetVal(toString(value))
 }
+
+// Watch watches for javascript change event on the element
 func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
 	tagname := strings.ToUpper(elem.Prop("tagName").(string))
-	if tagname != "INPUT" && tagname != "TEXTAREA" && tagname != "SELECT" {
+	if tagname != "INPUT" {
 		panic("Can only watch for changes on html input, textarea and select.")
 	}
 
@@ -47,27 +58,46 @@ func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
 		ufn(elem.Val())
 	})
 }
-
 func (b *ValueBinder) BindInstance() DomBinder { return b }
 
+// ValueBinder is a 1-way binder that binds an element's html content to
+// the value of a model field.
+// It takes no extra dash args.
+//
+// Usage:
+//	bind-html="Expression"
 type HtmlBinder struct{ BaseBinder }
 
+// Update sets the element's html content to a new value
 func (b *HtmlBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	elem.SetHtml(toString(value))
 }
 func (b *HtmlBinder) BindInstance() DomBinder { return b }
 
+// AttrBinder is a 1-way binder that binds a specified element's attribute
+// to a model field value.
+// It takes 1 extra dash arg that is the name of the html attribute to be bound.
+//
+// Usage:
+//	bind-attr-thatAttribute="Expression"
 type AttrBinder struct{ BaseBinder }
 
 func (b *AttrBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	if len(args) != 1 {
 		panic(fmt.Sprintf(`Incorrect number of args %v for html attribute binder.
-Usage: bind-attr-the_attr_name=the_attr_value.`, len(args)))
+Usage: bind-attr-thatAttribute="Field".`, len(args)))
 	}
 	elem.SetAttr(args[0], toString(value))
 }
 func (b *AttrBinder) BindInstance() DomBinder { return b }
 
+// EventBinder is a 1-way binder that binds a method of the model to an event
+// that occurs on the element.
+// It takes 1 extra dash arg that is the event name, for example "click",
+// "change",...
+//
+// Usage:
+//	bind-on-thatEventName="HandlerMethod"
 type EventBinder struct{ BaseBinder }
 
 func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
@@ -85,6 +115,21 @@ func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, 
 }
 func (b *EventBinder) BindInstance() DomBinder { return b }
 
+// EachBinder is a 1-way binder that repeats an element according to a map
+// or slice. It outputs a key and a value bound to each item.
+// It takes no extra dash arg. The extra output after "->" are the names that
+// receives the key and value, those names can be used inside the elment's
+// content. Each key and value pair is bound separately to each element.
+//
+// Usage:
+//	bind-each="Expression"
+// Or
+//	bind-each="Expression -> outputKey, outputValue"
+// Example:
+//	<div bind-each="Errors -> type, msg">
+//		<p>Error type: <% type %></p>
+//		<p>Message: <% msg %></p>
+//	</div>
 type EachBinder struct {
 	*BaseBinder
 	marker    jq.JQuery
@@ -137,35 +182,43 @@ func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, output
 	prev := b.marker
 	m := make(map[string]interface{})
 	noutput := len(outputs)
-	if noutput > 2 {
-		panic(fmt.Sprintf("Wrong output specification %v for the Each binder: only up to 2 outputs are allowed.", outputs))
-	}
-	if noutput != 0 {
+	if noutput == 2 {
 		for i := 0; i < b.size; i++ {
 			k, v := b.indexFn(i, val)
 			nx := b.prototype.Clone()
 			prev.Next().ReplaceWith(nx)
-			if noutput == 1 {
-				m[outputs[0]] = v.Interface()
-			} else {
-				m[outputs[0]] = k
-				m[outputs[1]] = v.Interface()
-			}
+			m[outputs[0]] = k
+			m[outputs[1]] = v.Interface()
 			b.binding.Bind(nx, m, true)
 			prev = nx
 		}
+	} else if noutput != 0 {
+		panic(fmt.Sprintf("Wrong output specification %v for the Each binder: there must be 2 outputs.", outputs))
 	}
 }
 
+// PageBinder is used for <a> elements to set its href to the real page url
+// and save necessary information for the proper page switching when the user
+// clicks on the link. It should be used with the url() helper.
+//
+// Typical usage:
+//	bind-page="url(`page-id`, arg1, arg2...)"
 type PageBinder struct{ BaseBinder }
 
 func (b *PageBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
+	if strings.ToLower(elem.Prop("tagName").(string)) != "a" {
+		panic("bind-page can only be used for links (<a> elements).")
+	}
 	uinf := value.(UrlInfo)
 	elem.SetAttr("href", uinf.fullUrl)
 	elem.SetAttr(WadePageAttr, uinf.path)
 }
 func (b *PageBinder) BindInstance() DomBinder { return b }
 
+// IfBinder shows or remove an element according to a boolean field value.
+//
+// Usage:
+//	bind-if="BooleanExpression"
 type IfBinder struct {
 	*BaseBinder
 	placeholder jq.JQuery
@@ -191,6 +244,10 @@ func (b *IfBinder) Update(elem jq.JQuery, value interface{}, args, outputs []str
 }
 func (b *IfBinder) BindInstance() DomBinder { return new(IfBinder) }
 
+// UnlessBinder is the reverse of IfBinder.
+//
+// Usage:
+//	bind-ifn="BooleanExpression"
 type UnlessBinder struct {
 	*IfBinder
 }

@@ -32,7 +32,7 @@ func newCustagMan(tcontainer jq.JQuery) *CustagMan {
 	}
 }
 
-func (tm *CustagMan) modelForElem(elem jq.JQuery) interface{} {
+func (tm *CustagMan) ModelForElem(elem jq.JQuery) interface{} {
 	mi := elem.Attr(ModelIdAttr)
 	if mi == "" {
 		panic("no modelId assigned for the element, something's wrong?")
@@ -44,6 +44,33 @@ func (tm *CustagMan) modelForElem(elem jq.JQuery) interface{} {
 	return tm.elemModels[modelId]
 }
 
+// RegisterNew registers a new custom element tag.
+// It selects the <welement> with id #tagid and registers a tag with the name
+// that is exactly the tagid. The content and specifications of the tag is
+// taken from #tagid.
+// For example, if
+//	wade.RegisterNew("t-errorlist", model)
+// is called, the element welement#t-errorlist, like
+//	<welement id="t-errorlist" attributes="Errors Subject">
+//		<p>errors for <% Subject %></p>
+//		<ul>
+//			<li bind-each="Errors -> _, msg"><% msg %></li>
+//		</ul>
+//	</welement>
+// will be selected and its contents
+// will be used as the new tag <t-errorlist>'s contents.
+// This new tag may be used like this
+//	<t-errorlist attr-subject="Username" bind="Errors: Username.Errors"></t-errorlist>
+// And if "Username.Errors" is {"Invalid.", "Not enough chars."}, something like this will
+// be put in place of the above:
+//	<p>errors for Username</p>
+//	<ul>
+//		<li>Invalid.</li>
+//		<li>Not enough chars.</li>
+//	</ul>
+// The model parameter must not be a pointer, it is actually used like a type,
+// It will be cloned, real instances of it will be created for each
+// separate custom element.
 func (tm *CustagMan) RegisterNew(tagid string, model interface{}) {
 	tagElem := tm.tcontainer.Find("#" + tagid)
 	if tagElem.Length == 0 {
@@ -55,6 +82,7 @@ func (tm *CustagMan) RegisterNew(tagid string, model interface{}) {
 	tm.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, model}
 }
 
+// IsCustomElem checks if the element's tag is of a registered custom tag
 func (tm *CustagMan) IsCustomElem(elem jq.JQuery) bool {
 	_, ok := tm.custags[strings.ToUpper(elem.Prop("tagName").(string))]
 	return ok

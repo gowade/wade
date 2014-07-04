@@ -1,4 +1,4 @@
-package wade
+package bind
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ func TestParser(t *testing.T) {
 	model.Data.Username = "Hai"
 	model.Data.Password = "Pk"
 	model.Test = "T"
-	b := newBindEngine(nil)
+	b := NewBindEngine(nil)
 	b.RegisterHelper("addInt", func(a, b int) int {
 		return a + b
 	})
