@@ -77,10 +77,10 @@ func (tm *CustagMan) ModelForElem(elem jq.JQuery) interface{} {
 //		<li>Invalid.</li>
 //		<li>Not enough chars.</li>
 //	</ul>
-// The model parameter must not be a pointer, it is actually used like a type,
+// The prototype parameter must not be a pointer, it is actually used like a type,
 // It will be cloned, real instances of it will be created for each
 // separate custom element.
-func (tm *CustagMan) RegisterNew(tagid string, model interface{}) {
+func (tm *CustagMan) RegisterNew(tagid string, prototype interface{}) {
 	tagElem := tm.tcontainer.Find("#" + tagid)
 	if tagElem.Length == 0 {
 		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
@@ -88,7 +88,7 @@ func (tm *CustagMan) RegisterNew(tagid string, model interface{}) {
 	if !tagElem.Is("welement") {
 		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
 	}
-	tm.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, model}
+	tm.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, prototype}
 }
 
 // IsCustomElem checks if the element's tag is of a registered custom tag

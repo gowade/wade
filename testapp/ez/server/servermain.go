@@ -85,8 +85,11 @@ func main() {
 		}
 	}
 
+	// This serves static files in the "public" directory
 	r.ServeFiles("/public/*filepath", http.Dir("../public"))
 
+	// Subpaths of /api/ provides the server API
+	// they should be protected by authorization
 	api := r.Group("/api/", func(c *gin.Context) {
 		token := c.Req.Header.Get("AuthToken")
 		if token != "" {
@@ -96,15 +99,8 @@ func main() {
 		c.Fail(http.StatusUnauthorized, fmt.Errorf("You're not allowed to do this, sorry."))
 	})
 
-	web := r.Group("/web/", func(c *gin.Context) {
-		f, err := os.Open("../public/index.html")
-		checkErr(err)
-		conts, err := ioutil.ReadAll(f)
-		checkErr(err)
-		c.Data(200, conts)
-	})
-	web.GET("*path", func(c *gin.Context) {})
-
+	// The api to register a user
+	// Used in the pg-user-register page
 	api.POST("/user/register", func(c *gin.Context) {
 		rawdata, err := ioutil.ReadAll(c.Req.Body)
 		if err != nil {
@@ -119,6 +115,18 @@ func main() {
 		c.JSON(200, !failed)
 	})
 
+	// Subpaths of /web/ are client urls, should NOT be protected
+	// Just serve the index.html for every subpaths actually, nothing else
+	web := r.Group("/web/", func(c *gin.Context) {
+		f, err := os.Open("../public/index.html")
+		checkErr(err)
+		conts, err := ioutil.ReadAll(f)
+		checkErr(err)
+		c.Data(200, conts)
+	})
+	web.GET("*path", func(c *gin.Context) {})
+
+	// Redirect the home page to /web/
 	r.GET("/", func(c *gin.Context) {
 		http.Redirect(c.Writer, c.Req, "/web/", http.StatusMovedPermanently)
 	})
