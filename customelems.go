@@ -13,6 +13,15 @@ const (
 	ModelIdAttr = "data-wade-modelid"
 )
 
+var (
+	ForbiddenAttrs = [...]string{
+		"id",
+		"class",
+		"style",
+		"title",
+	}
+)
+
 type CustomTag struct {
 	meid  string //id of the model welement used to declare the tag content
 	model interface{}
@@ -98,12 +107,28 @@ func (tm *CustagMan) prepare() {
 	}
 }
 
+func isForbiddenAttr(attr string) bool {
+	lattr := strings.ToLower(attr)
+	for _, a := range ForbiddenAttrs {
+		if a == lattr {
+			return true
+		}
+	}
+	return false
+}
+
 func (tm *CustagMan) prepareTag(tagid string, model reflect.Type) {
 	tagElem := tm.tcontainer.Find("#" + tagid)
 	publicAttrs := []string{}
 	if attrs := tagElem.Attr("attributes"); attrs != "" {
 		publicAttrs = strings.Split(attrs, " ")
 		for _, attr := range publicAttrs {
+			attr = strings.TrimSpace(attr)
+			if isForbiddenAttr(attr) {
+				panic(fmt.Sprintf(`Unable to register custom tag "%v", use of `+
+					`"%v" as a public attribute is forbidden because it conflicts `+
+					`with HTML's %v attribute.`, tagid, attr, strings.ToLower(attr)))
+			}
 			if _, ok := model.FieldByName(attr); !ok {
 				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tagid))
 			}
@@ -115,7 +140,7 @@ func (tm *CustagMan) prepareTag(tagid string, model reflect.Type) {
 		cptr := reflect.New(model)
 		clone := cptr.Elem()
 		for _, attr := range publicAttrs {
-			if val := elem.Attr(AttrPrefix + attr); val != "" {
+			if val := elem.Attr(attr); val != "" {
 				field := clone.FieldByName(attr)
 				var err error = nil
 				var v interface{}

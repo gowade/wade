@@ -45,7 +45,6 @@ type ErrorListModel struct {
 }
 
 func main() {
-	//js.Global.Call("test", jquery.NewJQuery("title"))
 	wade := wd.WadeUp("pg-home", "/web", "wade-content", "wpage-container", func(wade *wd.Wade) {
 		wade.Pager().RegisterPages(map[string]string{
 			"/home":          "pg-home",
@@ -59,7 +58,7 @@ func main() {
 		})
 		wade.Pager().SetNotFoundPage("pg-not-found")
 
-		//wade.Custags().RegisterNew("t-userinfo", UserInfo{})
+		wade.Custags().RegisterNew("t-userinfo", UserInfo{})
 		wade.Custags().RegisterNew("t-errorlist", ErrorListModel{})
 		wade.Custags().RegisterNew("t-test", UsernamePassword{})
 
@@ -89,6 +88,8 @@ func main() {
 		})
 	})
 
+	// This part add a function to be called to modify every http request
+	// It sets the AuthToken header to a token that will be verified by the server
 	http.Service().AddHttpInterceptor(func(req *http.Request) {
 		token, ok := pdata.Service().GetStr("authToken")
 		if !ok {

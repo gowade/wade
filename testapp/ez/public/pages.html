@@ -1,6 +1,6 @@
 
 		<wpage>
-	        <t-userinfo attr-name="Hai Thanh Nguyen" attr-age="18"></t-userinfo>
+	        <t-userinfo name="Hai Thanh Nguyen" age="18"></t-userinfo>
 	        <wpage id="pg-home" title="Wade Home">
 	            <p><a bind-page="url(`pg-post`)">View posts.</a></p>
 				<p><a bind-page="url(`pg-user-login`)">Login.</a></p>
@@ -8,7 +8,7 @@
 	            <p><a href="http://google.com">External link.</a></p>
 	        </wpage>
 			<wpage id="pg-user" title="User page">
-				<t-userinfo attr-name="Awesome" attr-age="99"></t-userinfo>
+				<t-userinfo name="Awesome" age="99"></t-userinfo>
 				<wpage id="pg-user-login">
 					<span bind-if="AuthGened">Authentication info is generated.</span>
 					<span bind-ifn="AuthGened">Generating auth info...</span>

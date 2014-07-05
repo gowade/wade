@@ -17,10 +17,6 @@ var (
 	WadeDevMode = true
 )
 
-const (
-	AttrPrefix = "attr-"
-)
-
 type Wade struct {
 	pm         *PageManager
 	tm         *CustagMan

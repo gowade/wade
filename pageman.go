@@ -306,7 +306,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 
 	for tagName, tag := range pm.tm.custags {
 		tagElem := pm.tcontainer.Find("#" + tag.meid)
-		elems := pageElem.Find(tagName)
+		elems := pm.container.Find(tagName)
 		elems.Each(func(i int, elem jq.JQuery) {
 			elem.Append(tagElem.Html())
 			pm.binding.Bind(elem, pm.tm.ModelForElem(elem), false)
