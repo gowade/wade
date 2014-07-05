@@ -48,13 +48,12 @@ type ErrorMapHolder interface {
 //
 // Validated implements the ErrorMapHolder interface, so you just need to
 // embed Validated into your form struct and pass it to this function.
-func ProcessForm(url string, data interface{}, errdst ErrorMapHolder, validator check.Struct) *http.Response {
+func ProcessForm(url string, data interface{}, errdst ErrorMapHolder, validator check.Struct) chan *http.Response {
 	if reflect.TypeOf(data).Kind() != reflect.Struct {
 		panic("The dataModel given to ProcessForm must be a struct.")
 	}
 	errdst.setErrors(validator.Validate(data).ToMessages())
 	req := http.Service().NewRequest(http.MethodPost, url)
 	req.SetData(data)
-	r := req.DoSync()
-	return r
+	return req.Do()
 }

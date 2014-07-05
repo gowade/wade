@@ -467,6 +467,10 @@ func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
 	return
 }
 
+func jsGetType(obj js.Object) string {
+	return js.Global.Get("Object").Get("prototype").Get("toString").Call("call", obj).Str()
+}
+
 func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
 	for _, expr := range binds {
 		//use watchjs to watch for changes to the model
@@ -474,10 +478,7 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 		(func(expr *Expr) {
 			obj := js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val")
 			//workaround for gopherjs's protection disallowing js access to maps
-			//hopfn := obj.Get("hasOwnProperty")
-			//obj.Set("hasOwnProperty", func(prop string) bool {
-			//	return true
-			//})
+			//setDummyHopFn(obj, "")
 			js.Global.Call("watch",
 				obj,
 				expr.eval.field,
@@ -488,7 +489,6 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
 				})
-			//obj.Set("hasOwnProperty", hopfn)
 		})(expr)
 	}
 }
@@ -602,10 +602,21 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 					if err != nil {
 						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
 					}
+					isCompat := func(src reflect.Type, dst reflect.Type) {
+						if !src.AssignableTo(dst) {
+							bindStringPanic(fmt.Sprintf("Unassignable, incompatible types %v and %v of the model field and the value",
+								src.String(), dst.String()), bstr)
+						}
+					}
+					isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
 					oe.fieldRefl.Set(reflect.ValueOf(v))
 					if !once {
 						b.watchModel(binds, roote, model, func(newResult interface{}) {
-							oe.fieldRefl.Set(reflect.ValueOf(newResult))
+							//println(oe.fieldRefl.Type().String())
+							//println(reflect.ValueOf(newResult).Type().String())
+							nr := reflect.ValueOf(newResult)
+							isCompat(nr.Type(), oe.fieldRefl.Type())
+							oe.fieldRefl.Set(nr)
 						})
 					}
 				}

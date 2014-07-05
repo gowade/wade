@@ -33,8 +33,6 @@ func (r *RegUser) Reset() {
 }
 
 func (r *RegUser) Submit() {
-	//validate here...
-	//then send
 	utils.ProcessForm("/api/user/register", r.Data, r, model.UsernamePasswordValidator())
 }
 
@@ -68,12 +66,13 @@ func main() {
 		wade.Pager().RegisterController("pg-user-login", func(p *wd.PageData) interface{} {
 			req := http.Service().NewRequest(http.MethodGet, "/auth")
 			as := &AuthedStat{false}
-			req.DoAsync().Done(func(r *http.Response) {
+			ch := req.Do()
+			go func() {
 				u := new(model.User)
-				r.DecodeDataTo(u)
+				(<-ch).DecodeDataTo(u)
 				pdata.Service().Set("authToken", u.Token)
 				as.AuthGened = true
-			})
+			}()
 			return as
 		})
 

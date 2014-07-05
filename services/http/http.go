@@ -153,10 +153,21 @@ func (r *Request) makeJqConfig() map[string]interface{} {
 	return m
 }
 
-func (r *Request) DoAsync() Deferred {
-	return Deferred{jquery.Ajax(r.makeJqConfig())}
+// Do does an asynchronous http request and returns a channel
+func (r *Request) Do() chan *Response {
+	ch := make(chan *Response, 1)
+	Deferred{jquery.Ajax(r.makeJqConfig())}.Then(func(r *Response) {
+		go func() {
+			ch <- r
+		}()
+	})
+	return ch
 }
 
+// DoSync does a synchronous http request and directly returns a response.
+// This method will freeze everything even in a goroutine, so it is only
+// suitable for tasks like app initialization. Please use Do() instead for
+// the vast majority of cases.
 func (r *Request) DoSync() (resp *Response) {
 	conf := r.makeJqConfig()
 	conf["async"] = false
