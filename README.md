@@ -1,4 +1,4 @@
-WadeGo [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)](http://godoc.org/github.com/phaikawl/wade)
+Wade.go [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)](http://godoc.org/github.com/phaikawl/wade)
 ====
 The no-magic client-side web framework for Go->js.  
 
