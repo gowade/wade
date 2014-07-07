@@ -33,7 +33,7 @@ Developed from wonderful ideas of existing Javascript libraries.
 
 #Is it ready?
 **Yes** it's ready to be used! But **No** it's not yet ready for a public announcement, not well tested, still needs some feedbacks and refinements, a lot stability problems may arise.  
-Basically, "private beta" for now.
+Basically, "closed beta" for now.
 
 #License
 
