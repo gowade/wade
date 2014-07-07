@@ -1,6 +1,6 @@
 Wade.go [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)](http://godoc.org/github.com/phaikawl/wade)
 ====
-The anti-magic client-side web framework for Go -> js.
+The comprehensive client-side web framework for Go -> js.
 
 *Brought to you with love and excitement...*
 #A brand new way of developing
