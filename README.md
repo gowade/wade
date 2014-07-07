@@ -25,8 +25,8 @@ Developed from wonderful ideas of existing Javascript libraries.
 * Custom elements, inspired by [Polymer](http://polymer-project.org), but much simpler
 * Convenient web page declaration inspired by [Pager.js](http://pagerjs.com)  
 
-#Wading in
-* Getting started guide: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
+#Let's get started!
+* Start here: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
 * [Concepts reference]() (Coming soon)
 * [API reference](http://godoc.org/github.com/phaikawl/wade)
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
