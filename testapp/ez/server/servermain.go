@@ -128,7 +128,7 @@ func main() {
 
 	// Redirect the home page to /web/
 	r.GET("/", func(c *gin.Context) {
-		http.Redirect(c.Writer, c.Req, "/web/", http.StatusMovedPermanently)
+		http.Redirect(c.Writer, c.Req, "/web/", http.StatusFound)
 	})
 
 	//
