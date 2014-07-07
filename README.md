@@ -31,6 +31,9 @@ Developed from wonderful ideas of existing Javascript libraries.
 * [API reference](http://godoc.org/github.com/phaikawl/wade)
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
 
+#Is it ready?
+**Yes** it's ready to be used! But **No** it's not yet ready for a public announcement, not well tested, still needs some feedbacks and refinements, a lot stability problems may arise.  
+Basically, "private beta" for now.
 
 #License
 
