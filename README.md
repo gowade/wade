@@ -4,7 +4,7 @@ The comprehensive client-side web framework for Go -> js.
 
 *Brought to you with love and excitement...*
 #A brand new way of developing
-No it wasn't a typo, Wade is a fresh **client-side** web framework for **Go**, created to bring these together:
+No it wasn't a typo, Wade is a fresh **client-side** web framework for [**Go**](http://golang.org), created to bring these together:
 * The awesome convenience of client-side Web development with HTML data binding (think AngularJS)
 * The Go platform. The true Go-style concurrency syntax. And the advantages of coding in a compiled programming language without having to sacrifice productivity.
 * The awesome feeling of being able to use the same language for both client and server.
