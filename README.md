@@ -13,17 +13,11 @@ No it wasn't a typo, Wade is a fresh **client-side** web framework for **Go**, c
 Wade.go is compiled with [gopherjs](https://github.com/gopherjs/gopherjs), a Go -> Javascript transpiler. Gopherjs has evolved to become an awesome platform for writing client-side web application in Go. It provides strong, convenient Go-Javascript interoperability, compatibility with most of the Go standard library, and full goroutine support. However, there's no good existing web framework/wrapper for it yet, that's why Wade is created.
 
 #Features
-    
-* *Explicit*, *Defensive* and *Strict*:  
-The user code knows what's going on, and whenever there are mistakes like a wrong data binding syntax or refering a non-existent model field in the HTML, Wade raises a descriptive error message instead of silently ignoring.
-
-* *Type safe*:  
-Although being compiled to Javascript under the hood, Wade is designed for Go from the ground up and take full advantage of the type system.
-
-Developed from wonderful ideas of existing Javascript libraries.
-* Data binding mechanism inspired by [Rivets.js](http://rivetsjs.com)'s beautiful and customizable one
-* Custom elements, inspired by [Polymer](http://polymer-project.org), but much simpler
-* Convenient web page declaration inspired by [Pager.js](http://pagerjs.com)  
+* Developed from wonderful ideas in existing Javascript libraries.
+    * Data binding inspired by [Rivets.js](http://rivetsjs.com)'s awesome mechanism
+    * Custom elements inspired by [Polymer](http://polymer-project.org), but much simpler
+    * Convenient pages declaration inspired by [Pager.js](http://pagerjs.com)  
+* Type safe, strict and defensive, designed for Go from the ground up, Wade takes full advantage of the type system
 
 #Let's get started!
 * Start here: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
