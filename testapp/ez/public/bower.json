@@ -15,7 +15,7 @@
     "tests"
   ],
   "dependencies": {
-    "wadejs": "master",
+    "wade-watch-js": "master",
     "rivets": "master",
     "jquery": "~2.1.1",
     "route-recognizer": "~0.1.1",
