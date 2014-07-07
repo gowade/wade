@@ -20,14 +20,13 @@ The user code knows what's going on, and whenever there are mistakes like a wron
 * *Type safe*:  
 Although being compiled to Javascript under the hood, Wade is designed for Go from the ground up and take full advantage of the type system.
 
-
-We develop from wonderful ideas of existing Javascript libraries.
-* Data binding mechanism inspired by [Rivets.js](http://rivetsjs.com)'s beautiful and customizable method
+Developed from wonderful ideas of existing Javascript libraries.
+* Data binding mechanism inspired by [Rivets.js](http://rivetsjs.com)'s beautiful and customizable one
 * Custom elements, inspired by [Polymer](http://polymer-project.org), but much simpler
 * Convenient web page declaration inspired by [Pager.js](http://pagerjs.com)  
 
 #Wading in
-* Getting started guide: [Wa.de.Go! The Tour]() (Coming soon).
+* Getting started guide: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
 * [Concepts reference]() (Coming soon)
 * [API reference](http://godoc.org/github.com/phaikawl/wade)
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
