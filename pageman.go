@@ -42,12 +42,16 @@ type PageManager struct {
 	tcontainer      jq.JQuery
 	binding         *bind.Binding
 	tm              *CustagMan
+	pd              *PageData
 	//pageModels   []js.Object
 }
 
 // PageData provides access to the page-specific data inside a controller func
 type PageData struct {
 	params map[string]interface{}
+
+	b       *bind.Binding
+	helpers []string
 }
 
 // ExportParam sets the value of a parameter to a target.
@@ -67,6 +71,20 @@ func (pd *PageData) ExportParam(param string, target interface{}) {
 		panic(err.Error())
 	}
 	return
+}
+
+// RegisterHelper registers fn as a local helper with the given name.
+//
+// Helpers registered with this method are deleted when switching page.
+func (pd *PageData) RegisterHelper(name string, fn interface{}) {
+	pd.helpers = append(pd.helpers, name)
+	pd.b.RegisterHelper(name, fn)
+}
+
+func (pd *PageData) deleteHelpers() {
+	for _, name := range pd.helpers {
+		pd.b.DeleteHelper(name)
+	}
 }
 
 func newPageManager(startPage, basePath string, container string,
@@ -211,8 +229,6 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 				} else {
 					c.First().ReplaceWith(resultElems[0])
 				}
-			} else {
-				resultElems[i-1].Append(clone)
 			}
 		}
 
@@ -228,8 +244,8 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 					} else if nodeType == 3 {
 						resultElems[i].Append(e.Text())
 					}
-				} else if e.Is(pageElem.Get(0)) {
-					resultElems[leng-1].Append(resultElems[leng])
+				} else if i < leng && e.Is(parents[i+1].Get(0)) {
+					resultElems[i].Append(resultElems[i+1])
 				}
 			})
 		}
@@ -289,6 +305,10 @@ func (pm *PageManager) PageUrl(pageid string, params []interface{}) (u string, e
 }
 
 func (pm *PageManager) bind(params map[string]interface{}) {
+	if pm.pd != nil {
+		pm.pd.deleteHelpers()
+	}
+
 	pageElem := elemForPage(pm.container, pm.currentPage)
 	if handlers, ok := pm.pageHandlers[pm.currentPage]; ok {
 		for _, handler := range handlers {
@@ -296,17 +316,17 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 		}
 	}
 
-	pdata := &PageData{params}
+	pm.pd = &PageData{params, pm.binding, make([]string, 0)}
 	if controller, exist := pm.pageControllers[pm.currentPage]; exist {
-		model := controller(pdata)
+		model := controller(pm.pd)
 		pm.binding.Bind(pageElem, model, false)
 	}
 
 	pm.binding.Bind(pm.container, nil, true)
 
-	for tagName, tag := range pm.tm.custags {
-		tagElem := pm.tcontainer.Find("#" + tag.meid)
-		elems := pm.container.Find(tagName)
+	for _, tag := range pm.tm.custags {
+		tagElem := tag.elem
+		elems := pm.container.Find(tag.name)
 		elems.Each(func(i int, elem jq.JQuery) {
 			elem.Append(tagElem.Html())
 			pm.binding.Bind(elem, pm.tm.ModelForElem(elem), false)

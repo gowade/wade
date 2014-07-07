@@ -18,9 +18,15 @@ type Validated struct {
 }
 
 func (v *Validated) setErrors(m ErrorMap) {
-	for i := range m {
-		v.Errors[i] = m[i]
+	for k := range v.Errors {
+		if mv, ok := m[k]; ok {
+			v.Errors[k] = mv
+		} else {
+			v.Errors[k] = make(map[string]string)
+		}
 	}
+
+	println(m)
 }
 
 // Init creates a map entry for each field in dataModel.

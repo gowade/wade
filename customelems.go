@@ -23,7 +23,8 @@ var (
 )
 
 type CustomTag struct {
-	meid  string //id of the model welement used to declare the tag content
+	name  string
+	elem  jq.JQuery
 	model interface{}
 }
 
@@ -54,11 +55,10 @@ func (tm *CustagMan) ModelForElem(elem jq.JQuery) interface{} {
 }
 
 // RegisterNew registers a new custom element tag.
-// It selects the <welement> with id #tagid and registers a tag with the name
-// that is exactly the tagid. The content and specifications of the tag is
-// taken from #tagid.
+// It selects the <welement> with id #elemid and registers a new tag with the given name
+// The content and specifications of the tag is taken from #elemid.
 // For example, if
-//	wade.RegisterNew("t-errorlist", model)
+//	wade.RegisterNew("errorlist", "t-errorlist", prototype)
 // is called, the element welement#t-errorlist, like
 //	<welement id="t-errorlist" attributes="Errors Subject">
 //		<p>errors for <% Subject %></p>
@@ -67,9 +67,9 @@ func (tm *CustagMan) ModelForElem(elem jq.JQuery) interface{} {
 //		</ul>
 //	</welement>
 // will be selected and its contents
-// will be used as the new tag <t-errorlist>'s contents.
+// will be used as the new tag <errorlist>'s contents.
 // This new tag may be used like this
-//	<t-errorlist attr-subject="Username" bind="Errors: Username.Errors"></t-errorlist>
+//	<errorlist attr-subject="Username" bind="Errors: Username.Errors"></errorlist>
 // And if "Username.Errors" is {"Invalid.", "Not enough chars."}, something like this will
 // be put in place of the above:
 //	<p>errors for Username</p>
@@ -80,15 +80,15 @@ func (tm *CustagMan) ModelForElem(elem jq.JQuery) interface{} {
 // The prototype parameter must not be a pointer, it is actually used like a type,
 // It will be cloned, real instances of it will be created for each
 // separate custom element.
-func (tm *CustagMan) RegisterNew(tagid string, prototype interface{}) {
-	tagElem := tm.tcontainer.Find("#" + tagid)
+func (tm *CustagMan) RegisterNew(tagName string, elemid string, prototype interface{}) {
+	tagElem := tm.tcontainer.Find("#" + elemid)
 	if tagElem.Length == 0 {
-		panic(fmt.Sprintf("Welement with id #%v does not exist.", tagid))
+		panic(fmt.Sprintf("Welement with id #%v does not exist.", elemid))
 	}
 	if !tagElem.Is("welement") {
-		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", tagid))
+		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", elemid))
 	}
-	tm.custags[strings.ToUpper(tagid)] = &CustomTag{tagid, prototype}
+	tm.custags[strings.ToUpper(tagName)] = &CustomTag{tagName, tagElem, prototype}
 }
 
 // IsCustomElem checks if the element's tag is of a registered custom tag
@@ -101,9 +101,9 @@ func (tm *CustagMan) prepare() {
 	for _, tag := range tm.custags {
 		mtype := reflect.TypeOf(tag.model)
 		if mtype.Kind() != reflect.Struct {
-			panic(fmt.Sprintf("Wrong type for the model of tag #%v, it must be a struct (non-pointer).", tag.meid))
+			panic(fmt.Sprintf("Wrong type for the model of tag #%v, it must be a struct (non-pointer).", tag.name))
 		}
-		tm.prepareTag(tag.meid, mtype)
+		tm.prepareTag(tag, mtype)
 	}
 }
 
@@ -117,8 +117,8 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *CustagMan) prepareTag(tagid string, model reflect.Type) {
-	tagElem := tm.tcontainer.Find("#" + tagid)
+func (tm *CustagMan) prepareTag(tag *CustomTag, model reflect.Type) {
+	tagElem := tag.elem
 	publicAttrs := []string{}
 	if attrs := tagElem.Attr("attributes"); attrs != "" {
 		publicAttrs = strings.Split(attrs, " ")
@@ -127,15 +127,15 @@ func (tm *CustagMan) prepareTag(tagid string, model reflect.Type) {
 			if isForbiddenAttr(attr) {
 				panic(fmt.Sprintf(`Unable to register custom tag "%v", use of `+
 					`"%v" as a public attribute is forbidden because it conflicts `+
-					`with HTML's %v attribute.`, tagid, attr, strings.ToLower(attr)))
+					`with HTML's %v attribute.`, tag.name, attr, strings.ToLower(attr)))
 			}
 			if _, ok := model.FieldByName(attr); !ok {
-				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tagid))
+				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tag.name))
 			}
 		}
 	}
 
-	elems := tm.tcontainer.Find(tagid)
+	elems := tm.tcontainer.Find(tag.name)
 	elems.Each(func(idx int, elem jq.JQuery) {
 		cptr := reflect.New(model)
 		clone := cptr.Elem()
@@ -166,12 +166,12 @@ func (tm *CustagMan) prepareTag(tagid string, model reflect.Type) {
 						v = reflect.MakeMap(ftype.Type)
 					}
 					err = fmt.Errorf(`Unhandled type "%v", cannot use normal html to set the attribute "%v" of custom tag "%v".
-consider using attribute binding instead.`, kind, attr, tagid)
+consider using attribute binding instead.`, kind, attr, tag.name)
 				}
 
 				if err != nil {
 					panic(fmt.Sprintf(`Invalid value "%v" for attribute "%v" of custom tag "%v": type mismatch. Parse info: %v.`,
-						val, attr, tagid, err))
+						val, attr, tag.name, err))
 				}
 
 				field.Set(reflect.ValueOf(v))

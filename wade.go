@@ -36,7 +36,17 @@ func parseTemplate(source string) string {
 	})
 }
 
-// WadeUp initializes the Wade engine and performs HTML imports
+// WadeUp initializes the Wade engine and performs HTML imports.
+//
+// "startPage" is the id of the page we redirect to on an access to /
+//
+// "tempcontainer" is the id of the <script type="text/wadin"> element where the HTML source code reside in.
+// It usually contains <wimport> elements to import other HTML source files.
+// It is never displayed and is ignored by the browser, screen readers, etc.
+//
+// "container" is the id of the HTML parent element where all the real page content is copied into and displayed.
+//
+// "initFn" is the callback that is run after initialization finishes.
 func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
 	origin := js.Global.Get("document").Get("location").Get("origin").Str()

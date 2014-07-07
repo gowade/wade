@@ -71,7 +71,7 @@ func main() {
 			A route may contain patterns like the ":postid" below.
 			 | It describes a root parameter, for example /post/42 matches to
 			 | the page "pg-post-view" with postid=42
-		 On the right are page id's, they refer to the id of the <wpage> element,
+		 On the right are page id's, each refers to a corresponding <wpage> element,
 		  | the id is unique to the page and it identifies the page.
 
 		*/
@@ -82,6 +82,7 @@ func main() {
 			"/post/:postid":  "pg-post-view",
 			"/user":          "pg-user",
 			"/user/login":    "pg-user-login",
+			"/user/profile":  "pg-user-profile",
 			"/user/register": "pg-user-register",
 			"/404":           "pg-not-found",
 		})
@@ -98,9 +99,9 @@ func main() {
 		use of the custom element.
 
 		*/
-		wade.Custags().RegisterNew("t-userinfo", UserInfo{})
-		wade.Custags().RegisterNew("t-errorlist", ErrorListModel{})
-		wade.Custags().RegisterNew("t-test", UsernamePassword{})
+		wade.Custags().RegisterNew("userinfo", "t-userinfo", UserInfo{})
+		wade.Custags().RegisterNew("errorlist", "t-errorlist", ErrorListModel{})
+		wade.Custags().RegisterNew("test", "t-test", UsernamePassword{})
 
 		/* This sets the controller for the page "pg-user-login"
 		The controller function returns a model, of which fields are used as targets

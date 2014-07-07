@@ -68,6 +68,10 @@ func NewBindEngine(tm CustomElemManager) *Binding {
 	}
 }
 
+// RegisterHelper registers fn as a helper with the given name.
+//
+// Helpers registered with this method are permanent, if you want to register
+// a helper for just the current page, please use PageData.RegisterHelper.
 func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	typ := reflect.TypeOf(fn)
 	if typ.Kind() != reflect.Func {
@@ -84,6 +88,14 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	}
 	panic(fmt.Sprintf("Helper with name %v already exists.", name))
 	return
+}
+
+// Delete a helper
+func (b *Binding) DeleteHelper(name string) {
+	if _, ok := b.helpers[name]; ok {
+		delete(b.helpers, name)
+	}
+	panic(fmt.Sprintf("No such helper %v", name))
 }
 
 func jqExists(elem jq.JQuery) bool {
