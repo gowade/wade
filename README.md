@@ -34,6 +34,8 @@ Pull requests are welcome. Wade is young, feedbacks are necessary, the core func
 
 [TODO list](https://github.com/phaikawl/wade/wiki/TODO).
 
+Feel free to contact me at https://plus.google.com/+HaiThanhNguyenPk if you're interested.
+
 #License
 
     Copyright (c) 2014, Hai Thanh Nguyen
