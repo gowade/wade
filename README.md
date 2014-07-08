@@ -31,6 +31,7 @@ Basically, "closed beta" for now.
 
 #Contributing
 Pull requests are welcome. Wade is young, feedbacks are necessary, the core functionalities are there but lot of things could be developed, like a (separate) package for authorization, websocket integration, etc...
+
 [TODO list](https://github.com/phaikawl/wade/wiki/TODO).
 
 #License
