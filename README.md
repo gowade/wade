@@ -39,7 +39,7 @@ An example Register page:
 		
 	</wpage>
 
-That's how we create `<input>` fields with all the Data automatically updated for `Username` and `Password`.
+That's how we create `<input>` fields with all the data automatically updated for `Username` and `Password`.
 
 A method named `Reset` is called when the Reset button is clicked, similarly for Submit.
 
