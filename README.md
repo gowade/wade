@@ -20,7 +20,7 @@ Wade.go is compiled with [gopherjs](https://github.com/gopherjs/gopherjs), a Go 
 * Type safe, strict and defensive, designed for Go from the ground up, Wade takes full advantage of the type system
 
 #Let's get started!
-* Start here: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
+* Quick introduction: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
 * [Concepts reference]() (Coming soon)
 * [API reference](http://godoc.org/github.com/phaikawl/wade)
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
