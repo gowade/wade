@@ -56,9 +56,7 @@ The `errorlist` above is a custom element, which is declared as
     	</div>
     </welement>
 
-In the form, `Errors.Username` is a list of validation errors for the Username field.
-
-You can see that we can comfortably bind `errorlist`'s Error attribute to a whole list that is `Errors.Username`, or `Errors.Password`. The elements inside have access to the list via `Errors`, we use a simple `bind-each` to loop through each error and display a list to the user.
+In the form, `Errors.Username` is a list of validation errors for the Username field. You can see that we can comfortably bind `errorlist`'s Errors attribute to a whole list that is `Errors.Username`, or `Errors.Password`. The elements inside have access to the list via `Errors`, we use a simple `bind-each` to loop through each error and display a list to the user.
 
 There are much more, are you interested? If so...
 
