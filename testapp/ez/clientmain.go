@@ -61,31 +61,8 @@ type ErrorListModel struct {
 }
 
 func main() {
-	wade := wd.WadeUp("pg-home", "/web", "wade-content", "wpage-container", func(wade *wd.Wade) {
-		// These things must go in here because they should be called at the right time when
-		// the required HTML imports are all available.
-
-		/* We call RegisterPages to register the pages and their associated route
-
-		On the left are the url routes.
-			A route may contain patterns like the ":postid" below.
-			 | It describes a root parameter, for example /post/42 matches to
-			 | the page "pg-post-view" with postid=42
-		 On the right are page id's, each refers to a corresponding <wpage> element,
-		  | the id is unique to the page and it identifies the page.
-
-		*/
-		wade.Pager().RegisterPages(map[string]string{
-			"/home":          "pg-home",
-			"/posts":         "pg-post",
-			"/posts/new":     "pg-post-new",
-			"/post/:postid":  "pg-post-view",
-			"/user":          "pg-user",
-			"/user/login":    "pg-user-login",
-			"/user/profile":  "pg-user-profile",
-			"/user/register": "pg-user-register",
-			"/404":           "pg-not-found",
-		})
+	wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade) {
+		wade.Pager().RegisterPages("wpage-root")
 
 		wade.Pager().SetNotFoundPage("pg-not-found")
 
@@ -114,14 +91,14 @@ func main() {
 			req := http.Service().NewRequest(http.MethodGet, "/auth")
 			austat := &AuthedStat{false}
 			// performs the request to auth asynchronously
-			ch := req.Do()
+			responseChannel := req.Do()
 
 			// use a goroutine to process the response
 			go func() {
 				u := new(model.User)
 				// here we wait for the response to come from the channel
 				// and decode it to u
-				(<-ch).DecodeDataTo(u)
+				(<-responseChannel).DecodeDataTo(u)
 
 				pdata.Service().Set("authToken", u.Token)
 

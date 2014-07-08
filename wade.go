@@ -36,32 +36,29 @@ func parseTemplate(source string) string {
 	})
 }
 
-// WadeUp initializes the Wade engine and performs HTML imports.
+// WadeUp gets and processes HTML source from script[type="text/wadin"]
+// elements, performs HTML imports and initializes the app.
 //
 // "startPage" is the id of the page we redirect to on an access to /
 //
-// "tempcontainer" is the id of the <script type="text/wadin"> element where the HTML source code reside in.
-// It usually contains <wimport> elements to import other HTML source files.
-// It is never displayed and is ignored by the browser, screen readers, etc.
-//
-// "container" is the id of the HTML parent element where all the real page content is copied into and displayed.
-//
 // "initFn" is the callback that is run after initialization finishes.
-func WadeUp(startPage, basePath string, tempcontainer, container string, initFn func(*Wade)) *Wade {
+func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
 	gHistory = js.Global.Get("history")
 	origin := js.Global.Get("document").Get("location").Get("origin").Str()
-	tempContainer := gJQ("script[type='text/wadin']#" + tempcontainer)
-	if tempContainer.Length == 0 {
-		panic(fmt.Sprintf("Template container #%v not found or is wrong kind of element, must be script[type='text/wadin'].",
-			tempContainer))
+	tempContainers := gJQ("script[type='text/wadin']")
+	jqParseHTML := func(src string) jq.JQuery {
+		return gJQ(js.Global.Get(jq.JQ).Call("parseHTML", src))
 	}
-	html := js.Global.Get(jq.JQ).Call("parseHTML", "<div>"+parseTemplate(tempContainer.Html())+"</div>")
-	tElem := gJQ(html)
+	tElem := jqParseHTML("<div></div>")
+	tempContainers.Each(func(_ int, container jq.JQuery) {
+		tElem.Append(container.Html())
+	})
+
 	htmlImport(tElem, origin)
 	tm := newCustagMan(tElem)
 	binding := bind.NewBindEngine(tm)
 	wd := &Wade{
-		pm:         newPageManager(startPage, basePath, container, tElem, binding, tm),
+		pm:         newPageManager(startPage, basePath, tElem, binding, tm),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: tElem,
@@ -86,13 +83,13 @@ func (wd *Wade) Binding() *bind.Binding {
 	return wd.binding
 }
 
-// htmlImport performs importing of HTML source
+// htmlImport performs an HTML import
 func htmlImport(parent jq.JQuery, origin string) {
 	parent.Find("wimport").Each(func(i int, elem jq.JQuery) {
 		src := elem.Attr("src")
 		req := http.NewRequest(http.MethodGet, origin+src)
 		html := req.DoSync().Data()
-		elem.Append(parseTemplate(html))
+		elem.ReplaceWith(parseTemplate(html))
 		htmlImport(elem, origin)
 	})
 }

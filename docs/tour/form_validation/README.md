@@ -1,6 +1,6 @@
 # Form validation
 
-In the previous section, you probably have wondered where does `Errors.Username` come from, where is it in the page model. Theres no magic.
+In the previous section, you probably have wondered where does `Errors.Username` come from and where is it in the page model. Theres no magic.
 
 Our model for the page `pg-user-register` is in `clientmain.go`:
 

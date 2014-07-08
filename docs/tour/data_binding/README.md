@@ -6,16 +6,12 @@ You can take a look at the various usages of data binding in `pages.html`. All t
 
 Let's examine the `pg-user-login` page.
 
-    <wpage id="pg-user-login">
-        <span bind-if="AuthGened">
-            Authentication info is generated.
-        </span>
-        <span bind-ifn="AuthGened">
-            Generating auth info...
-        </span>
-    </wpage>
+	<wpage pid="pg-user-login" route="/user/login">
+		<span bind-if="AuthGened">Authentication info is generated.</span>
+		<span bind-ifn="AuthGened">Generating auth info...</span>
+	</wpage>
 
-What is it supposed to do? It displays "Generating..." when start sending a request to the server (to get authentication info) and changes to "generated" when that operation completes.
+What is it supposed to do? It displays "Generating..." when we start sending a request to the server (to get authentication info) and changes to "generated" when that operation completes.
 
 Inside `clientmain.go` we have a model struct
 
@@ -28,19 +24,19 @@ and the call (cut out version)
     [...]
     	req := http.Service().NewRequest(http.MethodGet, "/auth")
     	austat := &AuthedStat{false}
-    	ch := req.Do()
+    	responseChannel := req.Do()
 
     	// use a goroutine to process the response
     	go func() {
-            // when the response is received from the channel
-    		<-ch
-            // we set AuthGened to true
+            // wait for the response
+    		<-responseChannel
+            // then set AuthGened to true
             austat.AuthGened = true
         }()
         return austat
     })
 
-Here `austat`, returned by the controller func, is our *model* for the page. It is an `AuthedStat` that contains bool field `AuthGened`, which indicates whether the request is completed or not yet.
+Here `austat`, returned by the controller function, is our *model* for the page. It is an `AuthedStat` that contains a bool field `AuthGened`, we use it to indicate whether the request is completed or not yet.
 
 In the HTML code of `pg-user-login`
 * [bind-if](http://godoc.org/github.com/phaikawl/wade/bind#IfBinder) is a [*dom binder*]() that displays the element when the referred value is true and hides it when the value is false.

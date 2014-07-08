@@ -1,51 +1,59 @@
 
-		<wpage>
-	        <userinfo name="Hai Thanh Nguyen" age="18"></userinfo>
-	        <wpage id="pg-home" title="Wade Home">
-	            <p><a bind-page="url(`pg-post`)">View posts.</a></p>
-				<p><a bind-page="url(`pg-user-login`)">Login.</a></p>
-				<p><a bind-page="url(`pg-user-profile`)">Profile.</a></p>
-				<p><a bind-page="url(`pg-user-register`)">Register.</a></p>
-	            <p><a href="http://google.com">External link.</a></p>
-	        </wpage>
-			<wpage id="pg-user" title="User page">
-				<wpage id="pg-user-login">
-					<span bind-if="AuthGened">Authentication info is generated.</span>
-					<span bind-ifn="AuthGened">Generating auth info...</span>
-				</wpage>
-				<wpage id="pg-user-profile">
-					Here is the profile of the most awesome person in the world:
-				</wpage>
-				<userinfo name="Awesome" age="99"></userinfo>
-	        </wpage>
-			<wpage id="pg-user-register" title="Register">
-				Username: <input type="text" bind-value="Data.Username"></input>
-				<errorlist bind="Errors: Errors.Username"></errorlist>
-				Password: <input type="password" bind-value="Data.Password"></input>
-				<errorlist bind="Errors: Errors.Password"></errorlist>
-				<button bind-on-click="Reset">Reset</button>
-				<button bind-on-click="Submit">Submit</button>
-				<p>Dom binding with helpers demo: <span bind-html="concat(toUpper(Data.Username), toLower(Data.Password))"></span></p>
-				<div>
-					Attribute binding for custom elements: <test bind="Username: Data.Username; Password: Data.Password"></test>
-				</div>
+        <userinfo name="Hai Thanh Nguyen" age="18"></userinfo>
+		
+        <wpage pid="pg-home" route="/home" title="Wade Home">
+            <p><a bind-page="url(`pg-post`)">View posts.</a></p>
+			<p><a bind-page="url(`pg-user-login`)">Login.</a></p>
+			<p><a bind-page="url(`pg-user-profile`)">Profile.</a></p>
+			<p><a bind-page="url(`pg-user-register`)">Register.</a></p>
+            <p><a href="http://google.com">External link.</a></p>
+        </wpage>
+		
+		<wpage pid="pg-user" route="/user" title="User page">
+		
+			<wpage pid="pg-user-login" route="/user/login">
+				<span bind-if="AuthGened">Authentication info is generated.</span>
+				<span bind-ifn="AuthGened">Generating auth info...</span>
 			</wpage>
-	        <wpage id="pg-post" title="Posts">
-	            <p><a bind-page="url(`pg-home`)">Home page.</a></p>
-	            <p><a bind-page="url(`pg-post-new`)">Post an article.</a></p>
-				<p>
-					<a bind-page="url(`pg-post-view`, 42)">
-						View post #42.
-					</a>
-				</p>
-	            <wpage id="pg-post-new" title="Post an article">
-	                <p><a bind-page="url(`pg-post`)">Back to view.</a></p>
-	            </wpage>
-				<wpage id="pg-post-view" title="Post view">
-					Viewing post #<% PostId %>
-	            </wpage>
-	        </wpage>
+			
+			<wpage pid="pg-user-profile" route="/user/profile">
+				Here is the profile of the most awesome person in the world:
+			</wpage>
+			
+			<userinfo name="Awesome" age="99"></userinfo>
+        </wpage>
+		
+		<wpage pid="pg-user-register" route="/user/register" title="Register">
+			Username: <input type="text" bind-value="Data.Username"></input>
+			<errorlist bind="Errors: Errors.Username"></errorlist>
+			Password: <input type="password" bind-value="Data.Password"></input>
+			<errorlist bind="Errors: Errors.Password"></errorlist>
+			<button bind-on-click="Reset">Reset</button>
+			<button bind-on-click="Submit">Submit</button>
+			<p>Dom binding with helpers demo: <span bind-html="concat(toUpper(Data.Username), toLower(Data.Password))"></span></p>
+			<div>
+				Attribute binding for custom elements: <test bind="Username: Data.Username; Password: Data.Password"></test>
+			</div>
 		</wpage>
-		<wpage id="pg-not-found" title="404">
+		
+        <wpage pid="pg-post" route="/post" title="Posts">
+            <p><a bind-page="url(`pg-home`)">Home page.</a></p>
+            <p><a bind-page="url(`pg-post-new`)">Post an article.</a></p>
+			<p>
+				<a bind-page="url(`pg-post-view`, 42)">
+					View post #42.
+				</a>
+			</p>
+			
+            <wpage pid="pg-post-new" route="/post/new" title="Post an article">
+                <p><a bind-page="url(`pg-post`)">Back to view.</a></p>
+            </wpage>
+			
+			<wpage pid="pg-post-view" route="/post/view/:postid" title="Post view">
+				Viewing post #<% PostId %>
+            </wpage>
+        </wpage>
+		
+		<wpage pid="pg-not-found" route="/404" title="404">
 			Page not found.
 		</wpage>

@@ -7,21 +7,22 @@ small reminder: there will be a lot of blue links for function names or other th
 
 The [WadeUp](http://godoc.org/github.com/phaikawl/wade#WadeUp) call
 
-    wd.WadeUp("pg-home", "/web", "wade-content", "wpage-container", func)
-initializes the app with `/web` as the app's base path and some parameters related to things in the HTML template.
+    wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade)...
+initializes the app with `/web` as the app's base path and "pg-home" as the starting page. It acceps the third parameter as a function that will be called at the right time after initialization and HTML imports.
 
-`index.html` is the master template. In the file you can see the funny `#wade-content`
+##HTML
 
-    <script type="text/wadin" id="wade-content">
-        <wimport src="/public/pages.html"></wimport>
-        <wimport src="/public/elements.html"></wimport>
-    </script>
-which is the container for all your HTML source (or template) code, it's a `script` element, so it's not displayed and is ignored by the browser and screen readers. The code above imports (actually just a simple "include") 2 files:
+`index.html` is the master HTML, when accessing the app's urls, the server code always just returns this file. Everything is rendered by Wade's client code.
+
+In the file you can see a funny `script` element with type "text/wadin":
+
+    <script type="text/wadin">
+		<wpage id="wpage-root">
+    		<wimport src="/public/pages.html"></wimport>
+		</wpage>
+		<wimport src="/public/elements.html"></wimport>
+	</script>
+It is the container for all your HTML source code, it's not displayed and is completely ignored by the browser, screen readers, etc. Its HTML content will be processed and copied to a real element by Wade. The code above imports (actually just like "include") 2 files:
 * `public/pages.html`, for marking up pages
 * `public/elements.html`, for declaring some [custom elements]().
-
-There's also the `#wpage-container`
-
-    <div id="wpage-container">
-which is where all the real *rendered* HTML for the browser to display is put into. So of course it should be empty.
 

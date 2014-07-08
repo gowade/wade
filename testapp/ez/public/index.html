@@ -4,9 +4,6 @@
 		<link rel="stylesheet" href="/public/css/main.css"/>
 	</head>
 	<body>
-		<div id="wpage-container">
-		</div>
-	
         <script src="/public/bower_components/jquery/dist/jquery.js"></script>
         <script src="/public/bower_components/html5-history-api/history.js?redirect=true"></script>
         <script src="/public/bower_components/route-recognizer/dist/route-recognizer.js"></script>
@@ -16,8 +13,10 @@
 		<!-- This imports two html files. One for pages and one for
 		declaring custom elements.
 		-->
-		<script type="text/wadin" id="wade-content">
-	    	<wimport src="/public/pages.html"></wimport>
+		<script type="text/wadin">
+			<wpage id="wpage-root">
+	    		<wimport src="/public/pages.html"></wimport>
+			</wpage>
 			<wimport src="/public/elements.html"></wimport>
 		</script>
 

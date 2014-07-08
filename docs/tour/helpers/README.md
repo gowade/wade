@@ -11,7 +11,7 @@ What magic is this? You probably got it already, these look like function calls,
 
 `url` is a core helper that returns the url info for a specific page, used with [bind-page](http://godoc.org/github.com/phaikawl/wade/bind#PageBinder) for making page links. Its first parameter is a page id, the following ones are *route parameters*.
 
-The page `pg-post-view` has route `"/post/:postid"` which accepts a route parameter "postid". So the second call above returns `"/post/42"`.
+The page `pg-post-view` has route `"/post/view/:postid"`. So the second call above returns `"/post/view/42"` (`postid` is a *route parameter*).
 
 As you can see, we can use string literals (must be wrapped with backticks `` ` instead of quotes) and numbers in the syntax.
 

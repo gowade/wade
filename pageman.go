@@ -87,8 +87,11 @@ func (pd *PageData) deleteHelpers() {
 	}
 }
 
-func newPageManager(startPage, basePath string, container string,
+func newPageManager(startPage, basePath string,
 	tcontainer jq.JQuery, binding *bind.Binding, tm *CustagMan) *PageManager {
+
+	container := gJQ("<div class='wade-wrapper'></div>")
+	container.AppendTo(gJQ("body"))
 	return &PageManager{
 		router:          js.Global.Get("RouteRecognizer").New(),
 		currentPage:     "",
@@ -98,12 +101,23 @@ func newPageManager(startPage, basePath string, container string,
 		startPage:       startPage,
 		pages:           make(map[string]pageInfo),
 		notFoundPage:    "",
-		container:       gJQ("#" + container),
+		container:       container,
 		tcontainer:      tcontainer,
 		binding:         binding,
 		tm:              tm,
 		//pageModels:   make([]js.Object, 0),
 	}
+}
+
+// Set the target element that receives Wade's real HTML output,
+// by default the container is <body>
+func (pm *PageManager) SetOutputContainer(elementId string) {
+	parent := gJQ("#" + elementId)
+	if parent.Length == 0 {
+		panic(fmt.Sprintf("No such element #%v.", elementId))
+	}
+
+	parent.Append(pm.container)
 }
 
 func (pm *PageManager) cutPath(path string) string {
@@ -139,18 +153,9 @@ func documentUrl() string {
 }
 
 func elemForPage(parent jq.JQuery, pageid string) jq.JQuery {
-	elem := parent.Find("#" + pageid)
+	elem := parent.Find(fmt.Sprintf("wpage[pid='%v']", pageid))
 	if elem.Length == 0 {
-		panic(fmt.Sprintf("Cannot find element for page #%v.", pageid))
-	}
-	if WadeDevMode {
-		elem = parent.Find("[id='" + pageid + "']")
-		if elem.Length > 1 {
-			panic(fmt.Sprintf("Unexpected: duplicated element id #%v when getting the page element.", pageid))
-		}
-		if !elem.Is("wpage") {
-			panic(fmt.Sprintf("page element #%v must be a wpage.", pageid))
-		}
+		panic(fmt.Sprintf(`Cannot find wpage element for page "%v".`, pageid))
 	}
 	return elem
 }
@@ -351,29 +356,48 @@ func (pm *PageManager) RegisterHandler(pageId string, fn PageHandler) {
 	pm.pageHandlers[pageId] = append(pm.pageHandlers[pageId], fn)
 }
 
-// RegisterPages receives a map of "route" => "pageid" and registers those pages
-// Pages are not recognized unless registered with this method.
-func (pm *PageManager) RegisterPages(pages map[string]string) {
-	for path, pageId := range pages {
-		if _, exist := pm.pages[pageId]; exist {
-			panic(fmt.Sprintf("Page #%v has already been registered.", pageId))
-		}
-		pageElem := pm.tcontainer.Find("#" + pageId)
-		if pageElem.Length == 0 {
-			panic(fmt.Sprintf("There is no such page element #%v.", pageId))
-		}
+// RegisterPages registers pages from the hierarchy of <wpage> inside a root wpage element
+// with the given rootId.
+//
+// Each child <wpage> may have a "pid" (page id), a "route" and a "title" attribute.
+//
+// "pid" is the page's unique id. "title" is the page title.
+//
+// "route" is the page's route pattern which may contain
+// route parameters like ":param1", ":postid". "route" is absolute path,
+// it doesn't' use the parent page's route as base.
+func (pm *PageManager) RegisterPages(rootId string) {
+	root := pm.tcontainer.Find("#" + rootId)
+	if root.Length == 0 {
+		panic(fmt.Sprintf("Unable to find #%v, no such element.", rootId))
+	}
 
-		(func(path, pageId string) {
+	if !root.Is("wpage") {
+		panic(fmt.Sprintf(`Root element #%v for RegisterPages must be a "wpage".`, rootId))
+	}
+
+	root.Find("wpage").Each(func(_ int, elem jq.JQuery) {
+		pageId := elem.Attr("pid")
+		if pageId != "" {
+			route := elem.Attr("route")
+			if route == "" {
+				panic(fmt.Sprintf(`Page #%v does not have an associated route, please set its "route" attribute.`, pageId))
+			}
+
+			if _, exist := pm.pages[pageId]; exist {
+				panic(fmt.Sprintf("Duplicate page id #%v.", pageId))
+			}
+
 			pm.router.Call("add", []map[string]interface{}{
 				map[string]interface{}{
-					"path": path,
+					"path": route,
 					"handler": func() string {
 						return pageId
 					},
 				},
 			})
-		})(path, pageId)
 
-		pm.pages[pageId] = pageInfo{path: path, title: pageElem.Attr("title")}
-	}
+			pm.pages[pageId] = pageInfo{path: route, title: elem.Attr("title")}
+		}
+	})
 }
