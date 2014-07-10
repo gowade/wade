@@ -19,14 +19,55 @@ Wade.go is compiled with [gopherjs](https://github.com/gopherjs/gopherjs), a Go 
     * Convenient pages declaration inspired by [Pager.js](http://pagerjs.com)  
 * Type safe, strict and defensive, designed for Go from the ground up, Wade takes full advantage of the type system
 
+#Markup overview
+Below are examples to show how working with HTML in Wade.go looks like.
+
+An example Register page:
+
+    <wpage pid="pg-user-register" route="/user/register" title="Register">
+    
+		Username:
+		<input type="text" bind-value="Data.Username"></input>
+		<errorlist bind="Errors: Errors.Username"></errorlist>
+		
+		Password:
+		<input type="password" bind-value="Data.Password"></input>
+		<errorlist bind="Errors: Errors.Password"></errorlist>
+		
+		<button bind-on-click="Reset">Reset</button>
+		<button bind-on-click="Submit">Submit</button>
+		
+	</wpage>
+
+That's how we create `<input>` fields with all the data automatically updated for `Username` and `Password`.
+
+A method named `Reset` is called when the Reset button is clicked, similarly for Submit.
+
+The `errorlist` above is a custom element, which is declared as
+
+    <welement id="t-errorlist" attributes="Errors">
+        <div class="error">
+    		<ul>
+    			<li bind-each="Errors -> key, error">
+    				error type #<% key %>
+    				<% error %>
+    			</li>
+    		</ul>
+    	</div>
+    </welement>
+
+In the form, `Errors.Username` is a list of validation errors for the Username field. You can see that we can comfortably bind `errorlist`'s Errors attribute to a whole list that is `Errors.Username`, or `Errors.Password`. The elements inside have access to the list via `Errors`, we use a simple `bind-each` to loop through each error and display a list to the user.
+
+Does it look good to you? So...
+
 #Let's get started!
-* Start here: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
+* Quick introduction: [Wa.de.Go! The Tour](http://phaikawl.gitbooks.io/wa-de-go-the-tour/).
 * [Concepts reference]() (Coming soon)
 * [API reference](http://godoc.org/github.com/phaikawl/wade)
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
 
 #Is it ready?
-**Yes** it's ready to be used! But **No** it's not yet ready for a public announcement, not well tested, still needs some feedbacks and refinements, a lot of stability problems may arise.  
+**Yes** it's ready to be tested, but **No** it's not yet ready for a public announcement, not well tested, still needs some feedbacks and refinements, a lot of stability problems may arise.  
 Basically, "closed beta" for now.
 
 #Contributing
