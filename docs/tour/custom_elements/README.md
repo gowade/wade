@@ -5,7 +5,6 @@ Wade.go supports a simple and effective mechanism for HTML code reuse, something
 You must have noticed these things already in `pages.html`
 
     <userinfo name="Hai Thanh Nguyen" age="18"></userinfo>
-    <userinfo name="Awesome" age="99"></userinfo>
     <errorlist bind="Errors: Errors.Username"></errorlist>
 
 The meanings of these custom html tags are declared in `elements.html`.
@@ -63,20 +62,18 @@ The syntax is straightforward, it means we bind the value of `Errors.Username` i
 
 `Errors.Username` is a `map[string]string` which holds the list of validation errors for the Username. (The question about where it is inside the page model struct is answered in the next section, not important for now)
 
+
     <welement id="t-errorlist" attributes="Errors">
-        <div class="error">
-    		<ul>
-    			<li bind-each="Errors -> key, error">
-    				error type #<% key %>
-    				<% error %>
-    			</li>
-    		</ul>
-    	</div>
+    	<ul class="error" bind-ifn="isEmpty(Errors)">
+    		<li bind-each="Errors -> key, error">
+    			error #<% key %>: <% error %>
+    		</li>
+    	</ul>
     </welement>
 
 (the `<% expr %>` above is simply a shorthand for `<span bind-html="expr"></span>`, nothing more)
 
-So our custom element's `Errors` attribute is bound to the page's `Errors.Username`, which is a map. We use `bind-each` to make a loop through `Errors`. After `->` are *outputs*, it is Wade's explicit way to name the things that would be bound to elements inside.
+So our custom element's `Errors` attribute is bound to the page's `Errors.Username`, which is a map. We use `bind-each` to make a loop through `Errors`. The comma-separated list after `->` are *outputs*, it is Wade's explicit way to name the things that would be bound to elements inside.
 
 Generally, the [each binder](http://godoc.org/github.com/phaikawl/wade/bind#EachBinder) emits 2 outputs, a key and a value, just like when you're looping through a map with `range` in Go. Here for each item, the key is bound to `key`, and the value is bound to `error`. You can see how we access those values with `<% key %>` and `<% error %>` inside.
 
@@ -84,14 +81,15 @@ This will effectively list all those errors and the result could be something li
 
     <ul>
 		<li>
-			error type #minChar
+			error #minChar:
 			Not enough characters.
 		</li>
 		<li>
-			error type #zero
+			error #zero:
 			Must not be empty
 		</li>
     </ul>
 
+You can play with the Register page's form to see this error list in action.
 
 
