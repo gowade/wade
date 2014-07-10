@@ -25,8 +25,6 @@ func (v *Validated) setErrors(m ErrorMap) {
 			v.Errors[k] = make(map[string]string)
 		}
 	}
-
-	println(m)
 }
 
 // Init creates a map entry for each field in dataModel.

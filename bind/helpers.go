@@ -2,6 +2,7 @@ package bind
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -31,6 +32,12 @@ func defaultHelpers() map[string]interface{} {
 		"toLower": strings.ToLower,
 		"concat": func(s1, s2 string) string {
 			return s1 + s2
+		},
+		"isEqual": func(a, b interface{}) bool {
+			return reflect.DeepEqual(reflect.TypeOf(a), reflect.TypeOf(b))
+		},
+		"isEmpty": func(collection interface{}) bool {
+			return reflect.ValueOf(collection).Len() == 0
 		},
 	}
 }

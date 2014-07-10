@@ -2,14 +2,11 @@
     <p><strong><% Name %></strong>, <em><% Age %></em></p>
 </welement>
 <welement id="t-errorlist" attributes="Errors">
-    <div class="error">
-		<ul>
-			<li bind-each="Errors -> key, error">
-				error type #<% key %>
-				<% error %>
-			</li>
-		</ul>
-	</div>
+	<ul class="error" bind-ifn="isEmpty(Errors)">
+		<li bind-each="Errors -> key, error">
+			error #<% key %>: <% error %>
+		</li>
+	</ul>
 </welement>
 <welement id="t-test" attributes="Username Password">
 	<p>My username is "<strong><% Username %></strong>"</p>

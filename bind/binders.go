@@ -100,20 +100,23 @@ func (b *AttrBinder) BindInstance() DomBinder { return b }
 //	bind-on-thatEventName="HandlerMethod"
 type EventBinder struct{ BaseBinder }
 
-func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, args, outputs []string) {
-	fnt := reflect.TypeOf(value)
-	if fnt.Kind() != reflect.Func {
-		panic("what used in event bind must be a function.")
-	}
-	if fnt.NumIn() > 0 {
-		panic("function used in event bind must have no parameter.")
+func (b *EventBinder) Bind(binding *Binding, elem jq.JQuery, fni interface{}, args, outputs []string) {
+	fn, ok := fni.(func())
+	if !ok {
+		panic(fmt.Sprintf("Wrong type %v for EventBinder's handler, must be of type func().",
+			reflect.TypeOf(fni).String()))
 	}
 	if len(args) > 1 {
 		panic("Too many dash arguments to event bind.")
 	}
-	elem.On(args[0], value)
+	elem.On(args[0], func(evt jq.Event) {
+		evt.PreventDefault()
+		fn()
+	})
 }
 func (b *EventBinder) BindInstance() DomBinder { return b }
+
+type indexFunc func(i int, v reflect.Value) (interface{}, reflect.Value)
 
 // EachBinder is a 1-way binder that repeats an element according to a map
 // or slice. It outputs a key and a value bound to each item.
@@ -134,7 +137,7 @@ type EachBinder struct {
 	*BaseBinder
 	marker    jq.JQuery
 	prototype jq.JQuery
-	indexFn   func(i int, v reflect.Value) (interface{}, reflect.Value)
+	indexFn   indexFunc
 	size      int
 	binding   *Binding
 }
@@ -143,27 +146,32 @@ func (b *EachBinder) BindInstance() DomBinder {
 	return new(EachBinder)
 }
 
-func (b *EachBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, arg, outputs []string) {
+func getIndexFunc(value interface{}) indexFunc {
 	kind := reflect.TypeOf(value).Kind()
 	switch kind {
 	case reflect.Slice:
-		b.indexFn = func(i int, v reflect.Value) (interface{}, reflect.Value) {
-			return i, v.Index(i)
+		return func(i int, val reflect.Value) (interface{}, reflect.Value) {
+			return i, val.Index(i)
 		}
 	case reflect.Map:
-		b.indexFn = func(i int, v reflect.Value) (interface{}, reflect.Value) {
-			key := v.MapKeys()[i]
-			return key.String(), v.MapIndex(key)
+		return func(i int, val reflect.Value) (interface{}, reflect.Value) {
+			key := val.MapKeys()[i]
+			return key.String(), val.MapIndex(key)
 		}
 	default:
 		panic(fmt.Sprintf("Wrong kind %v of target for the each binder, must be a slice or map.", kind.String()))
 	}
+}
 
+func (b *EachBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, arg, outputs []string) {
 	elem.RemoveAttr(BindPrefix + "each")
+	b.indexFn = getIndexFunc(value)
 	b.marker = gJQ("<!-- wade each -->").InsertBefore(elem).First()
 	b.prototype = elem.Clone()
 	b.binding = binding
+
 	elem.Remove()
+	PreventBinding(elem)
 }
 
 func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, outputs []string) {
@@ -231,11 +239,8 @@ func (b *IfBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, arg
 func (b *IfBinder) Update(elem jq.JQuery, value interface{}, args, outputs []string) {
 	shown := value.(bool)
 	if shown && !jqExists(elem) {
-		if jqExists(b.placeholder) {
-			b.placeholder.ReplaceWith(elem)
-			return
-		}
-		panic("Unexpected case, there might be a bug.")
+		b.placeholder.ReplaceWith(elem)
+		return
 	}
 
 	if !shown && jqExists(elem) {

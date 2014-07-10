@@ -5,10 +5,16 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
 	"github.com/phaikawl/wade/bind"
+)
+
+const (
+	WadeReservedPrefix = "wade-rsvd-"
+	WadeExcludeAttr    = WadeReservedPrefix + "exclude"
 )
 
 var (
@@ -224,6 +230,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 			parents[i] = jqparents.Eq(leng - i - 1)
 			clone := gJQ(parents[i].Get(0).Call("cloneNode"))
 			resultElems[i] = clone
+
 			if i == 0 {
 				c := pm.container.Children("*")
 				if c.Length > 1 {
@@ -243,17 +250,52 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 			p := parents[i]
 			p.Contents().Each(func(_ int, e jq.JQuery) {
 				if !e.Is("wpage") {
+					re := e
+					if i < leng {
+						e.Find("wpage").Each(func(_ int, ewpage jq.JQuery) {
+							if pageElem.Closest(ewpage).Length == 0 {
+								ewpage.SetAttr(WadeExcludeAttr, "t")
+							}
+						})
+
+						re = e.Clone()
+						re.Find("wpage").Each(func(_ int, wpage jq.JQuery) {
+							if wpage.Attr(WadeExcludeAttr) != "" {
+								wpage.Remove()
+							}
+						})
+
+						e.Find("wpage").Each(func(_ int, ewpage jq.JQuery) {
+							ewpage.RemoveAttr(WadeExcludeAttr)
+						})
+					}
+
+					if re.Is("wrep") {
+						re.Hide()
+					}
+
 					nodeType := e.Get(0).Get("nodeType").Int()
 					if nodeType == 1 {
-						resultElems[i].Append(e.Get(0).Get("outerHTML"))
+						resultElems[i].Append(re.Get(0).Get("outerHTML"))
+						//println(re.Get(0).Get("outerHTML"))
 					} else if nodeType == 3 {
-						resultElems[i].Append(e.Text())
+						resultElems[i].Append(re.Text())
 					}
 				} else if i < leng && e.Is(parents[i+1].Get(0)) {
 					resultElems[i].Append(resultElems[i+1])
 				}
 			})
 		}
+
+		pm.container.Find("wrep").Each(func(_ int, e jq.JQuery) {
+			e.Remove()
+			pm.container.Find("#" + WadeReservedPrefix + e.Attr("target")).
+				SetHtml(e.Html())
+		})
+
+		pm.container.Find("wsection").Each(func(_ int, e jq.JQuery) {
+			e.ReplaceWith(e.Html())
+		})
 
 		pm.currentPage = pageId
 
@@ -324,10 +366,25 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 	pm.pd = &PageData{params, pm.binding, make([]string, 0)}
 	if controller, exist := pm.pageControllers[pm.currentPage]; exist {
 		model := controller(pm.pd)
-		pm.binding.Bind(pageElem, model, false)
-	}
+		pm.binding.Bind(pm.container, model, false)
+	} else {
+		stop := false
+		pageElem.Parents("wpage").Each(func(_ int, p jq.JQuery) {
+			if stop {
+				return
+			}
 
-	pm.binding.Bind(pm.container, nil, true)
+			if controller, exist = pm.pageControllers[p.Attr("pid")]; exist {
+				pm.binding.Bind(pm.container, controller(pm.pd), false)
+				stop = true
+				return
+			}
+		})
+
+		if !stop {
+			pm.binding.Bind(pm.container, nil, true)
+		}
+	}
 
 	for _, tag := range pm.tm.custags {
 		tagElem := tag.elem
@@ -398,6 +455,22 @@ func (pm *PageManager) RegisterPages(rootId string) {
 			})
 
 			pm.pages[pageId] = pageInfo{path: route, title: elem.Attr("title")}
+
+			elem.SetAttr("id", WadeReservedPrefix+pageId)
 		}
+	})
+
+	// preprocess wsection elements
+	root.Find("wsection").Each(func(_ int, e jq.JQuery) {
+		name := strings.TrimSpace(e.Attr("name"))
+		if name == "" {
+			panic(`Error: a <wsection> doesn't have or have empty name`)
+		}
+		for _, c := range name {
+			if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
+				panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
+			}
+		}
+		e.SetAttr("id", WadeReservedPrefix+name)
 	})
 }

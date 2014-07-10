@@ -17,7 +17,8 @@ var (
 )
 
 const (
-	BindPrefix = "bind-"
+	BindPrefix         = "bind-"
+	ReservedBindPrefix = "wade-rsvd-bound"
 )
 
 func toString(value interface{}) string {
@@ -343,7 +344,7 @@ func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, e
 }
 
 func bindStringPanic(mess, bindstring string) {
-	panic(fmt.Sprintf(mess+", while processing bind string `%v`.", bindstring))
+	panic(fmt.Sprintf(mess+`, while processing bind string "%v".`, bindstring))
 }
 
 // evaluateBindstring evaluates the bind string, returns the needed information for binding
@@ -391,7 +392,7 @@ func getBindList(expr *Expr, list *([]*Expr)) {
 // and return the necessary values
 func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	if obj != "" && model == nil {
-		return nil, fmt.Errorf(`The model is nil, cannot bind to its "%v"`, obj)
+		return nil, fmt.Errorf(`This page doens't have a model so we cannot bind to "%v"`, obj)
 	}
 	flist := strings.Split(obj, ".")
 	vals := make([]reflect.Value, len(flist)+1)
@@ -563,17 +564,83 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 	} else {
 		panic(fmt.Sprintf(`Dom binder "%v" does not exist.`, parts[1]))
 	}
-
-	//prevent processing again
-	elem.RemoveAttr(astr)
-	elem.SetAttr("bound"+string([]rune(astr)[4:]), bstr)
 }
 
-// bind parses the bind string, binds the element with a model
-func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
+func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model interface{}, once bool) {
+	fbinds := strings.Split(bstr, ";")
+
+	for i, fb := range fbinds {
+		if i == len(fbinds)-1 && fb == "" {
+			continue
+		}
+		fv := strings.Split(fb, ":")
+		if len(fv) != 2 {
+			bindStringPanic(`There should be one ":" in each attribute bind`, bstr)
+		}
+		field := strings.TrimSpace(fv[0])
+		valuestr := strings.TrimSpace(fv[1])
+		for _, c := range field {
+			if !isValidExprChar(c) {
+				bindStringPanic(fmt.Sprintf("invalid character %q", c), field)
+			}
+		}
+
+		roote, binds, v := b.evaluateBindString(valuestr, model)
+
+		tModel := b.tm.ModelForElem(elem)
+		oe, err := evaluateObj(field, tModel)
+		if err != nil {
+			bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
+		}
+		isCompat := func(src reflect.Type, dst reflect.Type) {
+			if !src.AssignableTo(dst) {
+				bindStringPanic(fmt.Sprintf("Unassignable, incompatible types %v and %v of the model field and the value",
+					src.String(), dst.String()), bstr)
+			}
+		}
+		isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
+		oe.fieldRefl.Set(reflect.ValueOf(v))
+		if !once {
+			b.watchModel(binds, roote, model, func(newResult interface{}) {
+				nr := reflect.ValueOf(newResult)
+				isCompat(nr.Type(), oe.fieldRefl.Type())
+				oe.fieldRefl.Set(nr)
+			})
+		}
+	}
+}
+
+func preventBinding(elem jq.JQuery) {
+	elem.SetAttr(ReservedBindPrefix, "t")
+}
+
+func PreventBinding(elem jq.JQuery) {
+	elem.Find("*").Each(func(_ int, d jq.JQuery) {
+		preventBinding(d)
+	})
+}
+
+func bindingPrevented(elem jq.JQuery) bool {
+	return elem.Attr(ReservedBindPrefix) == "t"
+}
+
+func wrapBindFunc(astr, bstr string, elem jq.JQuery, model interface{}, once bool,
+	fn func(astr, bstr string, elem jq.JQuery, model interface{}, once bool)) func() {
+	return func() {
+		if !bindingPrevented(elem) {
+			fn(astr, bstr, elem, model, once)
+			preventBinding(elem)
+		}
+	}
+}
+
+// bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
+func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bindTasks []func()) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
+
+	bindTasks = make([]func(), 0)
 
 	relem.Children("*").Each(func(i int, elem jq.JQuery) {
 		isCustag := b.tm.IsCustomElem(elem)
@@ -584,58 +651,14 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 			attr := htmla.Index(i)
 			attrs[attr.Get("name").Str()] = attr.Get("value").Str()
 		}
+
 		for name, bstr := range attrs {
 			if name == "bind" { //attribute binding
 				if !isCustag {
 					panic(fmt.Sprintf("Attribute binding syntax can only be used for registered custom elements."))
 				}
-				fbinds := strings.Split(bstr, ";")
-
-				for i, fb := range fbinds {
-					if i == len(fbinds)-1 && fb == "" {
-						continue
-					}
-					fv := strings.Split(fb, ":")
-					if len(fv) != 2 {
-						bindStringPanic(`There should be one ":" in each attribute bind`, bstr)
-					}
-					field := strings.TrimSpace(fv[0])
-					value := strings.TrimSpace(fv[1])
-					for _, c := range field {
-						if !isValidExprChar(c) {
-							bindStringPanic(fmt.Sprintf("invalid character %q", c), field)
-						}
-					}
-
-					roote, binds, v := b.evaluateBindString(value, model)
-
-					tModel := b.tm.ModelForElem(elem)
-					oe, err := evaluateObj(field, tModel)
-					if err != nil {
-						bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
-					}
-					isCompat := func(src reflect.Type, dst reflect.Type) {
-						if !src.AssignableTo(dst) {
-							bindStringPanic(fmt.Sprintf("Unassignable, incompatible types %v and %v of the model field and the value",
-								src.String(), dst.String()), bstr)
-						}
-					}
-					isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
-					oe.fieldRefl.Set(reflect.ValueOf(v))
-					if !once {
-						b.watchModel(binds, roote, model, func(newResult interface{}) {
-							//println(oe.fieldRefl.Type().String())
-							//println(reflect.ValueOf(newResult).Type().String())
-							nr := reflect.ValueOf(newResult)
-							isCompat(nr.Type(), oe.fieldRefl.Type())
-							oe.fieldRefl.Set(nr)
-						})
-					}
-				}
-
-				//prevent processing again
-				elem.RemoveAttr(name)
-				elem.SetAttr("bound", bstr)
+				bindTasks = append(bindTasks,
+					wrapBindFunc(name, bstr, elem, model, once, b.processAttrBind))
 
 				continue
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
@@ -645,9 +668,22 @@ func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 			, so there's no point; but of course inside the custom element's contents it's allowed normally).
 			If you want to bind the attributes of a custom element, use the field binding syntax instead.`)
 				}
-				b.processDomBind(name, bstr, elem, model, once)
+				bindTasks = append(bindTasks,
+					wrapBindFunc(name, bstr, elem, model, once, b.processDomBind))
 			}
 		}
-		b.Bind(elem, model, once)
+
+		bindTasks = append(bindTasks, b.bindPrepare(elem, model, once)...)
 	})
+
+	return
+}
+
+// Bind binds a model to an element and all its children
+func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
+	// we have to do 2 steps like this to avoid missing out binding when things are removed
+	btasks := b.bindPrepare(relem, model, once)
+	for _, fn := range btasks {
+		fn()
+	}
 }

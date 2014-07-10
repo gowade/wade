@@ -25,7 +25,7 @@ type Wade struct {
 }
 
 var (
-	TempReplaceRegexp = regexp.MustCompile(`<%([\(\)\.\-_` + "`" + `\w\s]+)%>`)
+	TempReplaceRegexp = regexp.MustCompile(`<%([^"<>]+)%>`)
 )
 
 // parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
@@ -89,8 +89,9 @@ func htmlImport(parent jq.JQuery, origin string) {
 		src := elem.Attr("src")
 		req := http.NewRequest(http.MethodGet, origin+src)
 		html := req.DoSync().Data()
-		elem.ReplaceWith(parseTemplate(html))
-		htmlImport(elem, origin)
+		ne := gJQ(parseTemplate(html))
+		elem.ReplaceWith(ne)
+		htmlImport(ne, origin)
 	})
 }
 

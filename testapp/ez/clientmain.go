@@ -69,7 +69,7 @@ func main() {
 		/* Register custom tags to be used in the html content
 
 		The second parameters in these function calls, the "prototype"s
-		are required so that Wade knows the datatype of the new
+		are required so that http://getbootstrap.com/css/#formsWade knows the datatype of the new
 		custom element's attributes.
 		The prototype must be a struct and not a pointer.
 		It will be copied and new pointer instances will be made for each separate
@@ -98,7 +98,8 @@ func main() {
 				u := new(model.User)
 				// here we wait for the response to come from the channel
 				// and decode it to u
-				(<-responseChannel).DecodeDataTo(u)
+				response := <-responseChannel
+				response.DecodeDataTo(u)
 
 				pdata.Service().Set("authToken", u.Token)
 
@@ -134,6 +135,13 @@ func main() {
 			// so that if we visit page /post/42, pv.PostId becomes 42
 			p.ExportParam("postid", &pv.PostId)
 			return pv
+		})
+
+		wade.Pager().RegisterController("pg-user-profile", func(p *wd.PageData) interface{} {
+			return UserInfo{
+				Name: "Rivr Perf. Nguyen",
+				Age:  18,
+			}
 		})
 	})
 

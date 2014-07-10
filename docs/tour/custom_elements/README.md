@@ -74,6 +74,8 @@ The syntax is straightforward, it means we bind the value of `Errors.Username` i
     	</div>
     </welement>
 
+(the `<% expr %>` above is simply a shorthand for `<span bind-html="expr"></span>`, nothing more)
+
 So our custom element's `Errors` attribute is bound to the page's `Errors.Username`, which is a map. We use `bind-each` to make a loop through `Errors`. After `->` are *outputs*, it is Wade's explicit way to name the things that would be bound to elements inside.
 
 Generally, the [each binder](http://godoc.org/github.com/phaikawl/wade/bind#EachBinder) emits 2 outputs, a key and a value, just like when you're looping through a map with `range` in Go. Here for each item, the key is bound to `key`, and the value is bound to `error`. You can see how we access those values with `<% key %>` and `<% error %>` inside.

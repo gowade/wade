@@ -1,59 +1,95 @@
+<div class="container">
+   <div class="header">
+	    <ul class="nav nav-pills pull-right" role="tablist">
+            <wsection name="menu">
+                <li><a bind-page="url(`pg-home`)">Home</a></li>
+            </wsection>
+	    </ul>
+	    <h3 class="text-muted">Wade.go Demo</h3>
+   </div>
+	
+   <div class="jumbotron">
+    	<wpage pid="pg-home" route="/home" title="Wade Home">
+            <wrep target="menu">
+                <li class="active"><a bind-page="url(`pg-home`)">Home</a></li>
+                <li><a bind-page="url(`pg-post`)">Posting</a></li>
+                <li><a bind-page="url(`pg-user-profile`)">Profile</a></li>
+                <li><a bind-page="url(`pg-user-login`)">Login</a></li>
+                <li><a bind-page="url(`pg-user-register`)">Register</a></li>
+            </wrep>
 
+            Welcome to this world, a world of awesomeness.
+        </wpage>
+        
+        <wpage pid="pg-user-profile" route="/user/profile" title="User profile">
+            <wimport src="/public/user_profile.html"></wimport>
+        </wpage>
+
+        <wpage pid="pg-user-login" route="/user/login">
+            <span bind-if="AuthGened">Authentication info is generated.</span>
+            <span bind-ifn="AuthGened">Generating auth info...</span>
+        </wpage>
+        
+        <wpage pid="pg-user-register" route="/user/register" title="Register">
+            <form role="form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" class="form-control" id="username" bind-value="Data.Username">
+                    <errorlist bind="Errors: Errors.Username"></errorlist>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" class="form-control" id="password" bind-value="Data.Password">
+                    <errorlist bind="Errors: Errors.Password"></errorlist>
+                </div>
+                <button class="btn btn-default" bind-on-click="Reset">Reset</button>
+                <button class="btn btn-primary" bind-on-click="Submit">Submit</button>
+            </form>
+            
+            <div>
+                Dom binding with helpers demo:
+                <!--
+                    <% bindstr %> is simply a shorthand for
+                    <span bind-html="bindstr"></span>, nothing more.
+                -->
+                <% concat(toUpper(Data.Username), toLower(Data.Password) %>
+            </div>
+        </wpage>
+        
+        <wpage>
+            <wrep target="menu">
+                <li><a bind-page="url(`pg-home`)">Home</a></li>
+                <li class="active"><a bind-page="url(`pg-post`)">Posting</a></li>
+            </wrep>
+
+            <wpage pid="pg-post" route="/post" title="Posting">
+                <a bind-page="url(`pg-post-view`, 42)">
+                    Life, universe and everything.
+                </a>
+            </wpage>
+            
+            <wpage pid="pg-post-view" route="/post/view/:postid" title="Post view">
+                <h2>Viewing post #<% PostId %></h2>
+                <div>
+                    Welcome to Life, universe and everything.
+                    It's all awesome!
+                </div>
+            </wpage>
+        </wpage>
+   </div>
+	
+	<wpage pid="pg-not-found" route="/404" title="404">
+		Page not found.
+	</wpage>
+
+    <div>
+        <p><em>Brought to you with love and excitement,</em></p>
         <userinfo name="Hai Thanh Nguyen" age="18"></userinfo>
-		
-        <wpage pid="pg-home" route="/home" title="Wade Home">
-            <p><a bind-page="url(`pg-post`)">View posts.</a></p>
-			<p><a bind-page="url(`pg-user-login`)">Login.</a></p>
-			<p><a bind-page="url(`pg-user-profile`)">Profile.</a></p>
-			<p><a bind-page="url(`pg-user-register`)">Register.</a></p>
-            <p><a href="http://google.com">External link.</a></p>
-        </wpage>
-		
-		<wpage pid="pg-user" route="/user" title="User page">
-		
-			<wpage pid="pg-user-login" route="/user/login">
-				<span bind-if="AuthGened">Authentication info is generated.</span>
-				<span bind-ifn="AuthGened">Generating auth info...</span>
-			</wpage>
-			
-			<wpage pid="pg-user-profile" route="/user/profile">
-				Here is the profile of the most awesome person in the world:
-			</wpage>
-			
-			<userinfo name="Awesome" age="99"></userinfo>
-        </wpage>
-		
-		<wpage pid="pg-user-register" route="/user/register" title="Register">
-			Username: <input type="text" bind-value="Data.Username"></input>
-			<errorlist bind="Errors: Errors.Username"></errorlist>
-			Password: <input type="password" bind-value="Data.Password"></input>
-			<errorlist bind="Errors: Errors.Password"></errorlist>
-			<button bind-on-click="Reset">Reset</button>
-			<button bind-on-click="Submit">Submit</button>
-			<p>Dom binding with helpers demo: <span bind-html="concat(toUpper(Data.Username), toLower(Data.Password))"></span></p>
-			<div>
-				Attribute binding for custom elements: <test bind="Username: Data.Username; Password: Data.Password"></test>
-			</div>
-		</wpage>
-		
-        <wpage pid="pg-post" route="/post" title="Posts">
-            <p><a bind-page="url(`pg-home`)">Home page.</a></p>
-            <p><a bind-page="url(`pg-post-new`)">Post an article.</a></p>
-			<p>
-				<a bind-page="url(`pg-post-view`, 42)">
-					View post #42.
-				</a>
-			</p>
-			
-            <wpage pid="pg-post-new" route="/post/new" title="Post an article">
-                <p><a bind-page="url(`pg-post`)">Back to view.</a></p>
-            </wpage>
-			
-			<wpage pid="pg-post-view" route="/post/view/:postid" title="Post view">
-				Viewing post #<% PostId %>
-            </wpage>
-        </wpage>
-		
-		<wpage pid="pg-not-found" route="/404" title="404">
-			Page not found.
-		</wpage>
+    </div>
+	
+
+	<div class="footer">
+        <p>&copy; VosDev 2014</p>
+    </div>
+
+</div> <!-- /container -->
