@@ -74,6 +74,7 @@ Basically, "closed beta" for now.
 Pull requests are welcome. Wade is young, feedbacks are necessary, the core functionalities are there but lot of things could be developed, like a (separate) package for authorization, websocket integration, etc...
 
 [TODO list](https://github.com/phaikawl/wade/wiki/TODO).
+
 [Google group forum](https://groups.google.com/forum/#!forum/wadego).
 
 #License
