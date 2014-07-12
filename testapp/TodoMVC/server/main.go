@@ -72,9 +72,9 @@ func main() {
 	// This serves static files in the "public" directory
 	r.ServeFiles("/public/*filepath", http.Dir("../public"))
 
-	// Subpaths of /web/ are client urls, should NOT be protected
+	// Subpaths of /todo/ are client urls, should NOT be protected
 	// Just serve the index.html for every subpaths actually, nothing else
-	web := r.Group("/web/", func(c *gin.Context) {
+	web := r.Group("/todo/", func(c *gin.Context) {
 		f, err := os.Open("../public/index.html")
 		checkErr(err)
 		conts, err := ioutil.ReadAll(f)
@@ -83,9 +83,9 @@ func main() {
 	})
 	web.GET("*path", func(c *gin.Context) {})
 
-	// Redirect the home page to /web/
+	// Redirect the home page to /todo/
 	r.GET("/", func(c *gin.Context) {
-		http.Redirect(c.Writer, c.Req, "/web/", http.StatusFound)
+		http.Redirect(c.Writer, c.Req, "/todo/", http.StatusFound)
 	})
 
 	//

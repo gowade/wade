@@ -1,4 +1,4 @@
-<wpage pid="pg-home" route="/home" title="Wade Home">
+<wpage pid="pg-main" route="/main" title="Wade TodoMVC">
 	<section id="todoapp">
 		<header id="header">
 			<h1>todos</h1>
@@ -7,13 +7,13 @@
 		<!-- This section should be hidden by default and shown when there are todos -->
 		<section id="main">
 
-			<input id="toggle-all" type="checkbox">
+			<input id="toggle-all" type="checkbox" bind-on-click="ToggleAll">
 			<label for="toggle-all">Mark all as complete</label>
 
 			<ul id="todo-list">
 				<todoentry text="add new entries"></todoentry>
 				<todoentry text="toggle edit off - click anywhere else"></todoentry>
-				<todoentry text="add handler for ToggleAll"></todoentry>
+				<todoentry text="ToggleAll should do something"></todoentry>
 				<todoentry text="destroy -> delete from the list"></todoentry>
 				<todoentry text="add a datastore?"></todoentry>
 				<todoentry text="add filters for state"></todoentry>
@@ -26,7 +26,7 @@
 		<footer id="footer">
 
 			<!-- This should be `0 items left` by default -->
-			<span id="todo-count"><strong>1</strong> item left</span>
+			<span id="todo-count"><strong>42</strong> item left</span>
 
 			<!-- Remove this if you don't implement routing -->
 			<ul id="filters">

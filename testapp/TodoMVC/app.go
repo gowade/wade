@@ -15,6 +15,7 @@ type TodoEntry struct {
 	State string
 }
 
+// ToggleEdit updates the state for the TodoEntry
 func (t *TodoEntry) ToggleEdit() {
 	if t.State == stateEditing {
 		t.setCompleteState()
@@ -23,15 +24,23 @@ func (t *TodoEntry) ToggleEdit() {
 	}
 }
 
+// Destroy removes the entry from the list
 func (t *TodoEntry) Destroy() {
-	println("Would Destroy:" + t.Text)
+	println("clicked Destroy:" + t.Text)
 }
 
+// ToggleDone switches the Done field on or off
 func (t *TodoEntry) ToggleDone() {
-	println("Would ToggleDone:" + t.Text)
+	println("clicked ToggleDone:" + t.Text)
 	t.Done = !t.Done
 	t.setCompleteState()
+}
 
+type TodoView struct{}
+
+//
+func (t *TodoView) ToggleAll() {
+	println("clicked ToggleAll")
 }
 
 func (t *TodoEntry) setCompleteState() {
@@ -43,11 +52,18 @@ func (t *TodoEntry) setCompleteState() {
 }
 
 func main() {
-	wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade) {
+	wadeApp := wd.WadeUp("pg-main", "/todo", func(wade *wd.Wade) {
 		wade.Pager().RegisterPages("wpage-root")
 
+		// our custom tags
 		wade.Custags().RegisterNew("todoentry", "t-todoentry", TodoEntry{})
+
+		// our main controller
+		wade.Pager().RegisterController("pg-main", func(p *wd.PageData) interface{} {
+			view := new(TodoView)
+			return view
+		})
 	})
 
-	wade.Start()
+	wadeApp.Start()
 }
