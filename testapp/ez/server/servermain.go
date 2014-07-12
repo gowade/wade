@@ -83,6 +83,11 @@ func main() {
 		if gopath != "" {
 			r.ServeFiles("/gopath/*filepath", http.Dir(gopath))
 		}
+
+		goroot := os.Getenv("GOROOT")
+		if goroot != "" {
+			r.ServeFiles("/goroot/*filepath", http.Dir(goroot))
+		}
 	}
 
 	// This serves static files in the "public" directory
