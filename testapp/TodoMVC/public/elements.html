@@ -1,0 +1,12 @@
+<welement id="t-todoentry" attributes="Text">
+<div bind-on-dblclick="ToggleEdit">
+    <li bind-attr-class="State">
+		<div class="view">
+			<input class="toggle" type="checkbox" bind-on-click="ToggleDone">
+			<label bind-html="Text"></label>
+			<button class="destroy" bind-on-click="Destroy"></button>
+		</div>
+		<input class="edit" bind-attr-value="Text">
+	</li>
+</div>
+</welement>
