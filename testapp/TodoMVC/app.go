@@ -45,7 +45,6 @@ func (t *TodoEntry) setCompleteState() {
 func main() {
 	wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade) {
 		wade.Pager().RegisterPages("wpage-root")
-		wade.Pager().SetNotFoundPage("pg-not-found")
 
 		wade.Custags().RegisterNew("todoentry", "t-todoentry", TodoEntry{})
 	})
