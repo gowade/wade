@@ -10,6 +10,7 @@
 			<input id="toggle-all" type="checkbox" bind-on-click="ToggleAll">
 			<label for="toggle-all">Mark all as complete</label>
 
+
 			<ul id="todo-list">
 				<todoentry text="add new entries"></todoentry>
 				<todoentry text="toggle edit off - click anywhere else"></todoentry>
@@ -18,6 +19,13 @@
 				<todoentry text="add a datastore?"></todoentry>
 				<todoentry text="add filters for state"></todoentry>
 				<todoentry text="update counters in footer"></todoentry>
+			</ul>
+
+			<!--  how do i get this to work? -->
+			<ul id="todo-list" bind-ifn="isEmpty(Entries)">
+				<div bind-each="Entries -> key, entry">
+					<todoentry bind="Text: entry.Text"></todoentry>
+				</div>
 			</ul>
 
 		</section>

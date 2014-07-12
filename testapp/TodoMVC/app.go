@@ -36,19 +36,22 @@ func (t *TodoEntry) ToggleDone() {
 	t.setCompleteState()
 }
 
-type TodoView struct{}
-
-//
-func (t *TodoView) ToggleAll() {
-	println("clicked ToggleAll")
-}
-
+// setCompleteState is just a small helper to reuse this if
 func (t *TodoEntry) setCompleteState() {
 	if t.Done {
 		t.State = stateCompleted
 	} else {
 		t.State = ""
 	}
+}
+
+type TodoView struct {
+	Entries []TodoEntry
+}
+
+//
+func (t *TodoView) ToggleAll() {
+	println("clicked ToggleAll")
 }
 
 func main() {
@@ -60,7 +63,12 @@ func main() {
 
 		// our main controller
 		wade.Pager().RegisterController("pg-main", func(p *wd.PageData) interface{} {
+			println("called RegisterController for pg-main")
 			view := new(TodoView)
+
+			view.Entries = make([]TodoEntry, 1)
+			view.Entries[0] = TodoEntry{Text: "create a datastore for entries"}
+
 			return view
 		})
 	})
