@@ -385,15 +385,6 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 			pm.binding.Bind(pm.container, nil, true)
 		}
 	}
-
-	for _, tag := range pm.tm.custags {
-		tagElem := tag.elem
-		elems := pm.container.Find(tag.name)
-		elems.Each(func(i int, elem jq.JQuery) {
-			elem.Append(tagElem.Html())
-			pm.binding.Bind(elem, pm.tm.ModelForElem(elem), false)
-		})
-	}
 }
 
 // RegisterController assigns a PageController function to handle the specified
