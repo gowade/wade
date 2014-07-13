@@ -56,6 +56,9 @@ type TodoView struct {
 //
 func (t *TodoView) ToggleAll() {
 	println("clicked ToggleAll")
+	for _, e := range t.Entries {
+		e.ToggleDone()
+	}
 }
 
 func main() {
@@ -71,10 +74,20 @@ func main() {
 			view := new(TodoView)
 
 			view.Entries = []*TodoEntry{
-				&TodoEntry{Text: "create a datastore for entries"},
-				&TodoEntry{Text: "create aff"},
+				&TodoEntry{Text: "create a datastore for entries", Done: true},
+				&TodoEntry{Text: "add new entries"},
+				&TodoEntry{Text: "toggle edit off - click anywhere else"},
+				&TodoEntry{Text: "ToggleAll should do something", Done: true},
+				&TodoEntry{Text: "destroy -> delete from the list"},
+				&TodoEntry{Text: "add filters for state"},
+				&TodoEntry{Text: "update counters in footer"},
 			}
 
+			// update the t.State
+			// might be better to bind to Done directly
+			for _, e := range view.Entries {
+				e.setCompleteState()
+			}
 			return view
 		})
 	})
