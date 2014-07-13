@@ -15,6 +15,10 @@ type TodoEntry struct {
 	State string
 }
 
+type todoEntryTag struct {
+	Entry *TodoEntry
+}
+
 // ToggleEdit updates the state for the TodoEntry
 func (t *TodoEntry) ToggleEdit() {
 	if t.State == stateEditing {
@@ -46,7 +50,7 @@ func (t *TodoEntry) setCompleteState() {
 }
 
 type TodoView struct {
-	Entries []TodoEntry
+	Entries []*TodoEntry
 }
 
 //
@@ -59,15 +63,17 @@ func main() {
 		wade.Pager().RegisterPages("wpage-root")
 
 		// our custom tags
-		wade.Custags().RegisterNew("todoentry", "t-todoentry", TodoEntry{})
+		wade.Custags().RegisterNew("todoentry", "t-todoentry", todoEntryTag{})
 
 		// our main controller
 		wade.Pager().RegisterController("pg-main", func(p *wd.PageData) interface{} {
 			println("called RegisterController for pg-main")
 			view := new(TodoView)
 
-			view.Entries = make([]TodoEntry, 1)
-			view.Entries[0] = TodoEntry{Text: "create a datastore for entries"}
+			view.Entries = []*TodoEntry{
+				&TodoEntry{Text: "create a datastore for entries"},
+				&TodoEntry{Text: "create aff"},
+			}
 
 			return view
 		})
