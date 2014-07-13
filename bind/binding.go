@@ -118,9 +118,9 @@ func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
 			rv = o.Addr().MethodByName(field)
 		}
 	case reflect.Map:
-		rv = o.MapIndex(reflect.ValueOf(field))
+		rv = reflect.ValueOf(o.MapIndex(reflect.ValueOf(field)).Interface())
 	default:
-		return rv, fmt.Errorf(`Unhandled type %v for accessing "%v"`, o.Type().Name(), field)
+		return rv, fmt.Errorf(`Unhandled type "%v" for accessing "%v"`, o.Type().String(), field)
 	}
 
 	if !rv.IsValid() {
@@ -397,6 +397,7 @@ func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
 	flist := strings.Split(obj, ".")
 	vals := make([]reflect.Value, len(flist)+1)
 	o := reflect.ValueOf(model)
+
 	if o.Kind() == reflect.Ptr {
 		o = o.Elem()
 	}
@@ -594,7 +595,7 @@ func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model inter
 		}
 		isCompat := func(src reflect.Type, dst reflect.Type) {
 			if !src.AssignableTo(dst) {
-				bindStringPanic(fmt.Sprintf("Unassignable, incompatible types %v and %v of the model field and the value",
+				bindStringPanic(fmt.Sprintf(`Unassignable, incompatible types "%v" and "%v" of the model field and the value`,
 					src.String(), dst.String()), bstr)
 			}
 		}
