@@ -63,9 +63,11 @@ func (t *TodoView) ToggleAll() {
 }
 
 func (t *TodoView) AddEntry() {
-	println("Adding:'" + t.NewEntry + "'")
-	t.Entries = append(t.Entries, &TodoEntry{Text: t.NewEntry})
-	t.NewEntry = ""
+	if t.NewEntry != "" {
+		println("Adding:'" + t.NewEntry + "'")
+		t.Entries = append(t.Entries, &TodoEntry{Text: t.NewEntry})
+		t.NewEntry = ""
+	}
 }
 
 func main() {
