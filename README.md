@@ -2,6 +2,8 @@ Wade.go [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)
 ====
 The comprehensive client-side web framework for Go -> js.
 
+**Work-in-progress.**
+
 *Brought to you with love and excitement...*
 #A brand new way of developing
 No it wasn't a typo, Wade is a fresh **client-side** web framework for [**Go**](http://golang.org), created to bring these together:
@@ -67,8 +69,7 @@ Does it look good to you? So...
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
 
 #Is it ready?
-**Yes** it's ready to be tested, but **No** it's not yet ready for a public announcement, not well tested, still needs some feedbacks and refinements, a lot of stability problems may arise.  
-Basically, "closed beta" for now.
+Core functionalities are there, but there are still a lot of issues to be solved. So status changed to **WIP**.
 
 #Contributing
 Pull requests are welcome. Wade is young, feedbacks are necessary, the core functionalities are there but lot of things could be developed, like a (separate) package for authorization, websocket integration, etc...
