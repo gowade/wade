@@ -511,8 +511,8 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 				obj,
 				expr.eval.field,
 				func(prop string, action string,
-					newVal interface{},
-					oldVal js.Object) {
+					_ js.Object,
+					_2 js.Object) {
 					//v = expr.eval.fieldRefl.Interface()
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
