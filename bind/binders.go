@@ -171,7 +171,6 @@ func (b *EachBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, a
 	b.binding = binding
 
 	elem.Remove()
-	PreventBinding(elem)
 }
 
 func (b *EachBinder) Update(elem jq.JQuery, collection interface{}, args, outputs []string) {
