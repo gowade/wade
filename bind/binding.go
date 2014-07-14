@@ -637,10 +637,10 @@ func bindingPrevented(elem jq.JQuery, bindattr string) bool {
 	return elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
 }
 
-func wrapBindCall(elem jq.JQuery, bindattr string, fn func()) func() {
+func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(string, string)) func() {
 	return func() {
 		if !bindingPrevented(elem, bindattr) && jqExists(elem) {
-			fn()
+			fn(bindattr, bindstr)
 			preventBinding(elem, bindattr)
 		}
 	}
@@ -675,8 +675,8 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
 				}
 				bindTasks = append(bindTasks,
-					wrapBindCall(elem, name, func() {
-						b.processAttrBind(name, bstr, elem, model, once, customTagModel)
+					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
+						b.processAttrBind(astr, bstr, elem, model, once, customTagModel)
 					}))
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
 				jqExists(elem) { //element still exists
@@ -686,8 +686,8 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 			If you want to bind the attributes of a custom element, use attribute binding instead.`)
 				}
 				bindTasks = append(bindTasks,
-					wrapBindCall(elem, name, func() {
-						b.processDomBind(name, bstr, elem, model, once)
+					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
+						b.processDomBind(astr, bstr, elem, model, once)
 					}))
 			}
 		}
