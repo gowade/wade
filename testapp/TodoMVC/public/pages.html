@@ -1,8 +1,11 @@
 <wpage pid="pg-main" route="/main" title="Wade TodoMVC">
 	<section id="todoapp">
 		<header id="header">
-			<h1>todos</h1>
-			<input id="new-todo" placeholder="What needs to be done?" autofocus>
+			<h1>todos
+			<!-- ugly hack: somehow doesnt work to bind-value and bind-on-change onto input#new-todo -->
+			<button  bind-on-click="AddEntry">Add?</button>
+			</h1>
+			<input id="new-todo" placeholder="What needs to be done?" bind-value="NewEntry">
 		</header>
 		<!-- This section should be hidden by default and shown when there are todos -->
 		<section id="main">

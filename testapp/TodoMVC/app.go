@@ -50,7 +50,8 @@ func (t *TodoEntry) setCompleteState() {
 }
 
 type TodoView struct {
-	Entries []*TodoEntry
+	NewEntry string
+	Entries  []*TodoEntry
 }
 
 //
@@ -59,6 +60,12 @@ func (t *TodoView) ToggleAll() {
 	for _, e := range t.Entries {
 		e.ToggleDone()
 	}
+}
+
+func (t *TodoView) AddEntry() {
+	println("Adding:'" + t.NewEntry + "'")
+	t.Entries = append(t.Entries, &TodoEntry{Text: t.NewEntry})
+	t.NewEntry = ""
 }
 
 func main() {
