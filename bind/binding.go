@@ -18,7 +18,7 @@ var (
 
 const (
 	BindPrefix         = "bind-"
-	ReservedBindPrefix = "wade-rsvd-bound"
+	ReservedBindPrefix = "wade-rsvd"
 )
 
 func toString(value interface{}) string {
@@ -511,8 +511,8 @@ func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callb
 				obj,
 				expr.eval.field,
 				func(prop string, action string,
-					newVal interface{},
-					oldVal js.Object) {
+					_ js.Object,
+					_2 js.Object) {
 					//v = expr.eval.fieldRefl.Interface()
 					newResult, _ := b.evaluateRec(root, model)
 					callback(newResult.Interface())
@@ -623,25 +623,25 @@ func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model inter
 	}
 }
 
-func preventBinding(elem jq.JQuery) {
-	elem.SetAttr(ReservedBindPrefix, "t")
+func preventBinding(elem jq.JQuery, bindattr string) {
+	elem.SetAttr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-"), "t")
 }
 
-func PreventBinding(elem jq.JQuery) {
+func PreventBinding(elem jq.JQuery, bindattr string) {
 	elem.Find("*").Each(func(_ int, d jq.JQuery) {
-		preventBinding(d)
+		preventBinding(d, bindattr)
 	})
 }
 
-func bindingPrevented(elem jq.JQuery) bool {
-	return elem.Attr(ReservedBindPrefix) == "t"
+func bindingPrevented(elem jq.JQuery, bindattr string) bool {
+	return elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
 }
 
-func wrapBindCall(elem jq.JQuery, fn func()) func() {
+func wrapBindCall(elem jq.JQuery, bindattr string, fn func()) func() {
 	return func() {
-		if !bindingPrevented(elem) {
+		if !bindingPrevented(elem, bindattr) && jqExists(elem) {
 			fn()
-			preventBinding(elem)
+			preventBinding(elem, bindattr)
 		}
 	}
 }
@@ -675,7 +675,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
 				}
 				bindTasks = append(bindTasks,
-					wrapBindCall(elem, func() {
+					wrapBindCall(elem, name, func() {
 						b.processAttrBind(name, bstr, elem, model, once, customTagModel)
 					}))
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
@@ -686,7 +686,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 			If you want to bind the attributes of a custom element, use attribute binding instead.`)
 				}
 				bindTasks = append(bindTasks,
-					wrapBindCall(elem, func() {
+					wrapBindCall(elem, name, func() {
 						b.processDomBind(name, bstr, elem, model, once)
 					}))
 			}
