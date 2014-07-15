@@ -1,0 +1,48 @@
+<wpage pid="pg-main" route="/main" title="Wade TodoMVC">
+	<section id="todoapp">
+		<header id="header">
+			<h1>todos
+			</h1>
+			<input id="new-todo" placeholder="What needs to be done?" bind-value="NewEntry" bind-on-change="AddEntry">
+		</header>
+		<!-- This section should be hidden by default and shown when there are todos -->
+		<section id="main">
+
+			<input id="toggle-all" type="checkbox" bind-on-click="ToggleAll">
+			<label for="toggle-all">Mark all as complete</label>
+
+			<!--  how do i get this to work? -->
+			<ul id="todo-list" bind-ifn="isEmpty(Entries)">
+				<div bind-each="Entries -> key, entry">
+					<todoentry bind="Entry: entry"></todoentry>
+				</div>
+			</ul>
+
+		</section>
+
+		<!-- This footer should hidden by default and shown when there are todos -->
+		<footer id="footer">
+
+			<!-- This should be `0 items left` by default -->
+			<span id="todo-count"><strong>42</strong> item left</span>
+
+			<!-- Remove this if you don't implement routing -->
+			<ul id="filters">
+				<li><a href="#/" class="selected">All</a></li>
+				<li><a href="#/active">Active</a></li>
+				<li><a href="#/completed">Completed</a></li>
+			</ul>
+
+			<!-- Hidden if no completed items are left ↓ -->
+			<button id="clear-completed">Clear completed (23)</button>
+		</footer>
+
+	</section>
+
+
+	<footer id="info">
+		<p>Double-click to edit a todo</p>
+		<p>Created with <a href="https://github.com/phaikawl/wade">Wade</a></p>
+		<p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+	</footer>
+</wpage>

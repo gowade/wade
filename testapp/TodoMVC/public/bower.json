@@ -1,0 +1,13 @@
+{
+	"name": "todomvc-template",
+	"version": "0.0.0",
+	"dependencies": {
+		"wade-watch-js": "master",
+		"rivets": "master",
+		"jquery": "~2.1.1",
+		"route-recognizer": "~0.1.1",
+		"html5-history-api": "~4.1.0",
+		"watch": "*",
+		"todomvc-common": "~0.1.4"
+	}
+}
