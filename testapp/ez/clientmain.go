@@ -87,7 +87,7 @@ func main() {
 		for HTML bind-if to show whether the authentication info is generated
 		or being generated
 		*/
-		wade.Pager().RegisterController("pg-user-login", func(p *wd.PageData) interface{} {
+		wade.Pager().RegisterController("pg-user-login", func(p *wd.PageCtrl) interface{} {
 			req := http.Service().NewRequest(http.MethodGet, "/auth")
 			austat := &AuthedStat{false}
 			// performs the request to auth asynchronously
@@ -111,7 +111,7 @@ func main() {
 		})
 
 		// Too lazy to type this comment
-		wade.Pager().RegisterController("pg-user-register", func(p *wd.PageData) interface{} {
+		wade.Pager().RegisterController("pg-user-register", func(p *wd.PageCtrl) interface{} {
 			ureg := new(RegUser)
 			// The RegUser struct contains a lot, please read the RegUser struct code
 			// near to top to know more.
@@ -128,7 +128,7 @@ func main() {
 		})
 
 		// Too lazy to type this comment
-		wade.Pager().RegisterController("pg-post-view", func(p *wd.PageData) interface{} {
+		wade.Pager().RegisterController("pg-post-view", func(p *wd.PageCtrl) interface{} {
 			pv := new(PostView)
 			// Remember the route parameter :postid above?
 			// The call below puts its value into pv.PostId
@@ -137,7 +137,7 @@ func main() {
 			return pv
 		})
 
-		wade.Pager().RegisterController("pg-user-profile", func(p *wd.PageData) interface{} {
+		wade.Pager().RegisterController("pg-user-profile", func(p *wd.PageCtrl) interface{} {
 			return UserInfo{
 				Name: "Rivr Perf. Nguyen",
 				Age:  18,

@@ -78,7 +78,7 @@ func main() {
 		wade.Custags().RegisterNew("todoentry", "t-todoentry", todoEntryTag{})
 
 		// our main controller
-		wade.Pager().RegisterController("pg-main", func(p *wd.PageData) interface{} {
+		wade.Pager().RegisterController("pg-main", func(p *wd.PageCtrl) interface{} {
 			println("called RegisterController for pg-main")
 			view := new(TodoView)
 
