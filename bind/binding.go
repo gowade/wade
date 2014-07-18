@@ -25,28 +25,6 @@ func toString(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
-// DomBinder is the common interface for Dom binders.
-type DomBinder interface {
-	// Update is called whenever the model's field changes, to perform
-	// dom updating, like setting the html content or setting
-	// an html attribute for the elem
-	Update(elem jq.JQuery, value interface{}, arg, outputs []string)
-
-	// Bind is similar to Update, but is called only once at the start, when
-	// the bind is being processed
-	Bind(b *Binding, elem jq.JQuery, value interface{}, arg, outputs []string)
-
-	// Watch is used in 2-way binders, it watches the html element for changes
-	// and updates the model field accordingly
-	Watch(elem jq.JQuery, updateFn ModelUpdateFn)
-
-	// BindInstance is useful for binders that need to save some data for each
-	// separate element. This method returns an instance of the binder to be used.
-	BindInstance() DomBinder
-}
-
-type ModelUpdateFn func(value string)
-
 type CustomElemManager interface {
 	GetCustomTag(jq.JQuery) (CustomTag, bool)
 }
@@ -185,12 +163,17 @@ func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
 	return
 }
 
+func newModelScope(model interface{}) *scope {
+	return &scope{[]symbolTable{modelSymbolTable{reflect.ValueOf(model)}}}
+}
+
 type Binding struct {
 	tm         CustomElemManager
 	domBinders map[string]DomBinder
 	helpers    mapSymbolTable
 
-	scope *scope
+	scope     *scope
+	pageModel interface{}
 }
 
 func NewBindEngine(tm CustomElemManager) *Binding {
@@ -314,7 +297,9 @@ func (b *bindScope) evaluate(bstr string) (root *expr, blist []bindable, value i
 	if err != nil {
 		return
 	}
-	value = v.Interface()
+	if v.IsValid() && v.CanInterface() {
+		value = v.Interface()
+	}
 	return
 }
 
@@ -392,14 +377,24 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScop
 			})
 		}
 
+		metadata := fmt.Sprintf(`%v = "%v"`, astr, bstr)
+
+		domBind := DomBind{
+			Elem:     elem,
+			Value:    v,
+			Args:     args,
+			outputs:  outputs,
+			binding:  b,
+			scope:    bs.scope,
+			metadata: metadata,
+		}
 		(func(args, outputs []string) {
-			binder.Bind(b, elem, v, args, outputs)
-			binder.Update(elem, v, args, outputs)
+			binder.Bind(domBind)
+			binder.Update(domBind)
 			if !once {
 				b.watchModel(binds, roote, bs, func(newResult interface{}) {
-					binder.Update(elem,
-						newResult,
-						args, outputs)
+					domBind.Value = newResult
+					binder.Update(domBind)
 				})
 			}
 		})(args, outputs)
@@ -454,13 +449,13 @@ func preventBinding(elem jq.JQuery, bindattr string) {
 	elem.SetAttr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-"), "t")
 }
 
-func PreventBinding(elem jq.JQuery, bindattr string) {
+func preventTreeBinding(elem jq.JQuery, bindattr string) {
 	elem.Find("*").Each(func(_ int, d jq.JQuery) {
 		preventBinding(d, bindattr)
 	})
 }
 
-func PreventAllBinding(elem jq.JQuery) {
+func preventAllBinding(elem jq.JQuery) {
 	elem.Find("*").Each(func(_ int, d jq.JQuery) {
 		preventBinding(d, "all")
 	})
@@ -541,6 +536,14 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool) (bindTa
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
 	btasks := b.bindPrepare(relem, b.newBindScope(model), once)
+	for _, fn := range btasks {
+		fn()
+	}
+}
+
+func (b *Binding) bindWithScope(relem jq.JQuery, model interface{}, once bool, s *scope) {
+	// we have to do 2 steps like this to avoid missing out binding when things are removed
+	btasks := b.bindPrepare(relem, &bindScope{s}, once)
 	for _, fn := range btasks {
 		fn()
 	}

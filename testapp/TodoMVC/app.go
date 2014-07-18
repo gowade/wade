@@ -16,7 +16,9 @@ type TodoEntry struct {
 }
 
 type todoEntryTag struct {
-	Entry *TodoEntry
+	Entry  *TodoEntry
+	Key    int
+	Delete func(int) func()
 }
 
 // ToggleEdit updates the state for the TodoEntry
@@ -26,11 +28,6 @@ func (t *TodoEntry) ToggleEdit() {
 	} else {
 		t.State = stateEditing
 	}
-}
-
-// Destroy removes the entry from the list
-func (t *TodoEntry) Destroy() {
-	println("clicked Destroy:" + t.Text)
 }
 
 // ToggleDone switches the Done field on or off
@@ -67,6 +64,12 @@ func (t *TodoView) AddEntry() {
 		println("Adding:'" + t.NewEntry + "'")
 		t.Entries = append(t.Entries, &TodoEntry{Text: t.NewEntry})
 		t.NewEntry = ""
+	}
+}
+
+func (t *TodoView) DeleteEntry(i int) func() {
+	return func() {
+		t.Entries = append(t.Entries[0:i], t.Entries[i+1:]...)
 	}
 }
 

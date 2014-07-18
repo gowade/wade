@@ -11,10 +11,9 @@
 			<input id="toggle-all" type="checkbox" bind-on-click="ToggleAll">
 			<label for="toggle-all">Mark all as complete</label>
 
-			<!--  how do i get this to work? -->
 			<ul id="todo-list" bind-ifn="isEmpty(Entries)">
 				<div bind-each="Entries -> key, entry">
-					<todoentry bind="Entry: entry"></todoentry>
+					<todoentry bind="Entry: entry; Key: key; Delete: DeleteEntry"></todoentry>
 				</div>
 			</ul>
 
