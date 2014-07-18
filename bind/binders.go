@@ -170,6 +170,7 @@ func (b *EachBinder) Bind(binding *Binding, elem jq.JQuery, value interface{}, a
 	b.prototype = elem.Clone()
 	b.binding = binding
 
+	PreventAllBinding(elem)
 	elem.Remove()
 }
 

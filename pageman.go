@@ -118,12 +118,6 @@ func (pc *PageCtrl) RegisterHelper(name string, fn interface{}) {
 	pc.b.RegisterHelper(name, fn)
 }
 
-func (pc *PageCtrl) deleteHelpers() {
-	for _, name := range pc.helpers {
-		pc.b.DeleteHelper(name)
-	}
-}
-
 func newPageManager(startPage, basePath string,
 	tcontainer jq.JQuery, binding *bind.Binding, tm *CustagMan) *PageManager {
 
@@ -364,10 +358,6 @@ func (pm *PageManager) PageUrl(pageId string, params []interface{}) (u string, e
 }
 
 func (pm *PageManager) bind(params map[string]interface{}) {
-	if pm.pc != nil {
-		pm.pc.deleteHelpers()
-	}
-
 	pageElem := pm.currentPage.getElem(pm.container)
 
 	for _, handler := range pm.currentPage.handlers {

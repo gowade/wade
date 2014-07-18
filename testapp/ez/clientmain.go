@@ -60,6 +60,12 @@ type ErrorListModel struct {
 	Errors map[string]string
 }
 
+type HomeView struct{}
+
+func (hv *HomeView) Highlight(word string) string {
+	return ">> <strong>" + word + "<strong> <<"
+}
+
 func main() {
 	wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade) {
 		wade.Pager().RegisterPages("wpage-root")
@@ -142,6 +148,10 @@ func main() {
 				Name: "Rivr Perf. Nguyen",
 				Age:  18,
 			}
+		})
+
+		wade.Pager().RegisterController("pg-home", func(p *wd.PageCtrl) interface{} {
+			return new(HomeView)
 		})
 	})
 

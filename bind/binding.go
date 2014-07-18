@@ -1,12 +1,9 @@
 package bind
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
@@ -59,18 +56,152 @@ type CustomTag interface {
 	TagContents(jq.JQuery)
 }
 
+type scopeSymbol interface {
+	value() (reflect.Value, error)
+	call([]reflect.Value) (reflect.Value, error)
+}
+
+type symbolTable interface {
+	lookup(symbol string) (scopeSymbol, bool)
+}
+
+type scope struct {
+	symTables []symbolTable
+}
+
+func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
+	for _, st := range s.symTables {
+		var ok bool
+		sym, ok = st.lookup(symbol)
+		if ok {
+			return
+		}
+	}
+
+	err = fmt.Errorf("Unable to find symbol %v in the scope", symbol)
+	return
+}
+
+func (s *scope) merge(target *scope) {
+	for _, st := range target.symTables {
+		s.symTables = append(s.symTables, st)
+	}
+}
+
+type mapSymbolTable struct {
+	m map[string]scopeSymbol
+}
+
+func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
+	sym, ok = st.m[symbol]
+	return
+}
+
+func (st mapSymbolTable) registerFunc(name string, fn interface{}) {
+	st.m[name] = newFuncSymbol(name, fn)
+}
+
+type funcSymbol struct {
+	name string
+	fn   reflect.Value
+}
+
+func newFuncSymbol(name string, fn interface{}) funcSymbol {
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func {
+		panic(fmt.Sprintf(`Can't create funcSymbol "%v" from a non-function.`, name))
+	}
+
+	if fnType.NumOut() > 1 {
+		panic(fmt.Sprintf(`"%v": funcSymbol cannot have more than 1 return value.`, name))
+	}
+
+	return funcSymbol{name, reflect.ValueOf(fn)}
+}
+
+func (fs funcSymbol) value() (reflect.Value, error) {
+	return fs.fn, nil
+}
+
+func (fs funcSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
+	v, err = callFunc(fs.fn, args)
+	if err != nil {
+		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
+	}
+	return
+}
+
+func helpersSymbolTable(helpers map[string]interface{}) mapSymbolTable {
+	m := make(map[string]scopeSymbol)
+	for name, helper := range helpers {
+		m[name] = newFuncSymbol(name, helper)
+	}
+
+	return mapSymbolTable{m}
+}
+
+type modelSymbolTable struct {
+	model reflect.Value
+}
+
+type modelFieldSymbol struct {
+	name string
+	eval *objEval
+}
+
+func (mf modelFieldSymbol) bindObj() *objEval {
+	return mf.eval
+}
+
+func (mf modelFieldSymbol) value() (v reflect.Value, err error) {
+	return mf.eval.fieldRefl, nil
+}
+
+func (mf modelFieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
+	if mf.eval.fieldRefl.Kind() != reflect.Func {
+		err = fmt.Errorf(`Cannot call "%v", it's not a method.`, mf.name)
+		return
+	}
+
+	v, err = callFunc(mf.eval.fieldRefl, args)
+	if err != nil {
+		err = fmt.Errorf(`"%v": %v`, mf.name, err.Error())
+	}
+	return
+}
+
+func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
+	if st.model.Kind() == reflect.Ptr && st.model.IsNil() {
+		ok = false
+		return
+	}
+
+	var eval *objEval
+	eval, ok = evaluateObjField(symbol, st.model)
+	if ok {
+		sym = modelFieldSymbol{symbol, eval}
+	}
+
+	return
+}
+
 type Binding struct {
 	tm         CustomElemManager
 	domBinders map[string]DomBinder
-	helpers    map[string]interface{}
+	helpers    mapSymbolTable
+
+	scope *scope
 }
 
 func NewBindEngine(tm CustomElemManager) *Binding {
-	return &Binding{
+	b := &Binding{
 		tm:         tm,
 		domBinders: defaultBinders(),
-		helpers:    defaultHelpers(),
+		helpers:    helpersSymbolTable(defaultHelpers()),
 	}
+
+	b.scope = &scope{[]symbolTable{b.helpers}}
+	return b
 }
 
 // RegisterHelper registers fn as a helper with the given name.
@@ -87,270 +218,83 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 		panic("A helper must return something.")
 	}
 
-	if _, exist := b.helpers[name]; !exist {
-		b.helpers[name] = fn
+	if _, exist := b.helpers.lookup(name); !exist {
+		b.helpers.registerFunc(name, fn)
 		return
 	}
+
 	panic(fmt.Sprintf("Helper with name %v already exists.", name))
 	return
 }
 
-// Delete a helper
-func (b *Binding) DeleteHelper(name string) {
-	if _, ok := b.helpers[name]; ok {
-		delete(b.helpers, name)
+func (b *Binding) newBindScope(model interface{}) *bindScope {
+	s := b.scope
+	if model != nil {
+		s = &scope{[]symbolTable{modelSymbolTable{reflect.ValueOf(model)}}}
+		s.merge(b.scope)
 	}
-	panic(fmt.Sprintf("No such helper %v", name))
+	return &bindScope{s}
 }
 
-func jqExists(elem jq.JQuery) bool {
-	return elem.Parents("html").Length > 0
-}
-
-// getReflectField returns the field value of an object, be it a struct instance
-// or a map
-func getReflectField(o reflect.Value, field string) (reflect.Value, error) {
-	var rv reflect.Value
-
-	if o.Kind() == reflect.Ptr {
-		if o.IsNil() {
-			return rv, fmt.Errorf(`Cannot retrieve field "%v" of a nil value`, field)
-		}
-		o = o.Elem()
-	}
-
-	switch o.Kind() {
-	case reflect.Struct:
-		rv = o.FieldByName(field)
-		if !rv.IsValid() {
-			rv = o.Addr().MethodByName(field)
-		}
-	case reflect.Map:
-		rv = o.MapIndex(reflect.ValueOf(field))
-		if rv.IsValid() {
-			rv = reflect.ValueOf(rv.Interface())
-		}
-	default:
-		return rv, fmt.Errorf(`Unhandled type "%v" for accessing "%v"`, o.Type().String(), field)
-	}
-
-	if !rv.IsValid() {
-		return rv, fmt.Errorf(`No such field "%v" in %+v`, field, o.Interface())
-	}
-
-	//if !rv.CanSet() {
-	//	panic("Unaddressable")
-	//}
-
-	return rv, nil
-}
-
-type TokenType int
-
-const (
-	ExprToken TokenType = 1
-	PuncToken           = 2
-)
-
-type Token struct {
-	kind TokenType
-	v    string
-}
-
-type Expr struct {
-	name string
-	args []*Expr
-	eval *ObjEval
-}
-
-func isValidExprChar(c rune) bool {
-	return c == '`' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
-}
-
-// tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
-// it a little bit easier to parse
-func tokenize(spec string) (tokens []Token, err error) {
-	tokens = make([]Token, 0)
-	err = nil
-	var token string
-	flush := func() {
-		if token != "" {
-			if strings.HasPrefix(token, ".") || strings.HasSuffix(token, ".") {
-				err = errors.New("Invalid '.'")
-				return
-			}
-			tokens = append(tokens, Token{ExprToken, token})
-		}
-		token = ""
-	}
-	strlitMode := false //string literal mode
-	for _, c := range spec {
-		if !strlitMode {
-			switch c {
-			case ' ':
-				if token != "" {
-					err = errors.New("Invalid space")
-					return
-				}
-			case '(', ')', ',':
-				flush()
-				tokens = append(tokens, Token{PuncToken, string(c)})
-			case '`':
-				strlitMode = true
-				token += string(c)
-			default:
-				if isValidExprChar(c) {
-					token += string(c)
-				} else {
-					err = fmt.Errorf("Character '%q' is not allowed", c)
-					return
-				}
-			}
-		} else {
-			if c == '`' {
-				strlitMode = false
-			} else if !unicode.IsDigit(c) && !unicode.IsLetter(c) && !strings.ContainsRune(",(-_.)", c) {
-				err = fmt.Errorf("Use of characters other than numbers, " +
-					"letters, parentheses ('(', ')'), dash ('-'), comma (','), " +
-					"underscore ('_'), and dot ('.') is forbidden " +
-					"inside string literals of bind string, " +
-					"heavy processing and logic should not be in html template. Consider " +
-					"moving your data to the model instead of putting it into the bind string.")
-				return
-			}
-			token += string(c)
-		}
-	}
-	flush()
-
-	return
-}
-
-// parse parses the bind target string, populate information into a tree of Expr pointers.
-// Each helper call has a list arguments, each argument may be another helper call or an object expression.
-func parse(spec string) (root *Expr, err error) {
-	tokens, err := tokenize(spec)
-	if err != nil {
-		return
-	}
-	invalid := func() {
-		err = errors.New("Invalid syntax")
-	}
-	if len(tokens) == 0 {
-		err = errors.New("Empty bind string")
-	}
-	if tokens[0].kind != ExprToken {
-		invalid()
-		return
-	}
-	stack := make([]*Expr, 0)
-	exprOf := make([]*Expr, len(tokens))
-	root = &Expr{tokens[0].v, make([]*Expr, 0), nil}
-	exprOf[0] = root
-	var parent *Expr = nil
-	for ii, token := range tokens[1:] {
-		i := ii + 1 //i starts from 1 instead of 1, more intuitive
-		switch token.v {
-		case "(":
-			if tokens[i-1].kind != ExprToken {
-				invalid()
-				return
-			}
-			parent = exprOf[i-1]
-			stack = append(stack, parent)
-		case ")":
-			if parent == nil {
-				invalid()
-				return
-			}
-			stack = stack[:len(stack)-1]
-
-		case ",":
-			if !(tokens[i-1].kind == ExprToken || tokens[i-1].v == ")") {
-				invalid()
-				return
-			}
-		//expression
-		default:
-			expr := &Expr{tokens[i].v, make([]*Expr, 0), nil}
-			exprOf[i] = expr
-			if len(stack) == 0 {
-				invalid()
-				return
-			}
-			stack[len(stack)-1].args = append(stack[len(stack)-1].args, expr)
-		}
-	}
-
-	return
-}
-
-type ObjEval struct {
+type objEval struct {
 	fieldRefl reflect.Value
 	modelRefl reflect.Value
 	field     string
 }
 
-type Value struct {
-	oe    *ObjEval
-	value interface{}
+type bindable interface {
+	bindObj() *objEval
 }
 
-func (val *Value) Set(v reflect.Value) {
-	if val.oe != nil {
-		val.oe.fieldRefl.Set(v)
-		return
-	}
-	panic("Unexpected, cannot set value for literal expression.")
-}
-
-func (val *Value) Val() reflect.Value {
-	if val.oe != nil {
-		return val.oe.fieldRefl
-	}
-	return reflect.ValueOf(val.value)
+type bindScope struct {
+	scope *scope
 }
 
 // evaluateRec recursively evaluates the parsed expressions and return the result value, it also
-// populates the tree of Expr with the value evaluated with evaluateObj if not available
-func (b *Binding) evaluateRec(expr *Expr, model interface{}) (v reflect.Value, err error) {
+func (b *bindScope) evaluateRec(e *expr) (v reflect.Value, blist []bindable, err error) {
 	err = nil
-	if len(expr.args) == 0 {
-		var val *Value
-		val, err = evaluateExpr(expr.name, model)
+	blist = make([]bindable, 0)
+
+	litVal, isLiteral, er := parseExpr(e.name)
+	if er != nil {
+		err = er
+		return
+	}
+	if isLiteral {
+		v = reflect.ValueOf(litVal)
+		return
+	}
+
+	args := make([]reflect.Value, len(e.args))
+	for i, e := range e.args {
+		var cblist []bindable
+		args[i], cblist, err = b.evaluateRec(e)
 		if err != nil {
 			return
 		}
-		expr.eval = val.oe
-		v = val.Val()
+
+		blist = append(blist, cblist...)
+	}
+
+	sym, err := b.scope.lookup(e.name)
+	if err != nil {
 		return
 	}
 
-	if helper, ok := b.helpers[expr.name]; ok {
-		args := make([]reflect.Value, len(expr.args))
-		for i, e := range expr.args {
-			args[i], err = b.evaluateRec(e, model)
-			if err != nil {
-				return
-			}
-		}
-		ftype := reflect.TypeOf(helper)
-		nin := ftype.NumIn()
-		var ok bool
-		if ftype.IsVariadic() {
-			ok = len(args) >= nin-1
-		} else {
-			ok = nin == len(args)
-		}
-		if !ok {
-			err = fmt.Errorf(`Invalid number of arguments to helper "%v"`, expr.name)
-			return
-		}
-		v = reflect.ValueOf(helper).Call(args)[0]
+	switch e.typ {
+	case ValueExpr:
+		v, err = sym.value()
+	case CallExpr:
+		v, err = sym.call(args)
+	}
+
+	if err != nil {
 		return
 	}
 
-	err = fmt.Errorf(`Invalid helper "%v".`, expr.name)
+	if mf, ok := sym.(bindable); ok {
+		blist = append(blist, mf)
+	}
 	return
 }
 
@@ -359,169 +303,52 @@ func bindStringPanic(mess, bindstring string) {
 }
 
 // evaluateBindstring evaluates the bind string, returns the needed information for binding
-func (b *Binding) evaluate(spec string, model interface{}) (root *Expr, blist []*Expr, value interface{}, err error) {
-	root, err = parse(spec)
+func (b *bindScope) evaluate(bstr string) (root *expr, blist []bindable, value interface{}, err error) {
+	root, err = parse(bstr)
 	if err != nil {
 		return
 	}
-	v, err := b.evaluateRec(root, model)
+
+	var v reflect.Value
+	v, blist, err = b.evaluateRec(root)
 	if err != nil {
 		return
 	}
 	value = v.Interface()
-	blist = make([]*Expr, 0)
-	getBindList(root, &blist)
 	return
 }
 
-func (b *Binding) evaluateBindString(bstr string, model interface{}) (root *Expr, blist []*Expr, value interface{}) {
+func (b *bindScope) evaluateBindString(bstr string) (root *expr, blist []bindable, value interface{}) {
 	var err error
-	root, blist, value, err = b.evaluate(bstr, model)
+	root, blist, value, err = b.evaluate(bstr)
 	if err != nil {
 		bindStringPanic(err.Error(), bstr)
 	}
 	return
 }
 
-// getBindList fetches the list of objects that need to be bound from the *Expr tree into a list
-func getBindList(expr *Expr, list *([]*Expr)) {
-	if expr == nil {
-		return
-	}
-
-	if len(expr.args) == 0 && expr.eval != nil {
-		*list = append(*list, expr)
-		return
-	}
-
-	for _, e := range expr.args {
-		getBindList(e, list)
-	}
-}
-
-// evaluateObj uses reflection to access the field hierarchy in an object string
-// and return the necessary values
-func evaluateObj(obj string, model interface{}) (*ObjEval, error) {
-	if obj != "" && model == nil {
-		return nil, fmt.Errorf(`This page doens't have a model so we cannot bind to "%v"`, obj)
-	}
-	flist := strings.Split(obj, ".")
-	vals := make([]reflect.Value, len(flist)+1)
-	o := reflect.ValueOf(model)
-
-	if o.Kind() == reflect.Ptr {
-		if o.IsNil() {
-			return nil, fmt.Errorf(`Cannot evaluate a nil pointer.`)
-		}
-		o = o.Elem()
-	}
-	vals[0] = o
-	var err error
-	for i, field := range flist {
-		o, err = getReflectField(o, field)
-		if err != nil {
-			return nil, err
-		}
-		vals[i+1] = o
-	}
-
-	return &ObjEval{
-		fieldRefl: vals[len(vals)-1],
-		modelRefl: vals[len(vals)-2],
-		field:     flist[len(flist)-1],
-	}, nil
-}
-
-func evaluateExpr(expr string, model interface{}) (v *Value, err error) {
-	err = nil
-	expr = strings.TrimSpace(expr)
-	re := []rune(expr)
-	numberMode := false
-	floatMode := false
-	for i, c := range expr {
-		switch {
-		case c == '`':
-			if i == 0 { //string literal
-				if re[len(expr)-1] == '`' {
-					v = &Value{nil, string(re[1 : len(re)-1])}
-					return
-				}
-				err = fmt.Errorf("No matching quote.")
-				return
-			} else {
-				err = fmt.Errorf("Invalid quote")
-				return
-			}
-		case unicode.IsDigit(c):
-			if i == 0 {
-				numberMode = true
-			}
-		case unicode.IsLetter(c) || c == '_':
-			if numberMode {
-				err = fmt.Errorf("Invalid: dynamic expression cannot start with a number")
-				return
-			}
-		case c == '.':
-			if floatMode {
-				err = fmt.Errorf("Multiple dot '.' for a number, invalid")
-				return
-			}
-			if numberMode {
-				floatMode = true
-			}
-		default:
-			err = fmt.Errorf("Invalid character '%q'", c)
-			return
-		}
-	}
-
-	switch {
-	case floatMode:
-		var f float64
-		f, err = strconv.ParseFloat(expr, 32)
-		v = &Value{nil, float32(f)}
-		return
-	case numberMode:
-		var i int
-		i, err = strconv.Atoi(expr)
-		v = &Value{nil, i}
-		return
-	default:
-		var oe *ObjEval
-		oe, err = evaluateObj(expr, model)
-		v = &Value{oe, nil}
-	}
-
-	return
-}
-
-func jsGetType(obj js.Object) string {
-	return js.Global.Get("Object").Get("prototype").Get("toString").Call("call", obj).Str()
-}
-
-func (b *Binding) watchModel(binds []*Expr, root *Expr, model interface{}, callback func(interface{})) {
-	for _, expr := range binds {
+func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callback func(interface{})) {
+	for _, bi := range binds {
 		//use watchjs to watch for changes to the model
-		//println(js.InternalObject(expr.eval.modelRefl.Interface()))
-		(func(expr *Expr) {
-			obj := js.InternalObject(expr.eval.modelRefl.Interface()).Get("$val")
+		(func(bi bindable) {
+			bo := bi.bindObj()
+			obj := js.InternalObject(bo.modelRefl.Interface()).Get("$val")
 			//workaround for gopherjs's protection disallowing js access to maps
 			//setDummyHopFn(obj, "")
 			js.Global.Call("watch",
 				obj,
-				expr.eval.field,
+				bo.field,
 				func(prop string, action string,
 					_ js.Object,
 					_2 js.Object) {
-					//v = expr.eval.fieldRefl.Interface()
-					newResult, _ := b.evaluateRec(root, model)
+					newResult, _, _ := bs.evaluateRec(root)
 					callback(newResult.Interface())
 				})
-		})(expr)
+		})(bi)
 	}
 }
 
-func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interface{}, once bool) {
+func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScope, once bool) {
 	parts := strings.Split(astr, "-")
 	if len(parts) <= 1 {
 		panic(`Illegal "bind-".`)
@@ -553,10 +380,10 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 				}
 			}
 		}
-		roote, binds, v := b.evaluateBindString(bexpr, model)
+		roote, binds, v := bs.evaluateBindString(bexpr)
 
 		if len(binds) == 1 {
-			fmodel := binds[0].eval.fieldRefl
+			fmodel := binds[0].bindObj().fieldRefl
 			binder.Watch(elem, func(newVal string) {
 				if !fmodel.CanSet() {
 					panic("Cannot set field.")
@@ -569,7 +396,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 			binder.Bind(b, elem, v, args, outputs)
 			binder.Update(elem, v, args, outputs)
 			if !once {
-				b.watchModel(binds, roote, model, func(newResult interface{}) {
+				b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					binder.Update(elem,
 						newResult,
 						args, outputs)
@@ -581,7 +408,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, model interf
 	}
 }
 
-func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model interface{}, once bool, tModel interface{}) {
+func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, bs *bindScope, once bool, tModel interface{}) {
 	fbinds := strings.Split(bstr, ";")
 	for i, fb := range fbinds {
 		if i == len(fbinds)-1 && fb == "" {
@@ -599,11 +426,11 @@ func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model inter
 			}
 		}
 
-		roote, binds, v := b.evaluateBindString(valuestr, model)
+		roote, binds, v := bs.evaluateBindString(valuestr)
 
-		oe, err := evaluateObj(field, tModel)
-		if err != nil {
-			bindStringPanic("custom tag attribute check: "+err.Error(), bstr)
+		oe, ok := evaluateObjField(field, reflect.ValueOf(tModel))
+		if !ok {
+			bindStringPanic(fmt.Sprintf(`No such field "%v" to bind to`, field), bstr)
 		}
 		isCompat := func(src reflect.Type, dst reflect.Type) {
 			if !src.AssignableTo(dst) {
@@ -614,7 +441,7 @@ func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, model inter
 		isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
 		oe.fieldRefl.Set(reflect.ValueOf(v))
 		if !once {
-			b.watchModel(binds, roote, model, func(newResult interface{}) {
+			b.watchModel(binds, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
 				isCompat(nr.Type(), oe.fieldRefl.Type())
 				oe.fieldRefl.Set(nr)
@@ -633,13 +460,20 @@ func PreventBinding(elem jq.JQuery, bindattr string) {
 	})
 }
 
+func PreventAllBinding(elem jq.JQuery) {
+	elem.Find("*").Each(func(_ int, d jq.JQuery) {
+		preventBinding(d, "all")
+	})
+}
+
 func bindingPrevented(elem jq.JQuery, bindattr string) bool {
-	return elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
+	return elem.Attr(ReservedBindPrefix+"-all") == "t" ||
+		elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
 }
 
 func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(string, string)) func() {
 	return func() {
-		if !bindingPrevented(elem, bindattr) && jqExists(elem) {
+		if !bindingPrevented(elem, bindattr) {
 			fn(bindattr, bindstr)
 			preventBinding(elem, bindattr)
 		}
@@ -647,7 +481,7 @@ func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(string, stri
 }
 
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bindTasks []func()) {
+func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool) (bindTasks []func()) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
@@ -676,7 +510,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 				}
 				bindTasks = append(bindTasks,
 					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
-						b.processAttrBind(astr, bstr, elem, model, once, customTagModel)
+						b.processAttrBind(astr, bstr, elem, bs, once, customTagModel)
 					}))
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
 				jqExists(elem) { //element still exists
@@ -687,16 +521,16 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 				}
 				bindTasks = append(bindTasks,
 					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
-						b.processDomBind(astr, bstr, elem, model, once)
+						b.processDomBind(astr, bstr, elem, bs, once)
 					}))
 			}
 		}
 
 		if isCustom {
 			custag.TagContents(elem)
-			bindTasks = append(bindTasks, b.bindPrepare(elem, customTagModel, once)...)
+			bindTasks = append(bindTasks, b.bindPrepare(elem, b.newBindScope(customTagModel), once)...)
 		} else {
-			bindTasks = append(bindTasks, b.bindPrepare(elem, model, once)...)
+			bindTasks = append(bindTasks, b.bindPrepare(elem, bs, once)...)
 		}
 	})
 
@@ -706,7 +540,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, model interface{}, once bool) (bi
 // Bind binds a model to an element and all its children
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks := b.bindPrepare(relem, model, once)
+	btasks := b.bindPrepare(relem, b.newBindScope(model), once)
 	for _, fn := range btasks {
 		fn()
 	}
