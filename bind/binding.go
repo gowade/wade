@@ -47,6 +47,10 @@ type scope struct {
 	symTables []symbolTable
 }
 
+func newScope() *scope {
+	return &scope{make([]symbolTable, 0)}
+}
+
 func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
 	for _, st := range s.symTables {
 		var ok bool
@@ -213,7 +217,7 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 func (b *Binding) newBindScope(model interface{}) *bindScope {
 	s := b.scope
 	if model != nil {
-		s = &scope{[]symbolTable{modelSymbolTable{reflect.ValueOf(model)}}}
+		s = newModelScope(model)
 		s.merge(b.scope)
 	}
 	return &bindScope{s}
@@ -310,6 +314,12 @@ func (b *bindScope) evaluateBindString(bstr string) (root *expr, blist []bindabl
 		bindStringPanic(err.Error(), bstr)
 	}
 	return
+}
+
+func (b *bindScope) clone() *bindScope {
+	scope := newScope()
+	scope.merge(b.scope)
+	return &bindScope{scope}
 }
 
 func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callback func(interface{})) {
@@ -450,12 +460,14 @@ func preventBinding(elem jq.JQuery, bindattr string) {
 }
 
 func preventTreeBinding(elem jq.JQuery, bindattr string) {
+	preventBinding(elem, bindattr)
 	elem.Find("*").Each(func(_ int, d jq.JQuery) {
 		preventBinding(d, bindattr)
 	})
 }
 
 func preventAllBinding(elem jq.JQuery) {
+	preventBinding(elem, "all")
 	elem.Find("*").Each(func(_ int, d jq.JQuery) {
 		preventBinding(d, "all")
 	})
@@ -466,25 +478,36 @@ func bindingPrevented(elem jq.JQuery, bindattr string) bool {
 		elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
 }
 
-func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(string, string)) func() {
+func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(jq.JQuery, string, string)) func() {
 	return func() {
 		if !bindingPrevented(elem, bindattr) {
-			fn(bindattr, bindstr)
+			fn(elem, bindattr, bindstr)
 			preventBinding(elem, bindattr)
 		}
 	}
 }
 
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool) (bindTasks []func()) {
+func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrelem bool) (bindTasks []func()) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
 
 	bindTasks = make([]func(), 0)
 
+	elems := make([]jq.JQuery, 0)
+	if bindrelem {
+		elems = append(elems, relem)
+	}
+
 	relem.Children("*").Each(func(i int, elem jq.JQuery) {
+		elems = append(elems, elem)
+	})
+
+	for _, elem := range elems {
 		custag, isCustom := b.tm.GetCustomTag(elem)
+
+		ebs := bs.clone()
 
 		htmla := elem.Get(0).Get("attributes")
 		attrs := make(map[string]string)
@@ -503,10 +526,12 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool) (bindTa
 				if !isCustom {
 					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
 				}
-				bindTasks = append(bindTasks,
-					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
-						b.processAttrBind(astr, bstr, elem, bs, once, customTagModel)
-					}))
+				(func(customTagModel interface{}) {
+					bindTasks = append(bindTasks,
+						wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+							b.processAttrBind(astr, bstr, elem, ebs, once, customTagModel)
+						}))
+				})(customTagModel)
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
 				jqExists(elem) { //element still exists
 				if isCustom {
@@ -515,35 +540,36 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool) (bindTa
 			If you want to bind the attributes of a custom element, use attribute binding instead.`)
 				}
 				bindTasks = append(bindTasks,
-					wrapBindCall(elem, name, bstr, func(astr, bstr string) {
-						b.processDomBind(astr, bstr, elem, bs, once)
+					wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+						b.processDomBind(astr, bstr, elem, ebs, once)
 					}))
 			}
 		}
 
-		if isCustom {
-			custag.TagContents(elem)
-			bindTasks = append(bindTasks, b.bindPrepare(elem, b.newBindScope(customTagModel), once)...)
-		} else {
-			bindTasks = append(bindTasks, b.bindPrepare(elem, bs, once)...)
+		if !elem.Is(relem.Get(0)) {
+			if isCustom {
+				custag.TagContents(elem)
+				bindTasks = append(bindTasks, b.bindPrepare(elem, b.newBindScope(customTagModel), once, false)...)
+			} else {
+				bindTasks = append(bindTasks, b.bindPrepare(elem, bs, once, false)...)
+			}
 		}
-	})
+	}
 
 	return
 }
 
-// Bind binds a model to an element and all its children
-func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool) {
+// Bind binds a model to an element and its ascendants
+func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks := b.bindPrepare(relem, b.newBindScope(model), once)
+	btasks := b.bindPrepare(relem, b.newBindScope(model), once, bindrelem)
 	for _, fn := range btasks {
 		fn()
 	}
 }
 
-func (b *Binding) bindWithScope(relem jq.JQuery, model interface{}, once bool, s *scope) {
-	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks := b.bindPrepare(relem, &bindScope{s}, once)
+func (b *Binding) bindWithScope(relem jq.JQuery, model interface{}, once bool, bindrelem bool, s *scope) {
+	btasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem)
 	for _, fn := range btasks {
 		fn()
 	}

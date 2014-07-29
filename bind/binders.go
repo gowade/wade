@@ -42,6 +42,7 @@ func (b *ValueBinder) Update(d DomBind) {
 func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
 	tagname := strings.ToUpper(elem.Prop("tagName").(string))
 	if tagname != "INPUT" {
+		println(tagname)
 		panic("Can only watch for changes on html input, textarea and select.")
 	}
 
@@ -51,7 +52,7 @@ func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
 }
 func (b *ValueBinder) BindInstance() DomBinder { return b }
 
-// ValueBinder is a 1-way binder that binds an element's html content to
+// HtmlBinder is a 1-way binder that binds an element's html content to
 // the value of a model field.
 // It takes no extra dash args.
 //

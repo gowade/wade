@@ -367,7 +367,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 	pc := &PageCtrl{params, pm.binding, make([]string, 0)}
 	if controller := pm.currentPage.controller; controller != nil {
 		model := controller(pc)
-		pm.binding.Bind(pm.container, model, false)
+		pm.binding.Bind(pm.container, model, false, false)
 	} else {
 		stop := false
 		pageElem.Parents("wpage").Each(func(_ int, p jq.JQuery) {
@@ -378,7 +378,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 			pageId := p.Attr("pid")
 			if pageId != "" {
 				if controller := pm.Page(pageId).controller; controller != nil {
-					pm.binding.Bind(pm.container, controller(pc), false)
+					pm.binding.Bind(pm.container, controller(pc), false, false)
 					stop = true
 					return
 				}
@@ -386,7 +386,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 		})
 
 		if !stop {
-			pm.binding.Bind(pm.container, nil, true)
+			pm.binding.Bind(pm.container, nil, true, false)
 		}
 	}
 

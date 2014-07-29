@@ -39,10 +39,10 @@ type DomBind struct {
 	metadata string
 }
 
-func (d DomBind) bind(elem jq.JQuery, model interface{}, once bool) {
+func (d DomBind) bind(elem jq.JQuery, model interface{}, once bool, bindrelem bool) {
 	s := newModelScope(model)
 	s.merge(d.scope)
-	d.binding.bindWithScope(elem, model, once, s)
+	d.binding.bindWithScope(elem, model, once, bindrelem, s)
 }
 
 func (d DomBind) RemoveBinding(elem jq.JQuery) {
@@ -56,7 +56,7 @@ func (d DomBind) ProduceOutputs(elem jq.JQuery, optional bool, once bool, output
 			m[output] = outputs[i]
 		}
 
-		d.bind(elem, m, once)
+		d.bind(elem, m, once, true)
 	} else {
 		if !optional || len(outputs) != 0 {
 			panic(fmt.Errorf("Wrong output specification for `%v`: there must be %v outputs instead of %v.",
