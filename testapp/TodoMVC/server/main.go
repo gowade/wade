@@ -79,13 +79,13 @@ func main() {
 		checkErr(err)
 		conts, err := ioutil.ReadAll(f)
 		checkErr(err)
-		c.Data(200, conts)
+		c.Data(200, "text/html;charset=utf-8", conts)
 	})
 	web.GET("*path", func(c *gin.Context) {})
 
 	// Redirect the home page to /todo/
 	r.GET("/", func(c *gin.Context) {
-		http.Redirect(c.Writer, c.Req, "/todo/", http.StatusFound)
+		http.Redirect(c.Writer, c.Request, "/todo/", http.StatusFound)
 	})
 
 	//
