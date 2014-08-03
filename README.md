@@ -2,7 +2,7 @@ Wade.go [![godoc reference](http://b.repl.ca/v1/godoc-reference-brightgreen.png)
 ====
 The comprehensive client-side web framework for Go -> js.
 
-**WORK-IN-PROGRESS**
+**HALF-READY**
 
 *Brought to you with love and excitement...*
 #A brand new way of developing
