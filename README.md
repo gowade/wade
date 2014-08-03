@@ -69,7 +69,7 @@ Does it look good to you? So...
     * [Binders reference ](http://godoc.org/github.com/phaikawl/wade/bind)
 
 #Is it ready?
-Core functionalities are there, but there are still a lot of issues to be solved. So status changed to **WIP**.
+Core functionalities are there, can actually be used now even, but there are going to be a lot of drastic changes that would occur.
 
 #Contributing
 Pull requests are welcome. Wade is young, feedbacks are necessary, the core functionalities are there but lot of things could be developed, like a (separate) package for authorization, websocket integration, etc...
