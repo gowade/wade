@@ -48,6 +48,7 @@ func (t *TodoEntry) setCompleteState() {
 
 type TodoView struct {
 	NewEntry string
+	Test     []bool
 	Entries  []*TodoEntry
 }
 
@@ -78,7 +79,9 @@ func main() {
 		wade.Pager().RegisterPages("wpage-root")
 
 		// our custom tags
-		wade.Custags().RegisterNew("todoentry", "t-todoentry", todoEntryTag{})
+		wade.RegisterCustomTags("/public/elements.html", map[string]interface{}{
+			"todoentry": todoEntryTag{},
+		})
 
 		// our main controller
 		wade.Pager().RegisterController("pg-main", func(p *wd.PageCtrl) interface{} {
@@ -87,12 +90,12 @@ func main() {
 
 			view.Entries = []*TodoEntry{
 				&TodoEntry{Text: "create a datastore for entries", Done: true},
-				&TodoEntry{Text: "add new entries", Done: true},
-				&TodoEntry{Text: "toggle edit off - click anywhere else"},
-				&TodoEntry{Text: "ToggleAll should do something", Done: true},
-				&TodoEntry{Text: "destroy -> delete from the list"},
-				&TodoEntry{Text: "add filters for state"},
-				&TodoEntry{Text: "update counters in footer"},
+				//&TodoEntry{Text: "add new entries", Done: true},
+				//&TodoEntry{Text: "toggle edit off - click anywhere else"},
+				//&TodoEntry{Text: "ToggleAll should do something", Done: true},
+				//&TodoEntry{Text: "destroy -> delete from the list"},
+				//&TodoEntry{Text: "add filters for state"},
+				//&TodoEntry{Text: "update counters in footer"},
 			}
 
 			// update the t.State

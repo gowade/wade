@@ -31,7 +31,7 @@ type CustomElemManager interface {
 
 type CustomTag interface {
 	NewModel(jq.JQuery) interface{}
-	TagContents(jq.JQuery)
+	TagContents(jq.JQuery, interface{})
 }
 
 type scopeSymbol interface {
@@ -524,7 +524,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 		for name, bstr := range attrs {
 			if name == "bind" { //attribute binding
 				if !isCustom {
-					panic(fmt.Sprintf("Attribute binding syntax can only be used for custom elements."))
+					panic(fmt.Sprintf(`Processing bind string %v = "%v": The element hasn't been registered as a custom element.`, name, bstr))
 				}
 				(func(customTagModel interface{}) {
 					bindTasks = append(bindTasks,
@@ -535,9 +535,9 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
 				jqExists(elem) { //element still exists
 				if isCustom {
-					panic(`Dom binding is not allowed for custom element tags (they should not actually be rendered
+					panic(fmt.Sprintf(`Processing bind string %v = "%v": Dom binding is not allowed for custom element tags (they should not actually be rendered
 			, so there's no point; but of course inside the custom element's contents it's allowed normally).
-			If you want to bind the attributes of a custom element, use attribute binding instead.`)
+			If you want to bind the attributes of a custom element, use attribute binding instead.`, name, bstr))
 				}
 				bindTasks = append(bindTasks,
 					wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
@@ -548,7 +548,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 
 		if !elem.Is(relem.Get(0)) {
 			if isCustom {
-				custag.TagContents(elem)
+				custag.TagContents(elem, customTagModel)
 				bindTasks = append(bindTasks, b.bindPrepare(elem, b.newBindScope(customTagModel), once, false)...)
 			} else {
 				bindTasks = append(bindTasks, b.bindPrepare(elem, bs, once, false)...)

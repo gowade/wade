@@ -52,8 +52,14 @@ func (tag *CustomTag) prepareAttributes(prototype reflect.Type) {
 	tag.publicAttrs = publicAttrs
 }
 
-func (t *CustomTag) TagContents(elem jq.JQuery) {
+func (t *CustomTag) TagContents(elem jq.JQuery, model interface{}) {
+	contentElem := elem.Clone()
 	elem.SetHtml(t.elem.Html())
+	ce := &CustomElem{elem, contentElem}
+	if im, ok := model.(CustomElemInit); ok {
+		im.Init(ce)
+	}
+	elem.Find("wcontent").ReplaceWith(contentElem.Html())
 }
 
 func (t *CustomTag) NewModel(elem jq.JQuery) interface{} {
@@ -115,49 +121,41 @@ func newCustagMan(tcontainer jq.JQuery) *CustagMan {
 	}
 }
 
-// RegisterNew registers a new custom element tag.
-// It selects the <welement> with id #elemid and registers a new tag with the given name
-// The content and specifications of the tag is taken from #elemid.
-// For example, if
-//	wade.RegisterNew("errorlist", "t-errorlist", prototype)
-// is called, the element welement#t-errorlist, like
-//	<welement id="t-errorlist" attributes="Errors Subject">
-//		<p>errors for <% Subject %></p>
-//		<ul>
-//			<li bind-each="Errors -> _, msg"><% msg %></li>
-//		</ul>
-//	</welement>
-// will be selected and its contents
-// will be used as the new tag <errorlist>'s contents.
-// This new tag may be used like this
-//	<errorlist attr-subject="Username" bind="Errors: Username.Errors"></errorlist>
-// And if "Username.Errors" is {"Invalid.", "Not enough chars."}, something like this will
-// be put in place of the above:
-//	<p>errors for Username</p>
-//	<ul>
-//		<li>Invalid.</li>
-//		<li>Not enough chars.</li>
-//	</ul>
-// The prototype parameter must not be a pointer, it is actually used like a type,
-// It will be cloned, real instances of it will be created for each
-// separate custom element.
-func (tm *CustagMan) RegisterNew(tagName string, elemid string, prototype interface{}) {
-	tagElem := tm.tcontainer.Find("#" + elemid)
-	if tagElem.Length == 0 {
-		panic(fmt.Sprintf("Welement with id #%v does not exist.", elemid))
-	}
-	if !tagElem.Is("welement") {
-		panic(fmt.Sprintf("The element #%v to register new tag must be a welement.", elemid))
+type CustomElem struct {
+	Elem    jq.JQuery
+	Content jq.JQuery
+}
+
+type CustomElemInit interface {
+	Init(*CustomElem)
+}
+
+func (tm *CustagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]interface{}) error {
+	for _, elem := range tagElems {
+		tagname := elem.Attr("tagname")
+		if tagname == "" {
+			return fmt.Errorf("No tag name specified for the element with content:\n `%v`", elem.Get(0).Get("outerHTML").Str())
+		}
+
+		if prototype, ok := protoMap[tagname]; ok {
+			p := reflect.ValueOf(prototype)
+			if p.Kind() == reflect.Ptr {
+				p = p.Elem()
+			}
+
+			if p.Kind() != reflect.Struct {
+				return fmt.Errorf(`Custom tag prototype for "%v", type "%v" is not a struct or pointer to struct.`, tagname, p.Type().String())
+			}
+
+			custag := &CustomTag{tagname, elem, p.Interface(), nil}
+			custag.prepareAttributes(p.Type())
+			tm.custags[strings.ToUpper(tagname)] = custag
+		} else {
+			return fmt.Errorf(`No prototype is specified for the custom element tag "%v", there must be one.`, tagname)
+		}
 	}
 
-	ptype := reflect.TypeOf(prototype)
-	if ptype.Kind() != reflect.Struct {
-		panic(fmt.Sprintf(`Wrong type for prototype of tag "%v", it must be a struct (non-pointer).`, tagName))
-	}
-
-	custag := &CustomTag{tagName, tagElem, prototype, nil}
-	custag.prepareAttributes(ptype)
-	tm.custags[strings.ToUpper(tagName)] = custag
+	return nil
 }
 
 // GetCustomTag checks if the element's tag is of a registered custom tag

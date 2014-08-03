@@ -1,14 +1,19 @@
-<welement id="t-userinfo" attributes="Name Age">
-    <p><strong><% Name %></strong>, <em><% Age %></em></p>
+<welement tagname="userinfo" attributes="Name Age">
+    <p>
+		<strong><% Name %></strong>, <% Age %>
+	</p>
+	<p>
+		"<wcontent></wcontent>"
+	</p>
 </welement>
-<welement id="t-errorlist" attributes="Errors">
+<welement tagname="errorlist" attributes="Errors">
 	<ul class="error" bind-ifn="isEmpty(Errors)">
 		<li bind-each="Errors -> key, error" bind-attr-class="key">
 			error #<% key %>: <% error %>
 		</li>
 	</ul>
 </welement>
-<welement id="t-test" attributes="Username Password">
+<welement tagname="test" attributes="Username Password">
 	<p>My username is "<strong><% Username %></strong>"</p>
 	<p>and my password is "<% Password %>"</p>
 </welement>

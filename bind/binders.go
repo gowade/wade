@@ -210,7 +210,7 @@ func (b *PageBinder) Update(d DomBind) {
 }
 func (b *PageBinder) BindInstance() DomBinder { return b }
 
-// IfBinder shows or remove an element according to a boolean field value.
+// IfBinder keeps or remove an element according to a boolean field value.
 //
 // Usage:
 //	bind-if="BooleanExpression"
@@ -248,4 +248,4 @@ func (b *UnlessBinder) Update(d DomBind) {
 	d.Value = !(d.Value.(bool))
 	b.IfBinder.Update(d)
 }
-func (b *UnlessBinder) BindInstance() DomBinder { return &UnlessBinder{new(IfBinder)} }
+func (b *UnlessBinder) BindInstance() DomBinder { return &UnlessBinder{&IfBinder{}} }

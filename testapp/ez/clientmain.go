@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	wd "github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/services/http"
 	"github.com/phaikawl/wade/services/pdata"
@@ -11,6 +13,12 @@ import (
 type UserInfo struct {
 	Name string
 	Age  int
+}
+
+func (uinf *UserInfo) Init(ce *wd.CustomElem) {
+	ce.Content.SetHtml(strings.Replace(
+		strings.Replace(ce.Content.Html(), "&lt;3", `<span style="color: crimson">♥</span>`, -1),
+		":wink:", `<span style="color: DimGray">◕‿↼</span>`, -1))
 }
 
 type AuthedStat struct {
@@ -75,16 +83,17 @@ func main() {
 		/* Register custom tags to be used in the html content
 
 		The second parameters in these function calls, the "prototype"s
-		are required so that http://getbootstrap.com/css/#formsWade knows the datatype of the new
+		are required so that Wade knows the datatype of the new
 		custom element's attributes.
-		The prototype must be a struct and not a pointer.
 		It will be copied and new pointer instances will be made for each separate
 		use of the custom element.
 
 		*/
-		wade.Custags().RegisterNew("userinfo", "t-userinfo", UserInfo{})
-		wade.Custags().RegisterNew("errorlist", "t-errorlist", ErrorListModel{})
-		wade.Custags().RegisterNew("test", "t-test", UsernamePassword{})
+		wade.RegisterCustomTags("/public/elements.html", map[string]interface{}{
+			"userinfo":  UserInfo{},
+			"errorlist": ErrorListModel{},
+			"test":      UsernamePassword{},
+		})
 
 		/* This sets the controller for the page "pg-user-login"
 		The controller function returns a model, of which fields are used as targets

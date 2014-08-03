@@ -164,6 +164,10 @@ func parseExpr(expr string) (value interface{}, isLiteral bool, err error) {
 	err = nil
 	isLiteral = true
 	expr = strings.TrimSpace(expr)
+	if expr == "true" || expr == "false" {
+		value = (expr == "true")
+		return
+	}
 	re := []rune(expr)
 	numberMode := false
 	floatMode := false

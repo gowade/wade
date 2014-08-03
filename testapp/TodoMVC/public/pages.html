@@ -13,7 +13,7 @@
 
 			<ul id="todo-list" bind-ifn="isEmpty(Entries)">
 				<div bind-each="Entries -> key, entry">
-					<todoentry bind="Entry: entry; Key: key; Delete: DeleteEntry"></todoentry>
+					<todoentry bind="Entry: entry; Key: key; Delete: DeleteEntry">{{ entry.Text }}</todoentry>
 				</div>
 			</ul>
 

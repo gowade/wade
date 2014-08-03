@@ -39,5 +39,8 @@ func defaultHelpers() map[string]interface{} {
 		"isEmpty": func(collection interface{}) bool {
 			return reflect.ValueOf(collection).Len() == 0
 		},
+		"len": func(collection interface{}) int {
+			return reflect.ValueOf(collection).Len()
+		},
 	}
 }
