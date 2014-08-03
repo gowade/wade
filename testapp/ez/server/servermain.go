@@ -96,7 +96,7 @@ func main() {
 	// Subpaths of /api/ provides the server API
 	// they should be protected by authorization
 	api := r.Group("/api/", func(c *gin.Context) {
-		token := c.Req.Header.Get("AuthToken")
+		token := c.Request.Header.Get("AuthToken")
 		if token != "" {
 			return
 		}
@@ -107,7 +107,7 @@ func main() {
 	// The api to register a user
 	// Used in the pg-user-register page
 	api.POST("/user/register", func(c *gin.Context) {
-		rawdata, err := ioutil.ReadAll(c.Req.Body)
+		rawdata, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Println(err.Error())
 		}
@@ -127,13 +127,13 @@ func main() {
 		checkErr(err)
 		conts, err := ioutil.ReadAll(f)
 		checkErr(err)
-		c.Data(200, conts)
+		c.Data(200, "text/html;charset=utf-8", conts)
 	})
 	web.GET("*path", func(c *gin.Context) {})
 
 	// Redirect the home page to /web/
 	r.GET("/", func(c *gin.Context) {
-		http.Redirect(c.Writer, c.Req, "/web/", http.StatusFound)
+		http.Redirect(c.Writer, c.Request, "/web/", http.StatusFound)
 	})
 
 	//

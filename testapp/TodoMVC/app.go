@@ -90,12 +90,12 @@ func main() {
 
 			view.Entries = []*TodoEntry{
 				&TodoEntry{Text: "create a datastore for entries", Done: true},
-				//&TodoEntry{Text: "add new entries", Done: true},
-				//&TodoEntry{Text: "toggle edit off - click anywhere else"},
-				//&TodoEntry{Text: "ToggleAll should do something", Done: true},
-				//&TodoEntry{Text: "destroy -> delete from the list"},
-				//&TodoEntry{Text: "add filters for state"},
-				//&TodoEntry{Text: "update counters in footer"},
+				&TodoEntry{Text: "add new entries", Done: true},
+				&TodoEntry{Text: "toggle edit off - click anywhere else"},
+				&TodoEntry{Text: "ToggleAll should do something", Done: true},
+				&TodoEntry{Text: "destroy -> delete from the list", Done: true},
+				&TodoEntry{Text: "add filters for state"},
+				&TodoEntry{Text: "update counters in footer"},
 			}
 
 			// update the t.State
