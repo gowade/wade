@@ -143,7 +143,7 @@ func htmlImport(parent jq.JQuery, serverbase string) {
 }
 
 func (wd *Wade) init() {
-	bind.RegisterUrlHelper(wd.pm, wd.binding)
+	bind.RegisterInternalHelpers(wd.pm, wd.binding)
 }
 
 // Start starts the real operation, meant to be called at the end of everything.

@@ -52,14 +52,20 @@ func (tag *CustomTag) prepareAttributes(prototype reflect.Type) {
 	tag.publicAttrs = publicAttrs
 }
 
-func (t *CustomTag) TagContents(elem jq.JQuery, model interface{}) {
+func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}) error {
 	contentElem := elem.Clone()
 	elem.SetHtml(t.elem.Html())
 	ce := &CustomElem{elem, contentElem}
 	if im, ok := model.(CustomElemInit); ok {
-		im.Init(ce)
+		err := im.Init(ce)
+
+		if err != nil {
+			return err
+		}
 	}
-	elem.Find("wcontent").ReplaceWith(contentElem.Html())
+
+	elem.Find("wcontents").ReplaceWith(ce.Contents.Html())
+	return nil
 }
 
 func (t *CustomTag) NewModel(elem jq.JQuery) interface{} {
@@ -122,12 +128,12 @@ func newCustagMan(tcontainer jq.JQuery) *CustagMan {
 }
 
 type CustomElem struct {
-	Elem    jq.JQuery
-	Content jq.JQuery
+	Elem     jq.JQuery
+	Contents jq.JQuery
 }
 
 type CustomElemInit interface {
-	Init(*CustomElem)
+	Init(*CustomElem) error
 }
 
 func (tm *CustagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]interface{}) error {

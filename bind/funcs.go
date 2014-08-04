@@ -10,6 +10,15 @@ import (
 	jq "github.com/gopherjs/jquery"
 )
 
+func elemError(elem jq.JQuery, errstr string) {
+	msg := fmt.Sprintf(`Error while processing: "%v"`, elem.Clone().Wrap("<p>").Parent().Html())
+	if len(msg) >= 200 {
+		msg = msg[0:200] + "[...]"
+	}
+	println(msg)
+	panic(errstr)
+}
+
 func jqExists(elem jq.JQuery) bool {
 	return elem.Parents("html").Length > 0
 }

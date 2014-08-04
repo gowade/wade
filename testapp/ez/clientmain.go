@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	wd "github.com/phaikawl/wade"
+	"github.com/phaikawl/wade/elements/menu"
 	"github.com/phaikawl/wade/services/http"
 	"github.com/phaikawl/wade/services/pdata"
 	"github.com/phaikawl/wade/testapp/ez/model"
@@ -15,10 +16,11 @@ type UserInfo struct {
 	Age  int
 }
 
-func (uinf *UserInfo) Init(ce *wd.CustomElem) {
-	ce.Content.SetHtml(strings.Replace(
-		strings.Replace(ce.Content.Html(), "&lt;3", `<span style="color: crimson">♥</span>`, -1),
+func (uinf *UserInfo) Init(ce *wd.CustomElem) error {
+	ce.Contents.SetHtml(strings.Replace(
+		strings.Replace(ce.Contents.Html(), "&lt;3", `<span style="color: crimson">♥</span>`, -1),
 		":wink:", `<span style="color: DimGray">◕‿↼</span>`, -1))
+	return nil
 }
 
 type AuthedStat struct {
@@ -80,20 +82,23 @@ func main() {
 
 		wade.Pager().SetNotFoundPage("pg-not-found")
 
-		/* Register custom tags to be used in the html content
+		/* Register custom tags to be used in the html content.
 
-		The second parameters in these function calls, the "prototype"s
-		are required so that Wade knows the datatype of the new
+		Each value in the map in these function calls are "prototype"s
+		They are required so that Wade knows the datatype of the new
 		custom element's attributes.
 		It will be copied and new pointer instances will be made for each separate
 		use of the custom element.
-
 		*/
+
 		wade.RegisterCustomTags("/public/elements.html", map[string]interface{}{
 			"userinfo":  UserInfo{},
 			"errorlist": ErrorListModel{},
 			"test":      UsernamePassword{},
 		})
+
+		// Import the menu custom element from wade's packages
+		wade.RegisterCustomTags("/public/menu.html", menu.Spec())
 
 		/* This sets the controller for the page "pg-user-login"
 		The controller function returns a model, of which fields are used as targets

@@ -21,7 +21,7 @@ var (
 	gRouteParamRegexp = regexp.MustCompile(`\:\w+`)
 )
 
-type Page struct {
+type page struct {
 	id    string
 	path  string
 	title string
@@ -31,8 +31,8 @@ type Page struct {
 	controller PageControllerFunc
 }
 
-func newPage(id, path, title string) *Page {
-	return &Page{
+func newPage(id, path, title string) *page {
+	return &page{
 		id:       id,
 		path:     path,
 		title:    title,
@@ -40,7 +40,7 @@ func newPage(id, path, title string) *Page {
 	}
 }
 
-func (p *Page) getElem(parent jq.JQuery) jq.JQuery {
+func (p *page) getElem(parent jq.JQuery) jq.JQuery {
 	elem := parent.Find(fmt.Sprintf("wpage[pid='%v']", p.id))
 	if elem.Length == 0 {
 		panic(fmt.Sprintf(`Cannot find wpage element for page "%v".`, p.id))
@@ -59,11 +59,11 @@ type PageHandler func()
 // PageManager is Page Manager
 type PageManager struct {
 	router       js.Object
-	currentPage  *Page
+	currentPage  *page
 	startPageId  string
 	basePath     string
-	pages        map[string]*Page
-	notFoundPage *Page
+	pages        map[string]*page
+	notFoundPage *page
 	container    jq.JQuery
 	tcontainer   jq.JQuery
 
@@ -76,8 +76,24 @@ type PageManager struct {
 type PageCtrl struct {
 	params map[string]interface{}
 
-	b       *bind.Binding
+	pm      *PageManager
 	helpers []string
+}
+
+type PageInfo struct {
+	Id    string
+	Route string
+	Title string
+}
+
+// PageInfo returns information about the page
+func (pc *PageCtrl) Info() PageInfo {
+	pg := pc.pm.currentPage
+	return PageInfo{
+		Id:    pg.id,
+		Route: pg.path,
+		Title: pg.title,
+	}
 }
 
 // SetTitle sets the page's title
@@ -111,11 +127,8 @@ func (pc *PageCtrl) ExportParam(param string, target interface{}) {
 }
 
 // RegisterHelper registers fn as a local helper with the given name.
-//
-// Helpers registered with this method are deleted when switching page.
 func (pc *PageCtrl) RegisterHelper(name string, fn interface{}) {
 	pc.helpers = append(pc.helpers, name)
-	pc.b.RegisterHelper(name, fn)
 }
 
 func newPageManager(startPage, basePath string,
@@ -128,13 +141,17 @@ func newPageManager(startPage, basePath string,
 		currentPage:  nil,
 		basePath:     basePath,
 		startPageId:  startPage,
-		pages:        make(map[string]*Page),
+		pages:        make(map[string]*page),
 		notFoundPage: nil,
 		container:    container,
 		tcontainer:   tcontainer,
 		binding:      binding,
 		tm:           tm,
 	}
+}
+
+func (pm *PageManager) CurrentPageId() string {
+	return pm.currentPage.id
 }
 
 // Set the target element that receives Wade's real HTML output,
@@ -155,7 +172,7 @@ func (pm *PageManager) cutPath(path string) string {
 	return path
 }
 
-func (pm *PageManager) Page(pageId string) *Page {
+func (pm *PageManager) page(pageId string) *page {
 	if page, ok := pm.pages[pageId]; ok {
 		return page
 	}
@@ -163,7 +180,7 @@ func (pm *PageManager) Page(pageId string) *Page {
 }
 
 func (pm *PageManager) SetNotFoundPage(pageId string) {
-	pm.notFoundPage = pm.Page(pageId)
+	pm.notFoundPage = pm.page(pageId)
 }
 
 // Url returns the full url for a path
@@ -182,7 +199,7 @@ func documentUrl() string {
 func (pm *PageManager) setupPageOnLoad() {
 	path := pm.cutPath(documentUrl())
 	if path == "/" {
-		startPage := pm.Page(pm.startPageId)
+		startPage := pm.page(pm.startPageId)
 		path = startPage.path
 		gHistory.Call("replaceState", nil, startPage.title, pm.Url(path))
 	}
@@ -215,7 +232,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 
 	match := matches.Index(0)
 	pageId := match.Get("handler").Invoke().Str()
-	page := pm.Page(pageId)
+	page := pm.page(pageId)
 	if pushState {
 		gHistory.Call("pushState", nil, page.title, pm.Url(url))
 	}
@@ -364,7 +381,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 		handler()
 	}
 
-	pc := &PageCtrl{params, pm.binding, make([]string, 0)}
+	pc := &PageCtrl{params, pm, make([]string, 0)}
 	if controller := pm.currentPage.controller; controller != nil {
 		model := controller(pc)
 		pm.binding.Bind(pm.container, model, false, false)
@@ -377,7 +394,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 
 			pageId := p.Attr("pid")
 			if pageId != "" {
-				if controller := pm.Page(pageId).controller; controller != nil {
+				if controller := pm.page(pageId).controller; controller != nil {
 					pm.binding.Bind(pm.container, controller(pc), false, false)
 					stop = true
 					return
@@ -396,7 +413,7 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 // RegisterController assigns a PageControllerFunc function to handle the specified
 // page.
 func (pm *PageManager) RegisterController(pageId string, fn PageControllerFunc) {
-	page := pm.Page(pageId)
+	page := pm.page(pageId)
 	if page.controller != nil {
 		panic(fmt.Sprintf("That page #%v already has a controller.", pageId))
 	}
@@ -405,7 +422,7 @@ func (pm *PageManager) RegisterController(pageId string, fn PageControllerFunc) 
 
 // RegisterHandler hooks a PageHandler to the specified page
 func (pm *PageManager) RegisterHandler(pageId string, fn PageHandler) {
-	page := pm.Page(pageId)
+	page := pm.page(pageId)
 	page.handlers = append(page.handlers, fn)
 }
 

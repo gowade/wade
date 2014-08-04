@@ -1,6 +1,19 @@
 package wade
 
-import "unicode"
+import (
+	"unicode"
+
+	jq "github.com/gopherjs/jquery"
+)
+
+func ToElemSlice(elems jq.JQuery) []jq.JQuery {
+	list := make([]jq.JQuery, elems.Length)
+	elems.Each(func(i int, elem jq.JQuery) {
+		list[i] = elem
+	})
+
+	return list
+}
 
 func camelize(src string) string {
 	res := []rune{}

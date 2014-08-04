@@ -31,7 +31,7 @@ type CustomElemManager interface {
 
 type CustomTag interface {
 	NewModel(jq.JQuery) interface{}
-	TagContents(jq.JQuery, interface{})
+	PrepareTagContents(jq.JQuery, interface{}) error
 }
 
 type scopeSymbol interface {
@@ -191,10 +191,8 @@ func NewBindEngine(tm CustomElemManager) *Binding {
 	return b
 }
 
-// RegisterHelper registers fn as a helper with the given name.
+// RegisterHelper registers a function as a global helper with the given name.
 //
-// Helpers registered with this method are permanent, if you want to register
-// a helper for just the current page, please use PageData.RegisterHelper.
 func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	typ := reflect.TypeOf(fn)
 	if typ.Kind() != reflect.Func {
@@ -214,13 +212,14 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
-func (b *Binding) newBindScope(model interface{}) *bindScope {
+func (b *Binding) basicScope(model interface{}) *scope {
 	s := b.scope
 	if model != nil {
 		s = newModelScope(model)
 		s.merge(b.scope)
 	}
-	return &bindScope{s}
+
+	return s
 }
 
 type objEval struct {
@@ -488,12 +487,13 @@ func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(jq.JQuery, s
 }
 
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrelem bool) (bindTasks []func()) {
+func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrelem bool) (bindTasks []func(), customElemTasks []func()) {
 	if relem.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
 
 	bindTasks = make([]func(), 0)
+	customElemTasks = make([]func(), 0)
 
 	elems := make([]jq.JQuery, 0)
 	if bindrelem {
@@ -504,7 +504,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 		elems = append(elems, elem)
 	})
 
-	for _, elem := range elems {
+	for idx, elem := range elems {
 		custag, isCustom := b.tm.GetCustomTag(elem)
 
 		ebs := bs.clone()
@@ -546,12 +546,23 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 			}
 		}
 
-		if !elem.Is(relem.Get(0)) {
+		if !bindrelem || idx > 0 {
 			if isCustom {
-				custag.TagContents(elem, customTagModel)
-				bindTasks = append(bindTasks, b.bindPrepare(elem, b.newBindScope(customTagModel), once, false)...)
+				(func(elem jq.JQuery, customTagModel interface{}) {
+					customElemTasks = append(customElemTasks, func() {
+						err := custag.PrepareTagContents(elem, customTagModel)
+						if err != nil {
+							elemError(elem, err.Error())
+						}
+
+						b.Bind(elem, customTagModel, once, false)
+						elem.ReplaceWith(elem.Contents())
+					})
+				})(elem, customTagModel)
 			} else {
-				bindTasks = append(bindTasks, b.bindPrepare(elem, bs, once, false)...)
+				bt, cet := b.bindPrepare(elem, bs, once, false)
+				bindTasks = append(bindTasks, bt...)
+				customElemTasks = append(customElemTasks, cet...)
 			}
 		}
 	}
@@ -561,16 +572,17 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 
 // Bind binds a model to an element and its ascendants
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
+	b.bindWithScope(relem, once, bindrelem, b.basicScope(model))
+}
+
+func (b *Binding) bindWithScope(relem jq.JQuery, once bool, bindrelem bool, s *scope) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks := b.bindPrepare(relem, b.newBindScope(model), once, bindrelem)
+	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem)
 	for _, fn := range btasks {
 		fn()
 	}
-}
 
-func (b *Binding) bindWithScope(relem jq.JQuery, model interface{}, once bool, bindrelem bool, s *scope) {
-	btasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem)
-	for _, fn := range btasks {
+	for _, fn := range customElemTasks {
 		fn()
 	}
 }

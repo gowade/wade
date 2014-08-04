@@ -1,29 +1,10 @@
-<wrep target="menu">
-    <li><a bind-page="url(`pg-home`)">Home</a></li>
-    <li><a bind-page="url(`pg-user-bio`)">Bio</a></li>
-    <li><a bind-page="url(`pg-user-secrets`)">Secrets</a></li>
-</wrep>
-
 <userinfo bind="Name: Name; Age: Age">&lt;3</userinfo>
 
 <wpage pid="pg-user-bio" route="/user/bio">
-   	<wrep target="menu">
-        <li><a bind-page="url(`pg-home`)">Home</a></li>
-        <li class="active"><a bind-page="url(`pg-user-bio`)">Bio</a></li>
-        <li><a bind-page="url(`pg-user-secrets`)">Secrets</a></li>
-    </wrep>
-
-
     This girl is awesome but only only one person knows how awesome she is because she belongs to a kind of awesomeness that is not so awesome to people who are not awesome.
 </wpage>
 
 <wpage pid="pg-user-secrets" route="/user/secrets">
-    <wrep target="menu">
-        <li><a bind-page="url(`pg-home`)">Home</a></li>
-        <li><a bind-page="url(`pg-user-bio`)">Bio</a></li>
-        <li class="active"><a bind-page="url(`pg-user-secrets`)">Secrets</a></li>
-    </wrep>
-
     <div>Confidental information, revealed:</div>
     <ul>
         <li>Her mother is a woman.</li>

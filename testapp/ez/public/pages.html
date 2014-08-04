@@ -1,23 +1,19 @@
 <div class="container">
    <div class="header">
-	    <ul class="nav nav-pills pull-right" role="tablist">
-            <wsection name="menu">
-                <li><a bind-page="url(`pg-home`)">Home</a></li>
-            </wsection>
-	    </ul>
+		<switchmenu ActiveClass="active" bind="Current: pageId()">
+		    <ul class="nav nav-pills pull-right" role="tablist">
+	            <li itemid="pg-home"><a bind-page="url(`pg-home`)">Home</a></li>
+	            <li itemid="pg-post"><a bind-page="url(`pg-post`)">Posting</a></li>
+	            <li itemid="pg-user-profile"><a bind-page="url(`pg-user-profile`)">Profile</a></li>
+	            <li itemid="pg-user-login"><a bind-page="url(`pg-user-login`)">Login</a></li>
+	            <li itemid="pg-user-register"><a bind-page="url(`pg-user-register`)">Register</a></li>
+		    </ul>
+		</switchmenu>
 	    <h3 class="text-muted">Wade.go Demo</h3>
    </div>
 	
    <div class="jumbotron">
     	<wpage pid="pg-home" route="/home" title="Wade Home">
-            <wrep target="menu">
-                <li class="active"><a bind-page="url(`pg-home`)">Home</a></li>
-                <li><a bind-page="url(`pg-post`)">Posting</a></li>
-                <li><a bind-page="url(`pg-user-profile`)">Profile</a></li>
-                <li><a bind-page="url(`pg-user-login`)">Login</a></li>
-                <li><a bind-page="url(`pg-user-register`)">Register</a></li>
-            </wrep>
-
             Welcome to this world, a world of <% Highlight(`Awesomeness`) %>.
         </wpage>
         
@@ -57,11 +53,6 @@
         </wpage>
         
         <wpage>
-            <wrep target="menu">
-                <li><a bind-page="url(`pg-home`)">Home</a></li>
-                <li class="active"><a bind-page="url(`pg-post`)">Posting</a></li>
-            </wrep>
-
             <wpage pid="pg-post" route="/post" title="Posting">
                 <a bind-page="url(`pg-post-view`, 42)">
                     Post #42: Life, universe and everything.
