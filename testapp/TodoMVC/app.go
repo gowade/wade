@@ -76,7 +76,9 @@ func (t *TodoView) DeleteEntry(i int) func() {
 
 func main() {
 	wadeApp := wd.WadeUp("pg-main", "/todo", func(wade *wd.Wade) {
-		wade.Pager().RegisterPages("wpage-root")
+		wade.Pager().RegisterDisplayScopes(map[string]wd.DisplayScope{
+			"pg-main": wd.MakePage("/main", "Wade TodoMVC"),
+		})
 
 		// our custom tags
 		wade.RegisterCustomTags("/public/elements.html", map[string]interface{}{

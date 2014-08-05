@@ -78,7 +78,18 @@ func (hv *HomeView) Highlight(word string) string {
 
 func main() {
 	wade := wd.WadeUp("pg-home", "/web", func(wade *wd.Wade) {
-		wade.Pager().RegisterPages("wpage-root")
+		wade.Pager().RegisterDisplayScopes(map[string]wd.DisplayScope{
+			"pg-home":          wd.MakePage("/home", "Home"),
+			"pg-user-bio":      wd.MakePage("/user/bio", "Bio"),
+			"pg-user-secrets":  wd.MakePage("/user/secrets", "Secrets"),
+			"pg-user-register": wd.MakePage("/user/register", "Register"),
+			"pg-user-login":    wd.MakePage("/user/login", "Login"),
+			"pg-post":          wd.MakePage("/post", "Posting"),
+			"pg-post-view":     wd.MakePage("/post/view/:postid", "Viewing post %v"),
+			"pg-not-found":     wd.MakePage("/404", "Page not found"),
+
+			"grp-user-profile": wd.MakePageGroup("pg-user-bio", "pg-user-secrets"),
+		})
 
 		wade.Pager().SetNotFoundPage("pg-not-found")
 
@@ -157,7 +168,7 @@ func main() {
 			return pv
 		})
 
-		wade.Pager().RegisterController("pg-user-profile", func(p *wd.PageCtrl) interface{} {
+		wade.Pager().RegisterController("grp-user-profile", func(p *wd.PageCtrl) interface{} {
 			return UserInfo{
 				Name: "Rivr Perf. Nguyen",
 				Age:  18,

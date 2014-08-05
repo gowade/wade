@@ -2,6 +2,7 @@ package menu
 
 import (
 	"fmt"
+	"strings"
 
 	wd "github.com/phaikawl/wade"
 )
@@ -26,10 +27,18 @@ func (sm *SwitchMenu) Init(ce *wd.CustomElem) error {
 			return fmt.Errorf(`Direct children of the <ul> must be <li>.`)
 		}
 
-		if itemid := item.Attr("itemid"); itemid != "" {
-			if itemid == sm.Current {
-				item.AddClass(sm.ActiveClass)
-			} else {
+		if casestr := item.Attr("case"); casestr != "" {
+			cases := strings.Split(casestr, " ")
+			accepted := false
+			for _, id := range cases {
+				if strings.TrimSpace(id) == sm.Current {
+					accepted = true
+					item.AddClass(sm.ActiveClass)
+					break
+				}
+			}
+
+			if !accepted {
 				item.RemoveClass(sm.ActiveClass)
 			}
 		} else {
@@ -42,13 +51,8 @@ func (sm *SwitchMenu) Init(ce *wd.CustomElem) error {
 	return nil
 }
 
-type Pagemenu struct {
-	SwitchMenu
-}
-
 func Spec() map[string]interface{} {
 	return map[string]interface{}{
 		"switchmenu": SwitchMenu{},
-		"pagemenu":   Pagemenu{},
 	}
 }

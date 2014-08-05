@@ -2,31 +2,31 @@
    <div class="header">
 		<switchmenu ActiveClass="active" bind="Current: pageId()">
 		    <ul class="nav nav-pills pull-right" role="tablist">
-	            <li itemid="pg-home"><a bind-page="url(`pg-home`)">Home</a></li>
-	            <li itemid="pg-post"><a bind-page="url(`pg-post`)">Posting</a></li>
-	            <li itemid="pg-user-profile"><a bind-page="url(`pg-user-profile`)">Profile</a></li>
-	            <li itemid="pg-user-login"><a bind-page="url(`pg-user-login`)">Login</a></li>
-	            <li itemid="pg-user-register"><a bind-page="url(`pg-user-register`)">Register</a></li>
+	            <li case="pg-home"><a bind-page="url(`pg-home`)">Home</a></li>
+	            <li case="pg-post"><a bind-page="url(`pg-post`)">Posting</a></li>
+	            <li case="pg-user-bio pg-user-secrets"><a bind-page="url(`pg-user-bio`)">Profile</a></li>
+	            <li case="pg-user-login"><a bind-page="url(`pg-user-login`)">Login</a></li>
+	            <li case="pg-user-register"><a bind-page="url(`pg-user-register`)">Register</a></li>
 		    </ul>
 		</switchmenu>
 	    <h3 class="text-muted">Wade.go Demo</h3>
    </div>
 	
    <div class="jumbotron">
-    	<wpage pid="pg-home" route="/home" title="Wade Home">
+    	<wrapper w-belong="pg-home">
             Welcome to this world, a world of <% Highlight(`Awesomeness`) %>.
-        </wpage>
+        </wrapper>
         
-        <wpage pid="pg-user-profile" route="/user/profile" title="User profile">
+        <wrapper w-belong="grp-user-profile">
             <wimport src="/public/user_profile.html"></wimport>
-        </wpage>
+        </wrapper>
 
-        <wpage pid="pg-user-login" route="/user/login">
+        <wrapper w-belong="pg-user-login">
             <span bind-if="AuthGened">Authentication info is generated.</span>
             <span bind-ifn="AuthGened">Generating auth info...</span>
-        </wpage>
+        </wrapper>
         
-        <wpage pid="pg-user-register" route="/user/register" title="Register">
+        <wrapper w-belong="pg-user-register">
             <form role="form">
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -50,33 +50,31 @@
                 -->
                 <% concat(toUpper(Data.Username), toLower(Data.Password) %>
             </div>
-        </wpage>
+        </wrapper>
         
-        <wpage>
-            <wpage pid="pg-post" route="/post" title="Posting">
-                <a bind-page="url(`pg-post-view`, 42)">
-                    Post #42: Life, universe and everything.
-                </a>
-            </wpage>
-            
-            <wpage pid="pg-post-view" route="/post/view/:postid" title="Post view">
-                <h2>Viewing post #<% PostId %></h2>
-                <div>
-                    Welcome to Life, universe and everything.
-                    It's all awesome!
-                </div>
-            </wpage>
-        </wpage>
-   </div>
-	
-	<wpage pid="pg-not-found" route="/404" title="404">
-		Page not found.
-	</wpage>
+        <wrapper w-belong="pg-post">
+            <a bind-page="url(`pg-post-view`, 42)">
+                Post #42: Life, universe and everything.
+            </a>
+        </wrapper>
+        
+        <wrapper w-belong="pg-post-view">
+            <h2>Viewing post #<% PostId %></h2>
+            <div>
+                Welcome to Life, universe and everything.
+                It's all awesome!
+            </div>
+        </wrapper>
+    </div>
 
-    <div>
-        <p><em>Brought to you with love and excitement,</em></p>
+    <div w-belong="grp-user-profile">
+        <p><em>With love and excitement,</em></p>
         <userinfo name="Hai Thanh Nguyen" age="18">go initChange(:wink:)</userinfo>
     </div>
+	
+	<wrapper w-belong="pg-not-found">
+		Page not found.
+	</wrapper>
 	
 
 	<div class="footer">

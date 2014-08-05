@@ -168,7 +168,11 @@ func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
 }
 
 func newModelScope(model interface{}) *scope {
-	return &scope{[]symbolTable{modelSymbolTable{reflect.ValueOf(model)}}}
+	stl := []symbolTable{}
+	if model != nil {
+		stl = append(stl, modelSymbolTable{reflect.ValueOf(model)})
+	}
+	return &scope{stl}
 }
 
 type Binding struct {
@@ -210,16 +214,6 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 
 	panic(fmt.Sprintf("Helper with name %v already exists.", name))
 	return
-}
-
-func (b *Binding) basicScope(model interface{}) *scope {
-	s := b.scope
-	if model != nil {
-		s = newModelScope(model)
-		s.merge(b.scope)
-	}
-
-	return s
 }
 
 type objEval struct {
@@ -524,7 +518,7 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 		for name, bstr := range attrs {
 			if name == "bind" { //attribute binding
 				if !isCustom {
-					panic(fmt.Sprintf(`Processing bind string %v = "%v": The element hasn't been registered as a custom element.`, name, bstr))
+					panic(fmt.Sprintf(`Processing bind string %v="%v": Element %v hasn't been registered as a custom element.`, name, bstr, elem.Prop("tagName")))
 				}
 				(func(customTagModel interface{}) {
 					bindTasks = append(bindTasks,
@@ -572,7 +566,22 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 
 // Bind binds a model to an element and its ascendants
 func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
-	b.bindWithScope(relem, once, bindrelem, b.basicScope(model))
+	s := newModelScope(model)
+	s.merge(b.scope)
+	b.bindWithScope(relem, once, bindrelem, s)
+}
+
+// BindMergeScope merges the given scope to the basic scope and performs binding
+func (b *Binding) BindModels(relem jq.JQuery, models []interface{}, once bool, bindrelem bool) {
+	s := newScope()
+	for _, model := range models {
+		if model != nil {
+			s.symTables = append(s.symTables, modelSymbolTable{reflect.ValueOf(model)})
+		}
+	}
+	s.merge(b.scope)
+
+	b.bindWithScope(relem, once, bindrelem, s)
 }
 
 func (b *Binding) bindWithScope(relem jq.JQuery, once bool, bindrelem bool, s *scope) {

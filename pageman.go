@@ -21,31 +21,76 @@ var (
 	gRouteParamRegexp = regexp.MustCompile(`\:\w+`)
 )
 
+type handlable struct {
+	controller PageControllerFunc
+	handlers   []PageHandler
+}
+
+func (h *handlable) addHandler(fn PageHandler) {
+	if h.handlers == nil {
+		h.handlers = make([]PageHandler, 0)
+	}
+	h.handlers = append(h.handlers, fn)
+}
+
+func (h *handlable) setController(fn PageControllerFunc) {
+	h.controller = fn
+}
+
+type displayScope interface {
+	hasPage(id string) bool
+	addHandler(fn PageHandler)
+	setController(fn PageControllerFunc)
+}
+
 type page struct {
+	handlable
 	id    string
 	path  string
 	title string
-	elem  jq.JQuery
 
-	handlers   []PageHandler
-	controller PageControllerFunc
+	groups []*pageGroup
+}
+
+func (p *page) addGroup(grp *pageGroup) {
+	if p.groups == nil {
+		p.groups = make([]*pageGroup, 0)
+	}
+
+	p.groups = append(p.groups, grp)
+}
+
+func (p *page) hasPage(id string) bool {
+	return p.id == id
+}
+
+type pageGroup struct {
+	handlable
+	pages []*page
+}
+
+func newPageGroup(pages []*page) *pageGroup {
+	return &pageGroup{
+		pages: pages,
+	}
+}
+
+func (pg *pageGroup) hasPage(id string) bool {
+	for _, page := range pg.pages {
+		if page.id == id {
+			return true
+		}
+	}
+
+	return false
 }
 
 func newPage(id, path, title string) *page {
 	return &page{
-		id:       id,
-		path:     path,
-		title:    title,
-		handlers: make([]PageHandler, 0),
+		id:    id,
+		path:  path,
+		title: title,
 	}
-}
-
-func (p *page) getElem(parent jq.JQuery) jq.JQuery {
-	elem := parent.Find(fmt.Sprintf("wpage[pid='%v']", p.id))
-	if elem.Length == 0 {
-		panic(fmt.Sprintf(`Cannot find wpage element for page "%v".`, p.id))
-	}
-	return elem
 }
 
 // PageControllerFunc is the function to be run on the load of a specific page.
@@ -62,14 +107,14 @@ type PageManager struct {
 	currentPage  *page
 	startPageId  string
 	basePath     string
-	pages        map[string]*page
 	notFoundPage *page
 	container    jq.JQuery
 	tcontainer   jq.JQuery
 
-	binding *bind.Binding
-	tm      *CustagMan
-	pc      *PageCtrl
+	binding       *bind.Binding
+	tm            *CustagMan
+	pc            *PageCtrl
+	displayScopes map[string]displayScope
 }
 
 // PageView provides access to the page-specific data inside a controller func
@@ -96,8 +141,9 @@ func (pc *PageCtrl) Info() PageInfo {
 	}
 }
 
-// SetTitle sets the page's title
-func (pc *PageCtrl) SetTitle(title string) {
+// SetTitle formats the page's title with the given params
+func (pc *PageCtrl) FormatTitle(params ...interface{}) {
+	title := fmt.Sprintf(pc.pm.currentPage.title, params...)
 	tElem := gJQ("<title>").SetHtml(title)
 	oElem := gJQ("head").Find("title")
 	if oElem.Length == 0 {
@@ -137,16 +183,16 @@ func newPageManager(startPage, basePath string,
 	container := gJQ("<div class='wade-wrapper'></div>")
 	container.AppendTo(gJQ("body"))
 	return &PageManager{
-		router:       js.Global.Get("RouteRecognizer").New(),
-		currentPage:  nil,
-		basePath:     basePath,
-		startPageId:  startPage,
-		pages:        make(map[string]*page),
-		notFoundPage: nil,
-		container:    container,
-		tcontainer:   tcontainer,
-		binding:      binding,
-		tm:           tm,
+		router:        js.Global.Get("RouteRecognizer").New(),
+		currentPage:   nil,
+		basePath:      basePath,
+		startPageId:   startPage,
+		notFoundPage:  nil,
+		container:     container,
+		tcontainer:    tcontainer,
+		binding:       binding,
+		tm:            tm,
+		displayScopes: make(map[string]displayScope),
 	}
 }
 
@@ -172,11 +218,21 @@ func (pm *PageManager) cutPath(path string) string {
 	return path
 }
 
-func (pm *PageManager) page(pageId string) *page {
-	if page, ok := pm.pages[pageId]; ok {
-		return page
+func (pm *PageManager) page(id string) *page {
+	if ds, hasDs := pm.displayScopes[id]; hasDs {
+		if page, ok := ds.(*page); ok {
+			return page
+		}
 	}
-	panic(fmt.Sprintf("no such page #%v found.", pageId))
+
+	panic(fmt.Sprintf(`No such page "%v" found.`, id))
+}
+
+func (pm *PageManager) displayScope(id string) displayScope {
+	if ds, ok := pm.displayScopes[id]; ok {
+		return ds
+	}
+	panic(fmt.Sprintf(`No such page or page group "%v" found.`, id))
 }
 
 func (pm *PageManager) SetNotFoundPage(pageId string) {
@@ -207,6 +263,20 @@ func (pm *PageManager) setupPageOnLoad() {
 }
 
 func (pm *PageManager) prepare() {
+	// preprocess wsection elements
+	pm.tcontainer.Find("wsection").Each(func(_ int, e jq.JQuery) {
+		name := strings.TrimSpace(e.Attr("name"))
+		if name == "" {
+			panic(`Error: a <wsection> doesn't have or have empty name`)
+		}
+		for _, c := range name {
+			if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
+				panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
+			}
+		}
+		e.SetAttr("id", WadeReservedPrefix+name)
+	})
+
 	if pm.container.Length == 0 {
 		panic(fmt.Sprintf("Cannot find the page container #%v.", pm.container))
 	}
@@ -216,6 +286,25 @@ func (pm *PageManager) prepare() {
 	})
 
 	pm.setupPageOnLoad()
+}
+
+func walk(elem jq.JQuery, pm *PageManager) {
+	elem.Children("").Each(func(_ int, e jq.JQuery) {
+		belong := e.Attr("w-belong")
+		if belong == "" {
+			walk(e, pm)
+		} else {
+			if ds, ok := pm.displayScopes[belong]; ok {
+				if ds.hasPage(pm.currentPage.id) {
+					walk(e, pm)
+				} else {
+					e.Remove()
+				}
+			} else {
+				panic(fmt.Sprintf(`Invalid value "%v" for w-belong, no such page or page group is registered.`, belong))
+			}
+		}
+	})
 }
 
 func (pm *PageManager) updatePage(url string, pushState bool) {
@@ -242,73 +331,12 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 		params = prs.Interface().(map[string]interface{})
 	}
 
-	pageElem := page.getElem(pm.tcontainer)
-	gJQ("title").SetText(page.title)
+	gJQ("head title").SetText(page.title)
 	if pm.currentPage != page {
-		jqparents := pageElem.Parents("wpage")
-		leng := jqparents.Length
-		parents := make([]jq.JQuery, leng+1)
-		resultElems := make([]jq.JQuery, leng+1)
-		for i := 0; i < leng; i++ {
-			parents[i] = jqparents.Eq(leng - i - 1)
-			clone := gJQ(parents[i].Get(0).Call("cloneNode"))
-			resultElems[i] = clone
-
-			if i == 0 {
-				c := pm.container.Children("*")
-				if c.Length > 1 {
-					panic("Page container should only have 1 child element. Something is wrong?")
-				}
-				if c.Length == 0 {
-					pm.container.Append(resultElems[0])
-				} else {
-					c.First().ReplaceWith(resultElems[0])
-				}
-			}
-		}
-
-		resultElems[leng] = gJQ(pageElem.Get(0).Call("cloneNode"))
-		parents[leng] = pageElem
-		for i := leng; i >= 0; i-- {
-			p := parents[i]
-			p.Contents().Each(func(_ int, e jq.JQuery) {
-				if !e.Is("wpage") {
-					re := e
-					if i < leng {
-						e.Find("wpage").Each(func(_ int, ewpage jq.JQuery) {
-							if pageElem.Closest(ewpage).Length == 0 {
-								ewpage.SetAttr(WadeExcludeAttr, "t")
-							}
-						})
-
-						re = e.Clone()
-						re.Find("wpage").Each(func(_ int, wpage jq.JQuery) {
-							if wpage.Attr(WadeExcludeAttr) != "" {
-								wpage.Remove()
-							}
-						})
-
-						e.Find("wpage").Each(func(_ int, ewpage jq.JQuery) {
-							ewpage.RemoveAttr(WadeExcludeAttr)
-						})
-					}
-
-					if re.Is("wrep") {
-						re.Hide()
-					}
-
-					nodeType := e.Get(0).Get("nodeType").Int()
-					if nodeType == 1 {
-						resultElems[i].Append(re.Get(0).Get("outerHTML"))
-						//println(re.Get(0).Get("outerHTML"))
-					} else if nodeType == 3 {
-						resultElems[i].Append(re.Text())
-					}
-				} else if i < leng && e.Is(parents[i+1].Get(0)) {
-					resultElems[i].Append(resultElems[i+1])
-				}
-			})
-		}
+		pm.currentPage = page
+		pcontents := pm.tcontainer.Clone()
+		walk(pcontents, pm)
+		pm.container.SetHtml(pcontents.Html())
 
 		pm.container.Find("wrep").Each(func(_ int, e jq.JQuery) {
 			e.Remove()
@@ -319,8 +347,6 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 		pm.container.Find("wsection").Each(func(_ int, e jq.JQuery) {
 			e.ReplaceWith(e.Html())
 		})
-
-		pm.currentPage = page
 
 		pm.bind(params)
 
@@ -343,10 +369,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 // PageUrl returns the url and route parameters for the specified pageId
 func (pm *PageManager) PageUrl(pageId string, params []interface{}) (u string, err error) {
 	err = nil
-	page, ok := pm.pages[pageId]
-	if !ok {
-		err = fmt.Errorf(`No such page with id "%v".`, pageId)
-	}
+	page := pm.page(pageId)
 
 	n := len(params)
 	if n == 0 {
@@ -375,115 +398,115 @@ func (pm *PageManager) PageUrl(pageId string, params []interface{}) (u string, e
 }
 
 func (pm *PageManager) bind(params map[string]interface{}) {
-	pageElem := pm.currentPage.getElem(pm.container)
+	models := make([]interface{}, 0)
+
+	pc := &PageCtrl{params, pm, make([]string, 0)}
+
+	if controller := pm.currentPage.handlable.controller; controller != nil {
+		models = append(models, controller(pc))
+	}
 
 	for _, handler := range pm.currentPage.handlers {
 		handler()
 	}
 
-	pc := &PageCtrl{params, pm, make([]string, 0)}
-	if controller := pm.currentPage.controller; controller != nil {
-		model := controller(pc)
-		pm.binding.Bind(pm.container, model, false, false)
-	} else {
-		stop := false
-		pageElem.Parents("wpage").Each(func(_ int, p jq.JQuery) {
-			if stop {
-				return
-			}
-
-			pageId := p.Attr("pid")
-			if pageId != "" {
-				if controller := pm.page(pageId).controller; controller != nil {
-					pm.binding.Bind(pm.container, controller(pc), false, false)
-					stop = true
-					return
-				}
-			}
-		})
-
-		if !stop {
-			pm.binding.Bind(pm.container, nil, true, false)
+	for _, grp := range pm.currentPage.groups {
+		if controller := grp.handlable.controller; controller != nil {
+			models = append(models, controller(pc))
 		}
+
+		for _, handler := range grp.handlable.handlers {
+			handler()
+		}
+	}
+
+	if len(models) == 0 {
+		pm.binding.Bind(pm.container, nil, true, false)
+	} else {
+		pm.binding.BindModels(pm.container, models, false, false)
 	}
 
 	pm.pc = pc
 }
 
-// RegisterController assigns a PageControllerFunc function to handle the specified
-// page.
-func (pm *PageManager) RegisterController(pageId string, fn PageControllerFunc) {
-	page := pm.page(pageId)
-	if page.controller != nil {
-		panic(fmt.Sprintf("That page #%v already has a controller.", pageId))
-	}
-	page.controller = fn
+// RegisterController sets the controller function for the specified
+// page / page group.
+func (pm *PageManager) RegisterController(displayScope string, fn PageControllerFunc) {
+	ds := pm.displayScope(displayScope)
+	ds.setController(fn)
 }
 
-// RegisterHandler hooks a PageHandler to the specified page
-func (pm *PageManager) RegisterHandler(pageId string, fn PageHandler) {
-	page := pm.page(pageId)
-	page.handlers = append(page.handlers, fn)
+// RegisterHandler hooks a PageHandler to the specified page / page group
+func (pm *PageManager) RegisterHandler(displayScope string, fn PageHandler) {
+	ds := pm.displayScope(displayScope)
+	ds.addHandler(fn)
 }
 
-// RegisterPages registers pages from the hierarchy of <wpage> inside a root wpage element
-// with the given rootId.
-//
-// Each child <wpage> may have a "pid" (page id), a "route" and a "title" attribute.
-//
-// "pid" is the page's unique id. "title" is the page title.
-//
-// "route" is the page's route pattern which may contain
-// route parameters like ":param1", ":postid". "route" is absolute path,
-// it doesn't' use the parent page's route as base.
-func (pm *PageManager) RegisterPages(rootId string) {
-	root := pm.tcontainer.Find("#" + rootId)
-	if root.Length == 0 {
-		panic(fmt.Sprintf("Unable to find #%v, no such element.", rootId))
+type DisplayScope interface {
+	Register(id string, pm *PageManager) displayScope
+}
+
+type Page struct {
+	Route string
+	Title string
+}
+
+func (p Page) Register(pageId string, pm *PageManager) displayScope {
+	route := p.Route
+
+	if _, exist := pm.displayScopes[pageId]; exist {
+		panic(fmt.Sprintf(`Page or page group with id "%v" already registered.`, pageId))
 	}
 
-	if !root.Is("wpage") {
-		panic(fmt.Sprintf(`Root element #%v for RegisterPages must be a "wpage".`, rootId))
+	pm.router.Call("add", []map[string]interface{}{
+		map[string]interface{}{
+			"path": route,
+			"handler": func() string {
+				return pageId
+			},
+		},
+	})
+
+	page := newPage(pageId, route, p.Title)
+	pm.displayScopes[pageId] = page
+
+	return page
+}
+
+func MakePage(route string, title string) Page {
+	return Page{
+		Route: route,
+		Title: title,
 	}
+}
 
-	root.Find("wpage").Each(func(_ int, elem jq.JQuery) {
-		pageId := elem.Attr("pid")
-		if pageId != "" {
-			route := elem.Attr("route")
-			if route == "" {
-				panic(fmt.Sprintf(`Page #%v does not have an associated route, please set its "route" attribute.`, pageId))
-			}
+type PageGroup struct {
+	pageids []string
+}
 
-			if _, exist := pm.pages[pageId]; exist {
-				panic(fmt.Sprintf("Duplicate page id #%v.", pageId))
-			}
+func MakePageGroup(pageids ...string) PageGroup {
+	return PageGroup{
+		pageids: pageids,
+	}
+}
 
-			pm.router.Call("add", []map[string]interface{}{
-				map[string]interface{}{
-					"path": route,
-					"handler": func() string {
-						return pageId
-					},
-				},
-			})
+func (pg PageGroup) Register(id string, pm *PageManager) displayScope {
+	grp := newPageGroup(make([]*page, len(pg.pageids)))
+	for i, pid := range pg.pageids {
+		page := pm.page(pid)
+		page.addGroup(grp)
+		grp.pages[i] = page
+	}
+	return grp
+}
 
-			pm.pages[pageId] = newPage(pageId, route, elem.Attr("title"))
-
-			elem.SetAttr("id", WadeReservedPrefix+pageId)
+// RegisterDisplayScopes registers the given map of pages and page groups
+func (pm *PageManager) RegisterDisplayScopes(m map[string]DisplayScope) {
+	for id, item := range m {
+		if id == "" {
+			panic("id of page/page group cannot be empty.")
 		}
-	})
 
-	// preprocess wsection elements
-	root.Find("wsection").Each(func(_ int, e jq.JQuery) {
-		name := strings.TrimSpace(e.Attr("name"))
-		if name == "" {
-			panic(`Error: a <wsection> doesn't have or have empty name`)
-		}
-		for _, c := range name {
-			if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
-				panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
-			}
-		}
-		e.SetAttr("id", WadeReservedPrefix+name)
-	})
+		pm.displayScopes[id] = item.Register(id, pm)
+	}
 }
