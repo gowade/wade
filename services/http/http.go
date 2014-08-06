@@ -13,20 +13,25 @@ var (
 )
 
 type Response struct {
-	data   string
-	status string
+	data       string
+	status     int
+	textStatus string
 }
 
-func NewResponse(data, status string) *Response {
-	return &Response{data, status}
+func NewResponse(data string, xhr js.Object) *Response {
+	return &Response{data, xhr.Get("status").Int(), xhr.Get("textStatus").Str()}
 }
 
 func (r *Response) Data() string {
 	return r.data
 }
 
-func (r *Response) Status() string {
+func (r *Response) Status() int {
 	return r.status
+}
+
+func (r *Response) TextStatus() string {
+	return r.textStatus
 }
 
 func (r *Response) DecodeDataTo(dest interface{}) error {
@@ -44,22 +49,22 @@ type Deferred struct {
 type HttpDoneHandler func(*Response)
 
 func (d Deferred) Done(fn HttpDoneHandler) Deferred {
-	d.Deferred.Done(func(data string, textStatus string, jqxhr js.Object) {
-		fn(NewResponse(data, textStatus))
+	d.Deferred.Done(func(data string, _ string, jqxhr js.Object) {
+		fn(NewResponse(data, jqxhr))
 	})
 	return d
 }
 
 func (d Deferred) Fail(fn HttpDoneHandler) Deferred {
 	d.Deferred.Fail(func(jqxhr js.Object, textStatus string, errorThrown js.Object) {
-		fn(NewResponse("", textStatus))
+		fn(NewResponse("", jqxhr))
 	})
 	return d
 }
 
 func (d Deferred) Then(fn HttpDoneHandler) Deferred {
 	d.Deferred.Then(func(data string, textStatus string, jqxhr js.Object) {
-		fn(NewResponse(data, textStatus))
+		fn(NewResponse(data, jqxhr))
 	})
 	return d
 }
@@ -153,15 +158,15 @@ func (r *Request) makeJqConfig() map[string]interface{} {
 	return m
 }
 
-// Do does an asynchronous http request and returns a channel
-func (r *Request) Do() chan *Response {
+// Do does an asynchronous http request, yet the API is blocking, just like Go's http
+func (r *Request) Do() *Response {
 	ch := make(chan *Response, 1)
 	Deferred{jquery.Ajax(r.makeJqConfig())}.Then(func(r *Response) {
 		go func() {
 			ch <- r
 		}()
 	})
-	return ch
+	return <-ch
 }
 
 // DoSync does a synchronous http request and directly returns a response.

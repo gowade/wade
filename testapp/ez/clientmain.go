@@ -59,7 +59,9 @@ func (r *RegUser) Submit() {
 	// The ProcessForm function automatically does the validation and populates
 	// r.Validated.Errors with the validation errors.
 	// It returns the channel with the server's response, but we don't care for now
-	utils.ProcessForm("/api/user/register", r.Data, r, model.UsernamePasswordValidator())
+	go func() {
+		utils.ProcessForm("/api/user/register", r.Data, r, model.UsernamePasswordValidator())
+	}()
 }
 
 type PostView struct {
@@ -122,15 +124,12 @@ func main() {
 			req := http.Service().NewRequest(http.MethodGet, "/auth")
 			austat := &AuthedStat{false}
 			// performs the request to auth asynchronously
-			responseChannel := req.Do()
 
 			// use a goroutine to process the response
 			go func() {
 				u := new(model.User)
-				// here we wait for the response to come from the channel
-				// and decode it to u
-				response := <-responseChannel
-				response.DecodeDataTo(u)
+				// We perform a request
+				req.Do().DecodeDataTo(u)
 
 				pdata.Service().Set("authToken", u.Token)
 
