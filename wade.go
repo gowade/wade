@@ -130,8 +130,11 @@ func (wd *Wade) GetHtml(href string) jq.JQuery {
 
 func getHtmlFile(serverbase string, href string) jq.JQuery {
 	req := http.NewRequest(http.MethodGet, serverbase+href)
-	html := req.DoSync().Data()
-	return gJQ(parseTemplate(html))
+	resp := req.DoSync()
+	if resp == nil {
+		panic("resp == nil")
+	}
+	return gJQ(parseTemplate(resp.Data()))
 }
 
 // htmlImport performs an HTML import
