@@ -9,3 +9,11 @@
     border-radius: 2px;
     list-style: none;
 }
+
+.nonZero {
+	color: LightGreen;
+}
+
+.minChar {
+	color: yellow;
+}

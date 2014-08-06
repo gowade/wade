@@ -8,9 +8,11 @@
 </welement>
 <welement tagname="errorlist" attributes="Errors">
 	<ul class="error" bind-ifn="isEmpty(Errors)">
-		<li bind-each="Errors -> key, error" bind-attr-class="key">
-			error #<% key %>: <% error %>
-		</li>
+		<wrapper bind-each="Errors -> key, error">
+			<li bind-attr-class="key">
+				error #<% key %>: <% error %>
+			</li>
+		</wrapper>
 	</ul>
 </welement>
 <welement tagname="test" attributes="Username Password">

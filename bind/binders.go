@@ -163,9 +163,8 @@ func (b *EachBinder) Bind(d DomBind) {
 	b.indexFn = getIndexFunc(d.Value)
 	b.marker = gJQ("<!-- wade each -->").InsertBefore(d.Elem).First()
 	b.prototype = d.Elem.Clone()
-
-	d.Elem.Remove()
 	d.RemoveBinding(d.Elem)
+	d.Elem.Remove()
 }
 
 func (b *EachBinder) Update(d DomBind) {

@@ -60,7 +60,7 @@ func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
 		}
 	}
 
-	err = fmt.Errorf("Unable to find symbol %v in the scope", symbol)
+	err = fmt.Errorf(`Unable to find symbol "%v" in the scope`, symbol)
 	return
 }
 
@@ -398,6 +398,9 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScop
 				b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					domBind.Value = newResult
 					binder.Update(domBind)
+					elem.Find("wrapper").Each(func(_ int, e jq.JQuery) {
+						e.Children("").First().Unwrap()
+					})
 				})
 			}
 		})(args, outputs)

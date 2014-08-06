@@ -44,6 +44,8 @@ func parseTemplate(source string) string {
 //
 // "initFn" is the callback that is run after initialization finishes.
 func WadeUp(startPage, basePath string, initFn func(*Wade)) *Wade {
+	jsDepCheck()
+
 	gHistory = js.Global.Get("history")
 	serverbase := js.Global.Get("document").Get("location").Get("origin").Str()
 	tempContainers := gJQ("script[type='text/wadin']")

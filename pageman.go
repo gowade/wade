@@ -345,10 +345,14 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 		})
 
 		pm.container.Find("wsection").Each(func(_ int, e jq.JQuery) {
-			e.ReplaceWith(e.Html())
+			e.Children("").First().Unwrap()
 		})
 
 		pm.bind(params)
+
+		pm.container.Find("wrapper").Each(func(_ int, e jq.JQuery) {
+			e.Children("").First().Unwrap()
+		})
 
 		//Rebind link events
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
