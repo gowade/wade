@@ -6,7 +6,6 @@ import (
 	wd "github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/elements/menu"
 	"github.com/phaikawl/wade/services/http"
-	"github.com/phaikawl/wade/services/pdata"
 	"github.com/phaikawl/wade/testapp/ez/model"
 	"github.com/phaikawl/wade/utils"
 )
@@ -131,8 +130,6 @@ func main() {
 				// We perform a request
 				req.Do().DecodeDataTo(u)
 
-				pdata.Service().Set("authToken", u.Token)
-
 				// we set as.AuthGened to true here, the html elems that are bound
 				// to this field will update accordingly
 				austat.AuthGened = true
@@ -177,16 +174,6 @@ func main() {
 		wade.Pager().RegisterController("pg-home", func(p *wd.PageCtrl) interface{} {
 			return new(HomeView)
 		})
-	})
-
-	// This part adds a function to be called to modify every http request
-	// It sets the AuthToken header to a token that will be verified by the server
-	http.Service().AddHttpInterceptor(func(req *http.Request) {
-		token, ok := pdata.Service().GetStr("authToken")
-		if !ok {
-			return
-		}
-		req.Headers.Set("AuthToken", token)
 	})
 
 	// Should must literally be called at the bottom of every Wade application

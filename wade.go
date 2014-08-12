@@ -130,8 +130,8 @@ func (wd *Wade) GetHtml(href string) jq.JQuery {
 
 func getHtmlFile(serverbase string, href string) jq.JQuery {
 	req := http.NewRequest(http.MethodGet, serverbase+href)
-	resp := req.DoSync()
-	if resp.Status() != 200 {
+	resp := req.DoSyncNoInterceptor()
+	if !resp.IsOK() {
 		panic("getHtmlFile() failed for:" + href)
 	}
 

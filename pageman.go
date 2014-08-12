@@ -366,6 +366,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 
 	gJQ("head title").SetText(page.title)
 	if pm.currentPage != page {
+		pm.container.Hide()
 		pm.currentPage = page
 		pcontents := pm.tcontainer.Clone()
 		walk(pcontents, pm)
@@ -381,9 +382,11 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 			e.Children("").First().Unwrap()
 		})
 
-		pm.bind(params)
-
-		wrapperElemsUnwrap(pm.container)
+		go func() {
+			pm.bind(params)
+			wrapperElemsUnwrap(pm.container)
+			pm.container.Show()
+		}()
 
 		//Rebind link events
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
@@ -434,27 +437,44 @@ func (pm *PageManager) PageUrl(pageId string, params []interface{}) (u string, e
 
 func (pm *PageManager) bind(params map[string]interface{}) {
 	models := make([]interface{}, 0)
+	controllers := make([]PageControllerFunc, 0)
+	handlers := make([]PageHandler, 0)
 
 	pc := &PageCtrl{params, pm, make([]string, 0)}
 
-	trigger := func(ds displayScope) {
+	add := func(ds displayScope) {
 		if controller := ds.Controller(); controller != nil {
-			model := controller(pc)
-			models = append(models, model)
+			controllers = append(controllers, controller)
 		}
 
 		for _, handler := range ds.Handlers() {
-			handler()
+			handlers = append(handlers, handler)
 		}
 	}
 
-	trigger(pm.currentPage)
-
+	add(pm.globalDs)
 	for _, grp := range pm.currentPage.groups {
-		trigger(grp)
+		add(grp)
 	}
+	add(pm.currentPage)
 
-	trigger(pm.globalDs)
+	completeChan := make(chan bool, 1)
+	queueChan := make(chan bool, len(controllers))
+	for _, controller := range controllers {
+		go func(controller PageControllerFunc) {
+			//gopherjs:blocking
+			models = append(models, controller(pc))
+			queueChan <- true
+			if len(queueChan) == len(controllers) {
+				completeChan <- true
+			}
+		}(controller)
+	}
+	<-completeChan
+
+	for _, handler := range handlers {
+		handler()
+	}
 
 	if len(models) == 0 {
 		pm.binding.Bind(pm.container, nil, true, false)

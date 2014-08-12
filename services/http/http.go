@@ -34,6 +34,10 @@ func (r *Response) TextStatus() string {
 	return r.textStatus
 }
 
+func (r *Response) IsOK() bool {
+	return r.status >= 200 && r.status < 300
+}
+
 func (r *Response) DecodeDataTo(dest interface{}) error {
 	if r.data == "" {
 		panic("No data received.")
@@ -124,10 +128,11 @@ func (h HttpHeader) Del(key string) {
 }
 
 type Request struct {
-	Headers HttpHeader
-	Method  HttpMethod
-	data    []byte
-	Url     *url.URL
+	Headers  HttpHeader
+	Method   HttpMethod
+	data     []byte
+	Url      *url.URL
+	Response *Response
 }
 
 func NewRequest(method HttpMethod, reqUrl string) *Request {
@@ -136,9 +141,10 @@ func NewRequest(method HttpMethod, reqUrl string) *Request {
 		panic(err.Error())
 	}
 	return &Request{
-		Method:  method,
-		Headers: make(map[string][]string),
-		Url:     u,
+		Method:   method,
+		Headers:  make(map[string][]string),
+		Url:      u,
+		Response: nil,
 	}
 }
 
@@ -174,10 +180,10 @@ func (r *Request) Do() *Response {
 			ch <- r
 		}()
 	}
-	Deferred{jquery.Ajax(r.makeJqConfig())}.Done(cb).Always(cb)
-	resp := <-ch
-	gService.TriggerResponseInterceptors(resp)
-	return resp
+	Deferred{jquery.Ajax(r.makeJqConfig())}.Done(cb).Fail(cb)
+	r.Response = <-ch
+	gService.TriggerResponseInterceptors(r)
+	return r.Response
 }
 
 // DoSync does a synchronous http request and directly returns a response.
@@ -185,15 +191,13 @@ func (r *Request) Do() *Response {
 // This method will freeze everything even in a goroutine, so it is only
 // suitable for tasks like app initialization. Please use Do() instead for
 // the vast majority of cases.
-func (r *Request) DoSync() (resp *Response) {
+func (r *Request) DoSyncNoInterceptor() (resp *Response) {
 	conf := r.makeJqConfig()
 	conf["async"] = false
-	def := Deferred{jquery.Ajax(conf)}
 	setResp := func(r *Response) {
 		resp = r
 	}
-	def.Done(setResp)
-	def.Fail(setResp)
+	Deferred{jquery.Ajax(conf)}.Done(setResp).Fail(setResp)
 	return
 }
 
@@ -201,8 +205,9 @@ type RequestInterceptor func(*Request)
 type ResponseInterceptor func(chan bool, *Response)
 
 type HttpService struct {
-	reqInts  []RequestInterceptor
-	respInts []ResponseInterceptor
+	reqInts   []RequestInterceptor
+	respInts  []ResponseInterceptor
+	blockChan chan bool
 }
 
 func (s *HttpService) AddRequestInterceptor(hi RequestInterceptor) {
@@ -222,12 +227,14 @@ func (s *HttpService) NewRequest(method HttpMethod, reqUrl string) *Request {
 	return request
 }
 
-func (s *HttpService) TriggerResponseInterceptors(r *Response) {
+func (s *HttpService) TriggerResponseInterceptors(r *Request) {
+	s.blockChan <- true //Prevent other interceptor handling running concurrently
 	finishChannel := make(chan bool, 1)
 	for _, intrFn := range s.respInts {
-		intrFn(finishChannel, r)
+		intrFn(finishChannel, r.Response)
 		<-finishChannel
 	}
+	<-s.blockChan
 }
 
 func Service() *HttpService {
@@ -235,5 +242,8 @@ func Service() *HttpService {
 }
 
 func init() {
-	gService = HttpService{make([]RequestInterceptor, 0), make([]ResponseInterceptor, 0)}
+	gService = HttpService{make(
+		[]RequestInterceptor, 0),
+		make([]ResponseInterceptor, 0),
+		make(chan bool, 1)}
 }
