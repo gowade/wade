@@ -188,9 +188,12 @@ func (r *Request) Do() *Response {
 func (r *Request) DoSync() (resp *Response) {
 	conf := r.makeJqConfig()
 	conf["async"] = false
-	Deferred{jquery.Ajax(conf)}.Done(func(r *Response) {
+	def := Deferred{jquery.Ajax(conf)}
+	setResp := func(r *Response) {
 		resp = r
-	})
+	}
+	def.Done(setResp)
+	def.Fail(setResp)
 	return
 }
 
