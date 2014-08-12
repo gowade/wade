@@ -31,7 +31,7 @@ type CustomElemManager interface {
 
 type CustomTag interface {
 	NewModel(jq.JQuery) interface{}
-	PrepareTagContents(jq.JQuery, interface{}) error
+	PrepareTagContents(jq.JQuery, interface{}, func(jq.JQuery)) error
 }
 
 type scopeSymbol interface {
@@ -483,83 +483,130 @@ func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(jq.JQuery, s
 	}
 }
 
+type DomAttr struct {
+	Name  string
+	Value string
+	bs    *bindScope
+}
+
+type AdditionalBinds struct {
+	binds map[string]string
+	bs    *bindScope
+}
+
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrelem bool) (bindTasks []func(), customElemTasks []func()) {
-	if relem.Length == 0 {
+func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindrelem bool, additionalbinds *AdditionalBinds) (bindTasks []func(), customElemTasks []func()) {
+	if relems.Length == 0 {
 		panic("Incorrect element for bind.")
 	}
 
 	bindTasks = make([]func(), 0)
 	customElemTasks = make([]func(), 0)
 
-	elems := make([]jq.JQuery, 0)
-	if bindrelem {
-		elems = append(elems, relem)
-	}
-
-	relem.Children("*").Each(func(i int, elem jq.JQuery) {
-		elems = append(elems, elem)
+	relemList := make([]jq.JQuery, relems.Length)
+	relems.Each(func(i int, relem jq.JQuery) {
+		relemList[i] = relem
 	})
 
-	for idx, elem := range elems {
-		custag, isCustom := b.tm.GetCustomTag(elem)
-
-		ebs := bs.clone()
-
-		htmla := elem.Get(0).Get("attributes")
-		attrs := make(map[string]string)
-		for i := 0; i < htmla.Length(); i++ {
-			attr := htmla.Index(i)
-			attrs[attr.Get("name").Str()] = attr.Get("value").Str()
+	for _, relem := range relemList {
+		elems := make([]jq.JQuery, 0)
+		if bindrelem {
+			elems = append(elems, relem)
 		}
 
-		var customTagModel interface{} = nil
-		if isCustom {
-			customTagModel = custag.NewModel(elem)
-		}
+		relem.Contents().Each(func(i int, elem jq.JQuery) {
+			elems = append(elems, elem)
+		})
 
-		for name, bstr := range attrs {
-			if name == "bind" { //attribute binding
-				if !isCustom {
-					panic(fmt.Sprintf(`Processing bind string %v="%v": Element %v hasn't been registered as a custom element.`, name, bstr, elem.Prop("tagName")))
-				}
-				(func(customTagModel interface{}) {
-					bindTasks = append(bindTasks,
-						wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
-							b.processAttrBind(astr, bstr, elem, ebs, once, customTagModel)
-						}))
-				})(customTagModel)
-			} else if strings.HasPrefix(name, BindPrefix) && //dom binding
-				jqExists(elem) { //element still exists
-				if isCustom {
-					panic(fmt.Sprintf(`Processing bind string %v = "%v": Dom binding is not allowed for custom element tags (they should not actually be rendered
-			, so there's no point; but of course inside the custom element's contents it's allowed normally).
-			If you want to bind the attributes of a custom element, use attribute binding instead.`, name, bstr))
-				}
-				bindTasks = append(bindTasks,
-					wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
-						b.processDomBind(astr, bstr, elem, ebs, once)
-					}))
+		for idx, elem := range elems {
+			if elem.Get(0).Get("nodeType").Int() != 1 {
+				continue
 			}
-		}
 
-		if !bindrelem || idx > 0 {
+			custag, isCustom := b.tm.GetCustomTag(elem)
+			isWrapper := elem.Is("wrapper")
+			var binds map[string]string
+			if isWrapper || isCustom {
+				binds = make(map[string]string)
+			}
+
+			bsclone := bs.clone()
+
+			htmla := elem.Get(0).Get("attributes")
+			attrs := make([]DomAttr, 0)
+			if additionalbinds != nil {
+				for k, v := range additionalbinds.binds {
+					attrs = append(attrs, DomAttr{k, v, additionalbinds.bs})
+				}
+			}
+
+			for i := 0; i < htmla.Length(); i++ {
+				attr := htmla.Index(i)
+				attrs = append(attrs, DomAttr{attr.Get("name").Str(), attr.Get("value").Str(), bsclone})
+			}
+
+			var customTagModel interface{} = nil
 			if isCustom {
-				(func(elem jq.JQuery, customTagModel interface{}) {
-					customElemTasks = append(customElemTasks, func() {
-						err := custag.PrepareTagContents(elem, customTagModel)
-						if err != nil {
-							elemError(elem, err.Error())
-						}
+				customTagModel = custag.NewModel(elem)
+			}
 
-						b.Bind(elem, customTagModel, once, false)
-						elem.ReplaceWith(elem.Contents())
-					})
-				})(elem, customTagModel)
-			} else {
-				bt, cet := b.bindPrepare(elem, bs, once, false)
-				bindTasks = append(bindTasks, bt...)
-				customElemTasks = append(customElemTasks, cet...)
+			for _, attr := range attrs {
+				name, bstr, ebs := attr.Name, attr.Value, attr.bs
+				if name == "bind" { //attribute binding
+					if !isCustom {
+						panic(fmt.Sprintf(`Processing bind string %v="%v": Element %v hasn't been registered as a custom element.`, name, bstr, elem.Prop("tagName")))
+					}
+
+					(func(customTagModel interface{}, bs *bindScope) {
+						bindTasks = append(bindTasks,
+							wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+								b.processAttrBind(astr, bstr, elem, ebs, once, customTagModel)
+							}))
+					})(customTagModel, ebs)
+				} else if strings.HasPrefix(name, BindPrefix) && //dom binding
+					jqExists(relem) == jqExists(elem) { //element still exists
+
+					if isWrapper || isCustom {
+						binds[name] = bstr
+						continue
+					}
+
+					(func(bs *bindScope) {
+						bindTasks = append(bindTasks,
+							wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+								b.processDomBind(astr, bstr, elem, ebs, once)
+							}))
+					})(ebs)
+				}
+			}
+
+			if !bindrelem || idx > 0 {
+				(func(bs *bindScope) {
+					if isCustom {
+						(func(elem jq.JQuery, customTagModel interface{}, binds map[string]string) {
+							customElemTasks = append(customElemTasks, func() {
+								err := custag.PrepareTagContents(elem, customTagModel,
+									func(contentElem jq.JQuery) {
+										s := newModelScope(customTagModel)
+										s.merge(bs.scope)
+										b.bindWithScope(contentElem, once, true, s, nil)
+									})
+
+								if err != nil {
+									elemError(elem, err.Error())
+								}
+
+								b.bindWithScope(elem, once, false, b.newModelScope(customTagModel), &AdditionalBinds{binds, bs})
+
+								elem.ReplaceWith(elem.Contents())
+							})
+						})(elem, customTagModel, binds)
+					} else {
+						bt, cet := b.bindPrepare(elem, bs, once, false, &AdditionalBinds{binds, bs})
+						bindTasks = append(bindTasks, bt...)
+						customElemTasks = append(customElemTasks, cet...)
+					}
+				})(bs)
 			}
 		}
 	}
@@ -567,11 +614,15 @@ func (b *Binding) bindPrepare(relem jq.JQuery, bs *bindScope, once bool, bindrel
 	return
 }
 
-// Bind binds a model to an element and its ascendants
-func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
+func (b *Binding) newModelScope(model interface{}) *scope {
 	s := newModelScope(model)
 	s.merge(b.scope)
-	b.bindWithScope(relem, once, bindrelem, s)
+	return s
+}
+
+// Bind binds a model to an element and its ascendants
+func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
+	b.bindWithScope(relem, once, bindrelem, b.newModelScope(model), nil)
 }
 
 // BindMergeScope merges the given scope to the basic scope and performs binding
@@ -584,12 +635,12 @@ func (b *Binding) BindModels(relem jq.JQuery, models []interface{}, once bool, b
 	}
 	s.merge(b.scope)
 
-	b.bindWithScope(relem, once, bindrelem, s)
+	b.bindWithScope(relem, once, bindrelem, s, nil)
 }
 
-func (b *Binding) bindWithScope(relem jq.JQuery, once bool, bindrelem bool, s *scope) {
+func (b *Binding) bindWithScope(relem jq.JQuery, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem)
+	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem, additionalbinds)
 	for _, fn := range btasks {
 		fn()
 	}

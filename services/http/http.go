@@ -35,11 +35,19 @@ func (r *Response) TextStatus() string {
 }
 
 func (r *Response) DecodeDataTo(dest interface{}) error {
+	if r.data == "" {
+		panic("No data received.")
+	}
 	err := json.Unmarshal([]byte(r.data), dest)
 	if err != nil {
-		println(err.Error())
+		panic(err.Error())
 	}
 	return err
+}
+
+func (r *Response) Bool() (b bool) {
+	r.DecodeDataTo(&b)
+	return
 }
 
 type Deferred struct {
@@ -62,9 +70,9 @@ func (d Deferred) Fail(fn HttpDoneHandler) Deferred {
 	return d
 }
 
-func (d Deferred) Then(fn HttpDoneHandler) Deferred {
-	d.Deferred.Then(func(data string, textStatus string, jqxhr js.Object) {
-		fn(NewResponse(data, jqxhr))
+func (d Deferred) Always(fn HttpDoneHandler) Deferred {
+	d.Deferred.Always(func(jqxhr js.Object, textStatus string, errorThrown js.Object) {
+		fn(NewResponse("", jqxhr))
 	})
 	return d
 }
@@ -161,15 +169,19 @@ func (r *Request) makeJqConfig() map[string]interface{} {
 // Do does an asynchronous http request, yet the API is blocking, just like Go's http
 func (r *Request) Do() *Response {
 	ch := make(chan *Response, 1)
-	Deferred{jquery.Ajax(r.makeJqConfig())}.Then(func(r *Response) {
+	cb := func(r *Response) {
 		go func() {
 			ch <- r
 		}()
-	})
-	return <-ch
+	}
+	Deferred{jquery.Ajax(r.makeJqConfig())}.Done(cb).Always(cb)
+	resp := <-ch
+	gService.TriggerResponseInterceptors(resp)
+	return resp
 }
 
 // DoSync does a synchronous http request and directly returns a response.
+// This doesn't apply interceptors to the response.
 // This method will freeze everything even in a goroutine, so it is only
 // suitable for tasks like app initialization. Please use Do() instead for
 // the vast majority of cases.
@@ -182,22 +194,37 @@ func (r *Request) DoSync() (resp *Response) {
 	return
 }
 
-type HttpInterceptor func(*Request)
+type RequestInterceptor func(*Request)
+type ResponseInterceptor func(chan bool, *Response)
 
 type HttpService struct {
-	httpInts []HttpInterceptor
+	reqInts  []RequestInterceptor
+	respInts []ResponseInterceptor
 }
 
-func (s *HttpService) AddHttpInterceptor(hi HttpInterceptor) {
-	s.httpInts = append(s.httpInts, hi)
+func (s *HttpService) AddRequestInterceptor(hi RequestInterceptor) {
+	s.reqInts = append(s.reqInts, hi)
+}
+
+func (s *HttpService) AddResponseInterceptor(hi ResponseInterceptor) {
+	s.respInts = append(s.respInts, hi)
 }
 
 func (s *HttpService) NewRequest(method HttpMethod, reqUrl string) *Request {
 	request := NewRequest(method, reqUrl)
-	for _, intrFn := range s.httpInts {
+	for _, intrFn := range s.reqInts {
 		intrFn(request)
 	}
+
 	return request
+}
+
+func (s *HttpService) TriggerResponseInterceptors(r *Response) {
+	finishChannel := make(chan bool, 1)
+	for _, intrFn := range s.respInts {
+		intrFn(finishChannel, r)
+		<-finishChannel
+	}
 }
 
 func Service() *HttpService {
@@ -205,5 +232,5 @@ func Service() *HttpService {
 }
 
 func init() {
-	gService = HttpService{make([]HttpInterceptor, 0)}
+	gService = HttpService{make([]RequestInterceptor, 0), make([]ResponseInterceptor, 0)}
 }

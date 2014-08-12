@@ -42,7 +42,7 @@ type DomBind struct {
 func (d DomBind) bind(elem jq.JQuery, model interface{}, once bool, bindrelem bool) {
 	s := newModelScope(model)
 	s.merge(d.scope)
-	d.binding.bindWithScope(elem, once, bindrelem, s)
+	d.binding.bindWithScope(elem, once, bindrelem, s, nil)
 }
 
 func (d DomBind) RemoveBinding(elem jq.JQuery) {

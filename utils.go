@@ -15,6 +15,16 @@ func ToElemSlice(elems jq.JQuery) []jq.JQuery {
 	return list
 }
 
+func wrapperElemsUnwrap(container jq.JQuery) {
+	container.Find("wrapper").Each(func(_ int, e jq.JQuery) {
+		e.Children("").First().Unwrap()
+	})
+}
+
+func IsWrapperElem(elem jq.JQuery) bool {
+	return elem.Is("wrapper")
+}
+
 func camelize(src string) string {
 	res := []rune{}
 	startW := true

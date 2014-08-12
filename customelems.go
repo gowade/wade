@@ -52,7 +52,7 @@ func (tag *CustomTag) prepareAttributes(prototype reflect.Type) {
 	tag.publicAttrs = publicAttrs
 }
 
-func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}) error {
+func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}, contentBindFn func(jq.JQuery)) error {
 	contentElem := elem.Clone()
 	elem.SetHtml(t.elem.Html())
 	ce := &CustomElem{elem, contentElem}
@@ -64,7 +64,13 @@ func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}) error 
 		}
 	}
 
-	elem.Find("wcontents").ReplaceWith(ce.Contents.Html())
+	contents := ce.Contents.Contents()
+	if contents.Length > 0 {
+		elem.Find("wcontents").ReplaceWith(contents)
+		contentBindFn(contents)
+	} else {
+		elem.Find("wcontents").Remove()
+	}
 	return nil
 }
 

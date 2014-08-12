@@ -23,6 +23,10 @@ func (sm *SwitchMenu) Init(ce *wd.CustomElem) error {
 	}
 
 	for _, item := range wd.ToElemSlice(cl.First().Children("")) {
+		if wd.IsWrapperElem(item) {
+			item = item.Children("li").First()
+		}
+
 		if !item.Is("li") {
 			return fmt.Errorf(`Direct children of the <ul> must be <li>.`)
 		}
@@ -42,11 +46,9 @@ func (sm *SwitchMenu) Init(ce *wd.CustomElem) error {
 				item.RemoveClass(sm.ActiveClass)
 			}
 		} else {
-			return fmt.Errorf(`"itemid" attribute must be set for each <li>.`)
+			return fmt.Errorf(`"case" attribute must be set for each <li>.`)
 		}
 	}
-
-	ce.Elem.Append(ce.Contents.Html())
 
 	return nil
 }

@@ -15,6 +15,8 @@ import (
 const (
 	WadeReservedPrefix = "wade-rsvd-"
 	WadeExcludeAttr    = WadeReservedPrefix + "exclude"
+
+	GlobalDisplayScope = "__global__"
 )
 
 var (
@@ -37,10 +39,20 @@ func (h *handlable) setController(fn PageControllerFunc) {
 	h.controller = fn
 }
 
+func (h *handlable) Controller() PageControllerFunc {
+	return h.controller
+}
+
+func (h *handlable) Handlers() []PageHandler {
+	return h.handlers
+}
+
 type displayScope interface {
 	hasPage(id string) bool
 	addHandler(fn PageHandler)
 	setController(fn PageControllerFunc)
+	Controller() PageControllerFunc
+	Handlers() []PageHandler
 }
 
 type page struct {
@@ -115,6 +127,7 @@ type PageManager struct {
 	tm            *CustagMan
 	pc            *PageCtrl
 	displayScopes map[string]displayScope
+	globalDs      *globalDisplayScope
 }
 
 // PageView provides access to the page-specific data inside a controller func
@@ -182,7 +195,7 @@ func newPageManager(startPage, basePath string,
 
 	container := gJQ("<div class='wade-wrapper'></div>")
 	container.AppendTo(gJQ("body"))
-	return &PageManager{
+	pm := &PageManager{
 		router:        js.Global.Get("RouteRecognizer").New(),
 		currentPage:   nil,
 		basePath:      basePath,
@@ -193,7 +206,11 @@ func newPageManager(startPage, basePath string,
 		binding:       binding,
 		tm:            tm,
 		displayScopes: make(map[string]displayScope),
+		globalDs:      &globalDisplayScope{},
 	}
+
+	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
+	return pm
 }
 
 func (pm *PageManager) CurrentPageId() string {
@@ -260,6 +277,22 @@ func (pm *PageManager) setupPageOnLoad() {
 		gHistory.Call("replaceState", nil, startPage.title, pm.Url(path))
 	}
 	pm.updatePage(path, false)
+}
+
+func (pm *PageManager) Redirect(page string, params ...interface{}) {
+	url, err := pm.PageUrl(page, params)
+	if err != nil {
+		panic(err.Error())
+	}
+	pm.updatePage(url, true)
+}
+
+type globalDisplayScope struct {
+	handlable
+}
+
+func (s *globalDisplayScope) hasPage(id string) bool {
+	return true
 }
 
 func (pm *PageManager) prepare() {
@@ -350,9 +383,7 @@ func (pm *PageManager) updatePage(url string, pushState bool) {
 
 		pm.bind(params)
 
-		pm.container.Find("wrapper").Each(func(_ int, e jq.JQuery) {
-			e.Children("").First().Unwrap()
-		})
+		wrapperElemsUnwrap(pm.container)
 
 		//Rebind link events
 		pm.container.Find("a").On(jq.CLICK, func(e jq.Event) {
@@ -406,23 +437,24 @@ func (pm *PageManager) bind(params map[string]interface{}) {
 
 	pc := &PageCtrl{params, pm, make([]string, 0)}
 
-	if controller := pm.currentPage.handlable.controller; controller != nil {
-		models = append(models, controller(pc))
-	}
-
-	for _, handler := range pm.currentPage.handlers {
-		handler()
-	}
-
-	for _, grp := range pm.currentPage.groups {
-		if controller := grp.handlable.controller; controller != nil {
-			models = append(models, controller(pc))
+	trigger := func(ds displayScope) {
+		if controller := ds.Controller(); controller != nil {
+			model := controller(pc)
+			models = append(models, model)
 		}
 
-		for _, handler := range grp.handlable.handlers {
+		for _, handler := range ds.Handlers() {
 			handler()
 		}
 	}
+
+	trigger(pm.currentPage)
+
+	for _, grp := range pm.currentPage.groups {
+		trigger(grp)
+	}
+
+	trigger(pm.globalDs)
 
 	if len(models) == 0 {
 		pm.binding.Bind(pm.container, nil, true, false)
