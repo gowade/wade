@@ -121,13 +121,13 @@ consider using attribute binding instead.`, kind, attr, t.name)
 	return cptr.Interface()
 }
 
-type CustagMan struct {
+type custagMan struct {
 	custags    map[string]*CustomTag
 	tcontainer jq.JQuery
 }
 
-func newCustagMan(tcontainer jq.JQuery) *CustagMan {
-	return &CustagMan{
+func newCustagMan(tcontainer jq.JQuery) *custagMan {
+	return &custagMan{
 		custags:    make(map[string]*CustomTag),
 		tcontainer: tcontainer,
 	}
@@ -142,7 +142,17 @@ type CustomElemInit interface {
 	Init(*CustomElem) error
 }
 
-func (tm *CustagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]interface{}) error {
+func isForbiddenAttr(attr string) bool {
+	lattr := strings.ToLower(attr)
+	for _, a := range ForbiddenAttrs {
+		if a == lattr {
+			return true
+		}
+	}
+	return false
+}
+
+func (tm *custagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]interface{}) error {
 	for _, elem := range tagElems {
 		tagname := elem.Attr("tagname")
 		if tagname == "" {
@@ -171,17 +181,7 @@ func (tm *CustagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]inte
 }
 
 // GetCustomTag checks if the element's tag is of a registered custom tag
-func (tm *CustagMan) GetCustomTag(elem jq.JQuery) (ct bind.CustomTag, ok bool) {
+func (tm *custagMan) GetCustomTag(elem jq.JQuery) (ct bind.CustomTag, ok bool) {
 	ct, ok = tm.custags[strings.ToUpper(elem.Prop("tagName").(string))]
 	return
-}
-
-func isForbiddenAttr(attr string) bool {
-	lattr := strings.ToLower(attr)
-	for _, a := range ForbiddenAttrs {
-		if a == lattr {
-			return true
-		}
-	}
-	return false
 }

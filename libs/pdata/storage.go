@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	gLocalStorage   Storage = Storage{js.Global.Get("localStorage")}
-	gSessionStorage Storage = Storage{js.Global.Get("sessionStorage")}
+	gLocalStorage   Storage = storage{js.Global.Get("localStorage")}
+	gSessionStorage Storage = storage{js.Global.Get("sessionStorage")}
 )
 
 type StorageType int
@@ -20,11 +20,19 @@ const (
 	SessionStorage StorageType = 1
 )
 
-type Storage struct {
+type Storage interface {
+	GetBool(key string) (v bool, ok bool)
+	GetStr(key string) (v string, ok bool)
+	GetInt(key string) (v int, ok bool)
+	GetTo(key string, v interface{}) bool
+	Set(key string, v interface{})
+}
+
+type storage struct {
 	js.Object
 }
 
-func (stg Storage) get(key string, outVal interface{}) (ok bool) {
+func (stg storage) get(key string, outVal interface{}) (ok bool) {
 	jsv := stg.Object.Call("getItem", key)
 	ok = !jsv.IsNull() && !jsv.IsUndefined()
 	if ok {
@@ -37,33 +45,28 @@ func (stg Storage) get(key string, outVal interface{}) (ok bool) {
 	return
 }
 
-func (stg Storage) GetBool(key string) (v bool, ok bool) {
+func (stg storage) GetBool(key string) (v bool, ok bool) {
 	ok = stg.get(key, &v)
 	return
 }
 
-func (stg Storage) GetStr(key string) (v string, ok bool) {
+func (stg storage) GetStr(key string) (v string, ok bool) {
 	ok = stg.get(key, &v)
 	return
 }
 
-func (stg Storage) GetInt(key string) (v int, ok bool) {
-	ok = stg.get(key, &v)
-	return
-}
-
-func (stg Storage) GetFloat(key string) (v float64, ok bool) {
+func (stg storage) GetInt(key string) (v int, ok bool) {
 	ok = stg.get(key, &v)
 	return
 }
 
 //Get the stored value with key key and store it in v.
 //Typically used for struct values.
-func (stg Storage) GetTo(key string, v interface{}) bool {
+func (stg storage) GetTo(key string, v interface{}) bool {
 	return stg.get(key, v)
 }
 
-func (stg Storage) Set(key string, v interface{}) {
+func (stg storage) Set(key string, v interface{}) {
 	s, err := json.Marshal(v)
 	if err != nil {
 		panic(err.Error())
