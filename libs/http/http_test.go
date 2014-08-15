@@ -35,8 +35,8 @@ type StubBackend struct {
 
 func (sb *StubBackend) Do(r *Request) error {
 	r.Response = &Response{
-		TextData: sb.ResponseData,
-		Status:   sb.ResponseStatus,
+		Data:       sb.ResponseData,
+		StatusCode: sb.ResponseStatus,
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func (sb *StubBackend) Do(r *Request) error {
 func TestInterceptor(t *testing.T) {
 	v := false
 	tk, tv := "yes", "here"
-	http := NewClient()
+	http := NewClient(&StubBackend{200, ""})
 	http.AddRequestInterceptor(func(r *Request) {
 		r.Headers.Add(tk, tv)
 		v = true
@@ -57,7 +57,7 @@ func TestInterceptor(t *testing.T) {
 
 	//Test the http API with something like authentication handling
 	sb := &StubBackend{401, ""}
-	client := NewClientWithBackend(sb)
+	client := NewClient(sb)
 
 	var pendingRequest *Request
 	client.AddRequestInterceptor(func(r *Request) {
@@ -66,7 +66,7 @@ func TestInterceptor(t *testing.T) {
 
 	ok := false
 	client.AddResponseInterceptor(func(finish chan bool, r *Request) {
-		if r.Response.Status == 401 {
+		if r.Response.StatusCode == 401 {
 			sb.ResponseStatus = 200
 			sb.ResponseData = "true"
 			client.Do(pendingRequest)

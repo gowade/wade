@@ -10,6 +10,7 @@ import (
 	jq "github.com/gopherjs/jquery"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/libs/http"
+	"github.com/phaikawl/wade/libs/http/client"
 	"github.com/phaikawl/wade/libs/pdata"
 )
 
@@ -108,6 +109,7 @@ type AppFunc func(Registration, AppEnv)
 // "appFn" is the main function for your app.
 func StartApp(startPage, basePath string, appFn AppFunc) error {
 	jsDepCheck()
+	http.SetDefaultClient(http.NewClient(client.XhrBackend{}))
 
 	gHistory = js.Global.Get("history")
 	//serverbase := js.Global.Get("document").Get("location").Get("origin").Str()
@@ -129,7 +131,7 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 	binding := bind.NewBindEngine(tm)
 	appEnv := AppEnv{
 		Services: AppServices{
-			Http:           http.NewClient(),
+			Http:           http.NewClient(client.XhrBackend{}),
 			SessionStorage: pdata.Service(pdata.SessionStorage),
 			LocalStorage:   pdata.Service(pdata.LocalStorage),
 		},
@@ -203,7 +205,7 @@ func getHtmlFile(serverbase string, href string) (jq.JQuery, error) {
 		return gJQ(), fmt.Errorf(`Failed to load HTML file "%v"`, href)
 	}
 
-	return gJQ(parseTemplate(resp.TextData)), nil
+	return gJQ(parseTemplate(resp.Data)), nil
 }
 
 // htmlImport performs an HTML import

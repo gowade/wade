@@ -1,8 +1,9 @@
-package http
+package client
 
 import (
 	"strings"
 
+	"github.com/phaikawl/wade/libs/http"
 	"honnef.co/go/js/xhr"
 )
 
@@ -21,7 +22,7 @@ func (rh XhrResponseHeaders) Get(key string) string {
 	return rh.request.ResponseHeader(key)
 }
 
-func (b XhrBackend) Do(r *Request) (err error) {
+func (b XhrBackend) Do(r *http.Request) (err error) {
 	req := xhr.NewRequest(r.Method, r.Url)
 	req.ResponseType = r.ResponseType
 	req.Timeout = r.Timeout
@@ -29,13 +30,13 @@ func (b XhrBackend) Do(r *Request) (err error) {
 	for k, values := range r.Headers {
 		req.SetRequestHeader(k, strings.Join(values, ","))
 	}
-	err = req.Send(r.data)
+	err = req.Send(r.Data())
 
-	r.Response = &Response{
-		RawData:    req.Response,
-		TextData:   req.ResponseText,
-		Status:     req.Status,
-		TextStatus: req.StatusText,
+	r.Response = &http.Response{
+		RawData:    req.Response.Interface(),
+		Data:       req.ResponseText,
+		StatusCode: req.Status,
+		Status:     req.StatusText,
 		Type:       req.ResponseType,
 		Headers:    XhrResponseHeaders{req},
 	}

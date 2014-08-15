@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/jmcvetta/randutil"
+
 	"github.com/phaikawl/wade/testapp/ez/model"
 	"github.com/pilu/fresh/runner/runnerutils"
 )
@@ -93,33 +93,6 @@ func main() {
 	// This serves static files in the "public" directory
 	r.ServeFiles("/public/*filepath", http.Dir("../public"))
 
-	// Subpaths of /api/ provides the server API
-	// they should be protected by authorization
-	api := r.Group("/api/", func(c *gin.Context) {
-		token := c.Request.Header.Get("AuthToken")
-		if token != "" {
-			return
-		}
-
-		c.Fail(http.StatusUnauthorized, fmt.Errorf("You're not allowed to do this, sorry."))
-	})
-
-	// The api to register a user
-	// Used in the pg-user-register page
-	api.POST("/user/register", func(c *gin.Context) {
-		rawdata, err := ioutil.ReadAll(c.Request.Body)
-		if err != nil {
-			log.Println(err.Error())
-		}
-		udata := &model.User{}
-		if err = json.Unmarshal(rawdata, udata); err != nil {
-			panic(err.Error())
-		}
-
-		failed := model.UsernamePasswordValidator().Validate(udata).HasErrors()
-		c.JSON(200, !failed)
-	})
-
 	// Subpaths of /web/ are client urls, should NOT be protected
 	// Just serve the index.html for every subpaths actually, nothing else
 	web := r.Group("/web/", func(c *gin.Context) {
@@ -150,6 +123,26 @@ func main() {
 			"username": user.Username,
 			"token":    user.Token,
 		})
+	})
+
+	// Subpaths of /api/ provides the server API
+	api := r.Group("/api", func(c *gin.Context) {
+	})
+
+	// The api to register a user
+	// Used in the pg-user-register page
+	api.POST("/user/register", func(c *gin.Context) {
+		rawdata, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			log.Println(err.Error())
+		}
+		udata := &model.User{}
+		if err = json.Unmarshal(rawdata, udata); err != nil {
+			panic(err.Error())
+		}
+
+		failed := model.UsernamePasswordValidator().Validate(udata).HasErrors()
+		c.JSON(200, !failed)
 	})
 
 	r.Run(":3000")

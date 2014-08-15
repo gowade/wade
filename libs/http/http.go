@@ -3,8 +3,6 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/gopherjs/gopherjs/js"
 )
 
 const (
@@ -16,10 +14,17 @@ const (
 )
 
 var (
-	defaultClient = NewClient()
+	defaultClient *Client
 )
 
+func SetDefaultClient(c *Client) {
+	defaultClient = c
+}
+
 func DefaultClient() *Client {
+	if defaultClient == nil {
+		panic("No default client has been set.")
+	}
 	return defaultClient
 }
 
@@ -38,16 +43,16 @@ type ResponseHeaders interface {
 }
 
 type Response struct {
-	RawData    js.Object
-	TextData   string
-	Status     int
-	TextStatus string
+	RawData    interface{}
+	Data       string
+	Status     string
+	StatusCode int
 	Type       string
 	Headers    ResponseHeaders
 }
 
 func (r *Response) Failed() bool {
-	return r.Status >= 400
+	return r.StatusCode >= 400
 }
 
 func (r *Response) DecodeTo(dest interface{}) error {
@@ -60,7 +65,7 @@ func (r *Response) DecodeTo(dest interface{}) error {
 		panic(fmt.Sprintf("Response failed with status %v, cannot decode.", r.Status))
 	}
 
-	err := json.Unmarshal([]byte(r.TextData), dest)
+	err := json.Unmarshal([]byte(r.Data), dest)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -140,6 +145,18 @@ func (r *Request) SetData(d interface{}) (err error) {
 	return err
 }
 
+func (r *Request) Data() string {
+	if data, ok := r.data.(string); ok {
+		return data
+	}
+
+	return ""
+}
+
+func (r *Request) RawData() interface{} {
+	return r.data
+}
+
 type Client struct {
 	backend   Backend
 	reqInts   []RequestInterceptor
@@ -166,11 +183,7 @@ func (c *Client) DoPure(r *Request) (resp *Response, err error) {
 type RequestInterceptor func(*Request)
 type ResponseInterceptor func(chan bool, *Request)
 
-func NewClient() *Client {
-	return NewClientWithBackend(XhrBackend{})
-}
-
-func NewClientWithBackend(backend Backend) *Client {
+func NewClient(backend Backend) *Client {
 	return &Client{
 		backend:   backend,
 		reqInts:   make([]RequestInterceptor, 0),
