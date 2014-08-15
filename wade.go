@@ -10,7 +10,7 @@ import (
 	jq "github.com/gopherjs/jquery"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/libs/http"
-	"github.com/phaikawl/wade/libs/http/client"
+	"github.com/phaikawl/wade/libs/http/clientside"
 	"github.com/phaikawl/wade/libs/pdata"
 )
 
@@ -22,7 +22,6 @@ var (
 
 type wade struct {
 	errChan    chan error
-	appEnv     AppEnv
 	pm         *pageManager
 	tm         *custagMan
 	tcontainer jq.JQuery
@@ -72,7 +71,7 @@ func (r registry) RegisterCustomTags(srcFile string, protomap map[string]interfa
 // ModuleInit calls the modules' Init method with an AppEnv
 func (r registry) ModuleInit(modules ...NeedsInit) {
 	for _, module := range modules {
-		module.Init(r.w.appEnv)
+		module.Init(AppServices)
 	}
 }
 
@@ -99,7 +98,12 @@ func parseTemplate(source string) string {
 	})
 }
 
-type AppFunc func(Registration, AppEnv)
+func initServices(pm PageManager) {
+	AppServices.Http = http.NewClient(clientside.XhrBackend{})
+	AppServices.LocalStorage = pdata.Service(pdata.LocalStorage)
+	AppServices.SessionStorage = pdata.Service(pdata.SessionStorage)
+	AppServices.PageManager = pm
+}
 
 // StartApp gets and processes HTML source from script[type="text/wadin"]
 // elements, performs HTML imports and initializes the app.
@@ -109,7 +113,7 @@ type AppFunc func(Registration, AppEnv)
 // "appFn" is the main function for your app.
 func StartApp(startPage, basePath string, appFn AppFunc) error {
 	jsDepCheck()
-	http.SetDefaultClient(http.NewClient(client.XhrBackend{}))
+	http.SetDefaultClient(http.NewClient(clientside.XhrBackend{}))
 
 	gHistory = js.Global.Get("history")
 	//serverbase := js.Global.Get("document").Get("location").Get("origin").Str()
@@ -129,18 +133,10 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 	}
 	tm := newCustagMan(tElem)
 	binding := bind.NewBindEngine(tm)
-	appEnv := AppEnv{
-		Services: AppServices{
-			Http:           http.NewClient(client.XhrBackend{}),
-			SessionStorage: pdata.Service(pdata.SessionStorage),
-			LocalStorage:   pdata.Service(pdata.LocalStorage),
-		},
-	}
 
 	wd := &wade{
 		errChan:    make(chan error),
-		appEnv:     appEnv,
-		pm:         newPageManager(appEnv, startPage, basePath, tElem, binding, tm),
+		pm:         newPageManager(startPage, basePath, tElem, binding, tm),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: tElem,
@@ -148,10 +144,10 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 		customTags: make(map[string]map[string]interface{}),
 	}
 
-	appEnv.PageManager = wd.pm
 	wd.init()
+	initServices(wd.pm)
 
-	appFn(registry{wd}, appEnv)
+	appFn(registry{wd})
 
 	queueChan := make(chan bool, 100)
 	finishChan := make(chan bool, len(wd.customTags))

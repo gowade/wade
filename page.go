@@ -137,9 +137,8 @@ func (pg PageGroupDesc) Register(id string, pm *pageManager) displayScope {
 
 // PageCtrl provides access to the page data and operations inside a controller func
 type PageCtrl struct {
-	app AppEnv
-	pm  *pageManager
-	p   *page
+	pm *pageManager
+	p  *page
 
 	params  map[string]interface{}
 	helpers map[string]interface{}
@@ -163,11 +162,6 @@ func (pc *PageCtrl) Info() PageInfo {
 // Manager returns the page manager
 func (pc *PageCtrl) Manager() PageManager {
 	return pc.pm
-}
-
-// Services returns AppEnv Services
-func (pc *PageCtrl) Services() AppServices {
-	return pc.app.Services
 }
 
 func (pc *PageCtrl) RedirectToPage(page string, params ...interface{}) {
@@ -199,6 +193,10 @@ func (pc *PageCtrl) GetParam(param string, dest interface{}) (err error) {
 	}
 	_, err = fmt.Sscan(v.(string), dest)
 	return
+}
+
+func (pc *PageCtrl) Services() GlobalServices {
+	return AppServices
 }
 
 // RegisterHelper registers fn as a local helper with the given name.

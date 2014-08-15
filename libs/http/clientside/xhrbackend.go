@@ -1,4 +1,4 @@
-package client
+package clientside
 
 import (
 	"strings"

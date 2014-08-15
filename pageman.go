@@ -21,7 +21,6 @@ const (
 
 // PageManager is Page Manager
 type pageManager struct {
-	appEnv       AppEnv
 	routes       []urlrouter.Record
 	router       urlrouter.URLRouter
 	currentPage  *page
@@ -39,13 +38,12 @@ type pageManager struct {
 	formattedTitle string
 }
 
-func newPageManager(appEnv AppEnv, startPage, basePath string,
+func newPageManager(startPage, basePath string,
 	tcontainer jq.JQuery, binding *bind.Binding, tm *custagMan) *pageManager {
 
 	container := gJQ("<div class='wade-wrapper'></div>")
 	container.AppendTo(gJQ("body"))
 	pm := &pageManager{
-		appEnv:        appEnv,
 		routes:        make([]urlrouter.Record, 0),
 		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
@@ -312,7 +310,6 @@ func (pm *pageManager) BasePath() string {
 
 func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *PageCtrl {
 	return &PageCtrl{
-		app:     pm.appEnv,
 		pm:      pm,
 		p:       page,
 		params:  params,

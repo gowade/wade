@@ -5,7 +5,13 @@ import (
 	"github.com/phaikawl/wade/libs/pdata"
 )
 
+var (
+	AppServices GlobalServices
+)
+
 type EventHandler func()
+
+type AppFunc func(Registration)
 
 // PageControllerFunc is the function to be run on the load of a specific page.
 // It returns a model to be used in bindings of the elements in the page.
@@ -17,7 +23,7 @@ type Redirecter interface {
 }
 
 type ThisPage interface {
-	Services() AppServices
+	Services() GlobalServices
 	Manager() PageManager
 	Info() PageInfo
 	FormatTitle(params ...interface{})
@@ -26,8 +32,9 @@ type ThisPage interface {
 	Redirecter
 }
 
-type AppServices struct {
+type GlobalServices struct {
 	Http           *http.Client
+	PageManager    PageManager
 	LocalStorage   pdata.Storage
 	SessionStorage pdata.Storage
 }
@@ -41,13 +48,8 @@ type PageManager interface {
 	SetOutputContainer(elementId string)
 }
 
-type AppEnv struct {
-	Services    AppServices
-	PageManager PageManager
-}
-
 type NeedsInit interface {
-	Init(AppEnv)
+	Init(services GlobalServices)
 }
 
 type Registration interface {

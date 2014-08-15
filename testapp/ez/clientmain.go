@@ -78,7 +78,7 @@ func (hv *HomeView) Highlight(word string) string {
 	return ">> <strong>" + word + "<strong> <<"
 }
 
-func mainFn(r wade.Registration, app wade.AppEnv) {
+func mainFn(r wade.Registration) {
 	r.RegisterDisplayScopes(map[string]wade.DisplayScope{
 		"pg-home":          wade.MakePage("/home", "Home"),
 		"pg-user-bio":      wade.MakePage("/user/bio", "Bio"),
