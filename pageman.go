@@ -2,12 +2,13 @@ package wade
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
+	urlrouter "github.com/naoina/kocha-urlrouter"
+	_ "github.com/naoina/kocha-urlrouter/regexp"
 	"github.com/phaikawl/wade/bind"
 )
 
@@ -18,14 +19,11 @@ const (
 	GlobalDisplayScope = "__global__"
 )
 
-var (
-	gRouteParamRegexp = regexp.MustCompile(`\:\w+`)
-)
-
 // PageManager is Page Manager
 type pageManager struct {
 	appEnv       AppEnv
-	router       js.Object
+	routes       []urlrouter.Record
+	router       urlrouter.URLRouter
 	currentPage  *page
 	startPageId  string
 	basePath     string
@@ -48,7 +46,8 @@ func newPageManager(appEnv AppEnv, startPage, basePath string,
 	container.AppendTo(gJQ("body"))
 	pm := &pageManager{
 		appEnv:        appEnv,
-		router:        js.Global.Get("RouteRecognizer").New(),
+		routes:        make([]urlrouter.Record, 0),
+		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
 		basePath:      basePath,
 		startPageId:   startPage,
@@ -74,6 +73,10 @@ func (pm *pageManager) SetOutputContainer(elementId string) {
 	}
 
 	parent.Append(pm.container)
+}
+
+func (pm *pageManager) addRoute(p *page) {
+	pm.routes = append(pm.routes, urlrouter.NewRecord(p.path, p))
 }
 
 func (pm *pageManager) CurrentPageId() string {
@@ -144,6 +147,9 @@ func (pm *pageManager) RedirectToUrl(url string) {
 }
 
 func (pm *pageManager) prepare() {
+	//build the router
+	pm.router.Build(pm.routes)
+
 	// preprocess wsection elements
 	pm.tcontainer.Find("wsection").Each(func(_ int, e jq.JQuery) {
 		name := strings.TrimSpace(e.Attr("name"))
@@ -204,26 +210,26 @@ func walk(elem jq.JQuery, pm *pageManager) {
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
 	url = pm.cutPath(url)
-	matches := pm.router.Call("recognize", url)
 	println("path: " + url)
-	if matches.IsUndefined() || matches.Length() == 0 {
+	match, routeparams := pm.router.Lookup(url)
+	if match == nil {
 		if pm.notFoundPage != nil {
 			pm.updatePage(pm.notFoundPage.path, false)
 		} else {
 			panic("Page not found. No 404 handler declared.")
 		}
+		return
 	}
 
-	match := matches.Index(0)
-	pageId := match.Get("handler").Invoke().Str()
-	page := pm.page(pageId)
+	page := match.(*page)
+
 	if pushState {
 		gHistory.Call("pushState", nil, page.title, pm.Url(url))
 	}
+
 	params := make(map[string]interface{})
-	prs := match.Get("params")
-	if !prs.IsUndefined() {
-		params = prs.Interface().(map[string]interface{})
+	for _, param := range routeparams {
+		params[param.Name] = param.Value
 	}
 
 	if pm.currentPage != page {
@@ -260,7 +266,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	}
 }
 
-// PageUrl returns the url and route parameters for the specified pageId
+// PageUrl returns the url for the page with the given parameters
 func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, err error) {
 	err = nil
 	page := pm.page(pageId)
@@ -271,23 +277,32 @@ func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, 
 		return
 	}
 
-	i := 0
-	repl := func(src string) (out string) {
-		out = src
-		if i >= n {
-			err = fmt.Errorf("Not enough parameters supplied for the route.")
-			return
+	k, i := 0, 0
+	route := page.path
+	routeparams := urlrouter.ParamNames(route)
+	for {
+		if i >= len(route) {
+			break
 		}
-		out = fmt.Sprintf("%v", params[i])
-		i += 1
+
+		if urlrouter.IsMetaChar(route[i]) && route[i:i+len(routeparams[k])] == routeparams[k] {
+			if k < len(params) && params[k] != nil {
+				u += fmt.Sprintf("%v", params[k])
+			}
+			i += len(routeparams[k])
+			k++
+		} else {
+			u += string(route[i])
+			i++
+		}
+	}
+
+	if k != len(params) || k != len(routeparams) {
+		err = fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,
+			pageId, len(params), len(routeparams))
 		return
 	}
 
-	u = gRouteParamRegexp.ReplaceAllStringFunc(page.path, repl)
-	if i != n {
-		err = fmt.Errorf("Too many parameters supplied for the route")
-		return
-	}
 	return
 }
 

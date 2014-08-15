@@ -100,17 +100,10 @@ func (p PageDesc) Register(pageId string, pm *pageManager) displayScope {
 		panic(fmt.Sprintf(`Page or page group with id "%v" already registered.`, pageId))
 	}
 
-	pm.router.Call("add", []map[string]interface{}{
-		map[string]interface{}{
-			"path": route,
-			"handler": func() string {
-				return pageId
-			},
-		},
-	})
-
 	page := newPage(pageId, route, p.title)
 	pm.displayScopes[pageId] = page
+
+	pm.addRoute(page)
 
 	return page
 }

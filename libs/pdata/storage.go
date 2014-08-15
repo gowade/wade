@@ -8,11 +8,6 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-var (
-	gLocalStorage   Storage = storage{js.Global.Get("localStorage")}
-	gSessionStorage Storage = storage{js.Global.Get("sessionStorage")}
-)
-
 type StorageType int
 
 const (
@@ -74,17 +69,14 @@ func (stg storage) Set(key string, v interface{}) {
 	stg.Object.Call("setItem", key, string(s))
 }
 
-func init() {
-}
-
 func Service(storageType StorageType) Storage {
 	switch storageType {
 	case LocalStorage:
-		return gLocalStorage
+		return storage{js.Global.Get("localStorage")}
 	case SessionStorage:
-		return gSessionStorage
+		return storage{js.Global.Get("sessionStorage")}
 	}
 
 	panic(fmt.Sprintf(`Invalid storage type "%v".`, storageType))
-	return gLocalStorage
+	return nil
 }

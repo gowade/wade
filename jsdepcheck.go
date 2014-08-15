@@ -28,12 +28,6 @@ var JsDepSymbols = []jsDep{
 		bowerpkg:    "html5-history-api",
 	},
 	jsDep{
-		name:        "route-recognizer",
-		url:         "https://github.com/tildeio/route-recognizer",
-		checkSymbol: "RouteRecognizer",
-		bowerpkg:    "route-recognizer",
-	},
-	jsDep{
 		name:        "Watch.js",
 		url:         "https://github.com/melanke/Watch.JS",
 		checkSymbol: "watch",
