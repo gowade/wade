@@ -6,32 +6,48 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gopherjs/gopherjs/js"
 	jq "github.com/gopherjs/jquery"
 	"github.com/phaikawl/wade/bind"
+	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/dom/jquery"
+	"github.com/phaikawl/wade/jsbackend"
 	"github.com/phaikawl/wade/libs/http"
 	"github.com/phaikawl/wade/libs/http/clientside"
 	"github.com/phaikawl/wade/libs/pdata"
 )
 
 var (
-	gHistory    js.Object
 	gJQ         = jq.NewJQuery
 	WadeDevMode = true
 )
 
-type wade struct {
-	errChan    chan error
-	pm         *pageManager
-	tm         *custagMan
-	tcontainer jq.JQuery
-	binding    *bind.Binding
-	serverbase string
-	customTags map[string]map[string]interface{}
-}
+type (
+	wade struct {
+		errChan    chan error
+		pm         *pageManager
+		tm         *custagMan
+		tcontainer jq.JQuery
+		binding    *bind.Binding
+		serverBase string
+		customTags map[string]map[string]interface{}
+	}
 
-type registry struct {
-	w *wade
+	registry struct {
+		w *wade
+	}
+
+	JsBackend interface {
+		DepChecker
+		History() History
+	}
+
+	jsBackend struct {
+		*jsbackend.BackendImp
+	}
+)
+
+func (b jsBackend) History() History {
+	return b.BackendImp.History
 }
 
 // RegisterCustomTags registers custom element tags declared inside a given html file
@@ -105,42 +121,47 @@ func initServices(pm PageManager) {
 	AppServices.PageManager = pm
 }
 
+func loadHtml(document dom.Selection) dom.Selection {
+	templateContainer := document.NewRootFragment("<div></div>")
+	temps := document.Find("script[type='text/wadin']")
+	for _, part := range temps.Elements() {
+		templateContainer.Append(part)
+	}
+
+	return templateContainer
+}
+
 // StartApp gets and processes HTML source from script[type="text/wadin"]
 // elements, performs HTML imports and initializes the app.
 //
-// "startPage" is the id of the page we redirect to on an access to /
-//
 // "appFn" is the main function for your app.
-func StartApp(startPage, basePath string, appFn AppFunc) error {
-	jsDepCheck()
+func StartApp(config AppConfig, appFn AppFunc) error {
+	var jsb JsBackend = jsBackend{jsbackend.Get()}
+	jsDepCheck(jsb)
 	http.SetDefaultClient(http.NewClient(clientside.XhrBackend{}))
 
-	gHistory = js.Global.Get("history")
-	//serverbase := js.Global.Get("document").Get("location").Get("origin").Str()
-	serverbase := "/"
-	tempContainers := gJQ("script[type='text/wadin']")
-	jqParseHTML := func(src string) jq.JQuery {
-		return gJQ(js.Global.Get(jq.JQ).Call("parseHTML", src))
-	}
-	tElem := jqParseHTML("<div></div>")
-	tempContainers.Each(func(_ int, container jq.JQuery) {
-		tElem.Append(container.Html())
-	})
+	dombackend := jquery.GetDom()
+	var document dom.Selection = jquery.Document()
 
-	err := htmlImport(tElem, serverbase)
+	templateContainer := loadHtml(document)
+
+	err := htmlImport(http.DefaultClient(), templateContainer, config.ServerBase)
 	if err != nil {
 		return err
 	}
-	tm := newCustagMan(tElem)
+
+	jqTemp := templateContainer.(jquery.Selection).JQuery
+
+	tm := newCustagMan(jqTemp)
 	binding := bind.NewBindEngine(tm)
 
 	wd := &wade{
 		errChan:    make(chan error),
-		pm:         newPageManager(startPage, basePath, tElem, binding, tm),
+		pm:         newPageManager(jsb.History(), config, jqTemp, binding, tm),
 		tm:         tm,
 		binding:    binding,
-		tcontainer: tElem,
-		serverbase: serverbase,
+		tcontainer: jqTemp,
+		serverBase: config.ServerBase,
 		customTags: make(map[string]map[string]interface{}),
 	}
 
@@ -153,7 +174,8 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 	finishChan := make(chan bool, len(wd.customTags))
 	for srcFile, protoMap := range wd.customTags {
 		go func(srcFile string, protoMap map[string]interface{}) {
-			elems, err := wd.getHtml(srcFile)
+			src, err := wd.getHtml(http.DefaultClient(), srcFile)
+			elems := dombackend.NewFragment(src).Elements()
 
 			queueChan <- true
 
@@ -168,11 +190,11 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 			}
 
 			tagElems := make([]jq.JQuery, 0)
-			elems.Each(func(_ int, elem jq.JQuery) {
+			for _, elem := range elems {
 				if elem.Is("welement") {
-					tagElems = append(tagElems, elem)
+					tagElems = append(tagElems, elem.(jquery.Selection).JQuery)
 				}
-			})
+			}
 
 			wd.tm.registerTags(tagElems, protoMap)
 		}(srcFile, protoMap)
@@ -190,42 +212,67 @@ func StartApp(startPage, basePath string, appFn AppFunc) error {
 }
 
 // GetHtml makes a request and gets the HTML contents
-func (wd *wade) getHtml(href string) (html jq.JQuery, err error) {
-	html, err = getHtmlFile(wd.serverbase, href)
-	return
+func (wd *wade) getHtml(httpClient *http.Client, href string) (string, error) {
+	return getHtmlFile(httpClient, wd.serverBase, href)
 }
 
-func getHtmlFile(serverbase string, href string) (jq.JQuery, error) {
-	resp, err := http.Do(http.NewRequest("GET", path.Join(serverbase, href)))
+func getHtmlFile(httpClient *http.Client, serverbase string, href string) (string, error) {
+	resp, err := httpClient.GET(path.Join(serverbase, href))
 	if err != nil || resp.Failed() {
-		return gJQ(), fmt.Errorf(`Failed to load HTML file "%v"`, href)
+		return "", fmt.Errorf(`Failed to load HTML file "%v"`, href)
 	}
 
-	return gJQ(parseTemplate(resp.Data)), nil
+	return parseTemplate(resp.Data), nil
 }
 
 // htmlImport performs an HTML import
-func htmlImport(parent jq.JQuery, serverbase string) error {
-	for _, elem := range ToElemSlice(parent.Find("wimport")) {
-		src := elem.Attr("src")
+func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string) error {
+	imports := parent.Find("wimport").Elements()
+	if len(imports) == 0 {
+		return nil
+	}
+
+	queueChan := make(chan bool, len(imports))
+	finishChan := make(chan bool, 1)
+
+	for _, elem := range imports {
+		src, ok := elem.Attr("src")
+		if !ok {
+			return dom.ElementError(elem, `wimport element has no "src" attribute`)
+		}
+
 		var err error
-		html := make(chan jq.JQuery)
-		go func(elem jq.JQuery) {
-			var ne jq.JQuery
-			ne, err = getHtmlFile(serverbase, src)
+		go func(elem dom.Selection) {
+			var html string
+			html, err = getHtmlFile(httpClient, serverbase, src)
 			if err != nil {
 				return
 			}
-			html <- ne
-		}(elem)
-		ne := <-html
-		elem.ReplaceWith(ne)
 
-		err = htmlImport(ne, serverbase)
+			// the go html parser will refuse to work if the content is only text, so
+			// we put a wrapper here
+			ne := parent.NewFragment("<pendingimport>" + html + "</pendingimport>")
+			elem.ReplaceWith(ne)
+
+			err = htmlImport(httpClient, ne, serverbase)
+			if err != nil {
+				return
+			}
+
+			ne.Unwrap()
+
+			queueChan <- true
+			if len(queueChan) == len(imports) {
+				finishChan <- true
+			}
+		}(elem)
+
 		if err != nil {
+			finishChan <- true
 			return err
 		}
 	}
+	<-finishChan
 
 	return nil
 }
@@ -236,7 +283,5 @@ func (wd *wade) init() {
 
 // Start starts the real operation, meant to be called at the end of everything.
 func (wd *wade) start() {
-	gJQ(js.Global.Get("document")).Ready(func() {
-		wd.pm.prepare()
-	})
+	wd.pm.prepare()
 }

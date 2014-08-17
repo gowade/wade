@@ -43,7 +43,7 @@ type PageManager interface {
 	Redirecter
 	BasePath() string
 	CurrentPage() ThisPage
-	Url(string) string
+	Fullpath(string) string
 	PageUrl(page string, params ...interface{}) (string, error)
 	SetOutputContainer(elementId string)
 }
@@ -57,4 +57,10 @@ type Registration interface {
 	RegisterCustomTags(src string, models map[string]interface{})
 	RegisterController(displayScope string, controller PageControllerFunc)
 	ModuleInit(...NeedsInit)
+}
+
+type AppConfig struct {
+	StartPage  string
+	BasePath   string
+	ServerBase string
 }

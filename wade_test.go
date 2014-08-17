@@ -2,8 +2,12 @@ package wade
 
 import (
 	"testing"
+	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
+	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/libs/http"
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -86,9 +90,7 @@ func TestPageUrl(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if u != expected {
-		t.Fatalf("Expected %v, got %v", expected, u)
-	}
+	require.Equal(t, u, expected)
 
 	u, err = pm.PageUrl("test", 12, "abc")
 	if err == nil {
@@ -99,4 +101,43 @@ func TestPageUrl(t *testing.T) {
 	if err == nil {
 		t.Fatalf("It should have raised an error for having too many parameters.")
 	}
+}
+
+const (
+	Src = `<div>
+<wimport src="/a"></wimport>
+<wimport src="/b"></wimport>
+<div>
+	<wimport src="/c"></wimport>
+</div>
+</div>`
+
+	SrcA = `<wimport src="/d"></wimport>`
+	SrcB = `b`
+	SrcC = `c`
+	SrcD = `a`
+)
+
+func removeSpace(src string) string {
+	r := ""
+	for _, c := range src {
+		if !unicode.IsSpace(c) {
+			r += string(c)
+		}
+	}
+
+	return r
+}
+
+func TestHtmlImport(t *testing.T) {
+	mb := http.NewMockBackend(map[string]http.TestResponse{
+		"/a": http.FakeOK(SrcA),
+		"/b": http.FakeOK(SrcB),
+		"/c": http.FakeOK(SrcC),
+		"/d": http.FakeOK(SrcD),
+	})
+
+	root := goquery.GetDom().NewFragment(Src)
+	htmlImport(http.NewClient(mb), root, "/")
+	require.Equal(t, removeSpace(root.Html()), `ab<div>c</div>`)
 }

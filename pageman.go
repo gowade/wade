@@ -19,26 +19,34 @@ const (
 	GlobalDisplayScope = "__global__"
 )
 
-// PageManager is Page Manager
-type pageManager struct {
-	routes       []urlrouter.Record
-	router       urlrouter.URLRouter
-	currentPage  *page
-	startPageId  string
-	basePath     string
-	notFoundPage *page
-	container    jq.JQuery
-	tcontainer   jq.JQuery
+type (
+	History interface {
+		ReplaceState(title string, path string)
+		PushState(title string, path string)
+		CurrentPath() string
+	}
 
-	binding        *bind.Binding
-	tm             *custagMan
-	pc             *PageCtrl
-	displayScopes  map[string]displayScope
-	globalDs       *globalDisplayScope
-	formattedTitle string
-}
+	pageManager struct {
+		routes       []urlrouter.Record
+		router       urlrouter.URLRouter
+		currentPage  *page
+		startPageId  string
+		basePath     string
+		notFoundPage *page
+		container    jq.JQuery
+		tcontainer   jq.JQuery
 
-func newPageManager(startPage, basePath string,
+		binding        *bind.Binding
+		tm             *custagMan
+		pc             *PageCtrl
+		displayScopes  map[string]displayScope
+		globalDs       *globalDisplayScope
+		formattedTitle string
+		history        History
+	}
+)
+
+func newPageManager(history History, config AppConfig,
 	tcontainer jq.JQuery, binding *bind.Binding, tm *custagMan) *pageManager {
 
 	container := gJQ("<div class='wade-wrapper'></div>")
@@ -47,8 +55,8 @@ func newPageManager(startPage, basePath string,
 		routes:        make([]urlrouter.Record, 0),
 		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
-		basePath:      basePath,
-		startPageId:   startPage,
+		basePath:      config.BasePath,
+		startPageId:   config.StartPage,
 		notFoundPage:  nil,
 		container:     container,
 		tcontainer:    tcontainer,
@@ -56,6 +64,7 @@ func newPageManager(startPage, basePath string,
 		tm:            tm,
 		displayScopes: make(map[string]displayScope),
 		globalDs:      &globalDisplayScope{},
+		history:       history,
 	}
 
 	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
@@ -109,25 +118,17 @@ func (pm *pageManager) SetNotFoundPage(pageId string) {
 	pm.notFoundPage = pm.page(pageId)
 }
 
-// Url returns the full url for a path
-func (pm *pageManager) Url(path string) string {
+// Url returns the full path
+func (pm *pageManager) Fullpath(path string) string {
 	return pm.basePath + path
 }
 
-func documentUrl() string {
-	location := gHistory.Get("location")
-	if location.IsNull() || location.IsUndefined() {
-		location = js.Global.Get("document").Get("location")
-	}
-	return location.Get("pathname").Str()
-}
-
 func (pm *pageManager) setupPageOnLoad() {
-	path := pm.cutPath(documentUrl())
+	path := pm.cutPath(pm.history.CurrentPath())
 	if path == "/" {
 		startPage := pm.page(pm.startPageId)
 		path = startPage.path
-		gHistory.Call("replaceState", nil, startPage.title, pm.Url(path))
+		pm.history.ReplaceState(startPage.title, pm.Fullpath(path))
 	}
 	pm.updatePage(path, false)
 }
@@ -167,7 +168,7 @@ func (pm *pageManager) prepare() {
 	}
 
 	gJQ(js.Global.Get("window")).On("popstate", func() {
-		pm.updatePage(documentUrl(), false)
+		pm.updatePage(pm.history.CurrentPath(), false)
 	})
 
 	//Handle link events
@@ -222,7 +223,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	page := match.(*page)
 
 	if pushState {
-		gHistory.Call("pushState", nil, page.title, pm.Url(url))
+		pm.history.PushState(page.title, pm.Fullpath(url))
 	}
 
 	params := make(map[string]interface{})

@@ -9,7 +9,7 @@ import (
 type PageManager interface {
 	CurrentPageId() string
 	PageUrl(string, ...interface{}) (string, error)
-	Url(string) string
+	Fullpath(string) string
 }
 
 type UrlInfo struct {
@@ -23,7 +23,7 @@ func RegisterInternalHelpers(pm PageManager, b *Binding) {
 		if err != nil {
 			panic(fmt.Errorf(`url helper error: "%v", when getting url for page "%v"`, err.Error(), pageid))
 		}
-		return UrlInfo{url, pm.Url(url)}
+		return UrlInfo{url, pm.Fullpath(url)}
 	})
 
 	b.RegisterHelper("pageId", func() string {
