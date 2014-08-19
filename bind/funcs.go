@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
 )
@@ -14,10 +13,6 @@ func toString(value interface{}) string {
 		return ""
 	}
 	return fmt.Sprintf("%v", value)
-}
-
-func isValidExprChar(c rune) bool {
-	return c == '`' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 func jsGetType(obj js.Object) string {

@@ -215,7 +215,7 @@ func (tm *custagMan) registerTags(tagElems []dom.Selection, protoMap map[string]
 // GetCustomTag checks if the element's tag is of a registered custom tag
 func (tm *custagMan) GetCustomTag(elem dom.Selection) (ct bind.CustomTag, ok bool) {
 	if elem.Length() > 1 {
-		panic("You are getting a custom tag for multiple elements, it's likely an error.")
+		panic("You are getting a custom tag for multiple elements, it's surely an error.")
 	}
 	tagname, err := elem.TagName()
 	if err != nil {

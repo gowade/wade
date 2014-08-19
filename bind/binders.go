@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/phaikawl/wade/dom"
+	lb "github.com/phaikawl/wade/libs/binder"
 )
 
 const (
@@ -33,21 +34,24 @@ func defaultBinders() map[string]DomBinder {
 type ValueBinder struct{ *BaseBinder }
 
 // Update sets the element's value attribute to a new value
-func (b *ValueBinder) Update(d DomBind) {
+func (b *ValueBinder) Update(d DomBind) (err error) {
 	d.Elem.SetVal(toString(d.Value))
+	return
 }
 
 // Watch watches for javascript change event on the element
-func (b *ValueBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) {
+func (b *ValueBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) error {
 	tagname, _ := elem.TagName()
 	if tagname != "INPUT" {
 		println(tagname)
-		panic("Can only watch for changes on html input, textarea and select.")
+		return fmt.Errorf("Can only watch for changes on html input, textarea and select.")
 	}
 
 	elem.On("change", func(evt dom.Event) {
 		ufn(elem.Val())
 	})
+
+	return nil
 }
 func (b *ValueBinder) BindInstance() DomBinder { return b }
 
@@ -60,8 +64,9 @@ func (b *ValueBinder) BindInstance() DomBinder { return b }
 type HtmlBinder struct{ BaseBinder }
 
 // Update sets the element's html content to a new value
-func (b *HtmlBinder) Update(d DomBind) {
+func (b *HtmlBinder) Update(d DomBind) error {
 	d.Elem.SetHtml(toString(d.Value))
+	return nil
 }
 func (b *HtmlBinder) BindInstance() DomBinder { return b }
 
@@ -70,17 +75,21 @@ func (b *HtmlBinder) BindInstance() DomBinder { return b }
 // It takes 1 extra dash arg that is the name of the html attribute to be bound.
 //
 // Usage:
-//	bind-attr-thatAttribute="Expression"
+//	bind-attr-<attribute>="Expression"
 type AttrBinder struct{ BaseBinder }
 
-func (b *AttrBinder) Update(d DomBind) {
+func (b *AttrBinder) Update(d DomBind) error {
 	if len(d.Args) != 1 {
-		panic(fmt.Sprintf(`Incorrect number of args %v for html attribute binder.
-Usage: bind-attr-thatAttribute="Field".`, len(d.Args)))
+		return fmt.Errorf(`Incorrect number of args (%v)
+Correct Usage: bind-attr-<attribute>="Field".`, len(d.Args))
 	}
 	d.Elem.SetAttr(d.Args[0], toString(d.Value))
+
+	return nil
 }
 func (b *AttrBinder) BindInstance() DomBinder { return b }
+
+type EventHandler func()
 
 // EventBinder is a 1-way binder that binds a method of the model to an event
 // that occurs on the element.
@@ -88,31 +97,32 @@ func (b *AttrBinder) BindInstance() DomBinder { return b }
 // "change",...
 //
 // Usage:
-//	bind-on-thatEventName="HandlerMethod"
+//	bind-on-<eventName>="HandlerMethod"
 type EventBinder struct{ BaseBinder }
 
-func (b *EventBinder) Bind(d DomBind) {
+func (b *EventBinder) Bind(d DomBind) error {
 	fni := d.Value
 	if fni == nil {
-		d.Panic("Event must be bound to a function, not a nil. If you're trying to call a function on this event, please use a method that returns a func().")
+		return fmt.Errorf("Event must be bound to an EventHandler function, not a nil. If you're trying to call a function on this event, please use a method that is an EventHandler, or call a method that returns an EventHandler.")
 	}
-	fn, ok := fni.(func())
+	fn, ok := fni.(EventHandler)
 	if !ok {
-		panic(fmt.Sprintf("Wrong type %v for EventBinder's handler, must be of type func().",
-			reflect.TypeOf(fni).String()))
+		return fmt.Errorf("Wrong type %v for EventBinder's handler, must be of type EventHandler.",
+			reflect.TypeOf(fni).String())
 	}
+
 	if len(d.Args) > 1 {
-		panic("Too many dash arguments to event bind.")
+		return fmt.Errorf("Too many dash arguments to event bind.")
 	}
 
 	d.Elem.On(d.Args[0], func(evt dom.Event) {
 		evt.PreventDefault()
 		fn()
 	})
+
+	return nil
 }
 func (b *EventBinder) BindInstance() DomBinder { return b }
-
-type indexFunc func(i int, v reflect.Value) (interface{}, reflect.Value)
 
 // EachBinder is a 1-way binder that repeats an element according to a map
 // or slice. It outputs a key and a value bound to each item.
@@ -133,7 +143,7 @@ type EachBinder struct {
 	*BaseBinder
 	marker    dom.Selection
 	prototype dom.Selection
-	indexFn   indexFunc
+	indexFn   lb.IndexFunc
 	size      int
 }
 
@@ -141,35 +151,23 @@ func (b *EachBinder) BindInstance() DomBinder {
 	return new(EachBinder)
 }
 
-func getIndexFunc(value interface{}) indexFunc {
-	kind := reflect.TypeOf(value).Kind()
-	switch kind {
-	case reflect.Slice:
-		return func(i int, val reflect.Value) (interface{}, reflect.Value) {
-			return i, val.Index(i)
-		}
-	case reflect.Map:
-		return func(i int, val reflect.Value) (interface{}, reflect.Value) {
-			key := val.MapKeys()[i]
-			return key.String(), val.MapIndex(key)
-		}
-	default:
-		panic(fmt.Sprintf("Wrong kind %v of target for the each binder, must be a slice or map.", kind.String()))
-	}
-}
-
-func (b *EachBinder) Bind(d DomBind) {
+func (b *EachBinder) Bind(d DomBind) error {
 	d.Elem.RemoveAttr(BindPrefix + "each")
-	b.indexFn = getIndexFunc(d.Value)
+	b.indexFn = lb.GetIndexFunc(d.Value)
+	if b.indexFn == nil {
+		return fmt.Errorf("Wrong type of value for the EachBinder, it must be a slice or map.")
+	}
 	b.marker = d.Elem.NewFragment("<!-- wade each -->")
 	d.Elem.Before(b.marker)
 
 	b.prototype = d.Elem.Clone()
 	d.RemoveBinding(d.Elem)
 	d.Elem.Remove()
+
+	return nil
 }
 
-func (b *EachBinder) Update(d DomBind) {
+func (b *EachBinder) Update(d DomBind) (err error) {
 	val := reflect.ValueOf(d.Value)
 
 	for i := val.Len(); i < b.size; i++ {
@@ -188,9 +186,11 @@ func (b *EachBinder) Update(d DomBind) {
 		k, v := b.indexFn(i, val)
 		nx := b.prototype.Clone()
 		prev.Next().ReplaceWith(nx)
-		d.ProduceOutputs(nx, true, true, k, v.Interface())
+		err = d.ProduceOutputs(nx, true, true, k, v.Interface())
 		prev = nx
 	}
+
+	return
 }
 
 // PageBinder is used for <a> elements to set its href to the real page url
@@ -201,14 +201,16 @@ func (b *EachBinder) Update(d DomBind) {
 //	bind-page="url(`page-id`, arg1, arg2...)"
 type PageBinder struct{ BaseBinder }
 
-func (b *PageBinder) Update(d DomBind) {
+func (b *PageBinder) Update(d DomBind) error {
 	tagname, _ := d.Elem.TagName()
 	if tagname != "a" {
-		panic("bind-page can only be used for links (<a> elements).")
+		return fmt.Errorf("bind-page can only be used for links (<a> elements).")
 	}
 	uinf := d.Value.(UrlInfo)
 	d.Elem.SetAttr("href", uinf.fullUrl)
 	d.Elem.SetAttr(WadePageAttr, uinf.path)
+
+	return nil
 }
 func (b *PageBinder) BindInstance() DomBinder { return b }
 
@@ -221,11 +223,12 @@ type IfBinder struct {
 	placeholder dom.Selection
 }
 
-func (b *IfBinder) Bind(d DomBind) {
+func (b *IfBinder) Bind(d DomBind) (err error) {
 	b.placeholder = d.Elem.NewFragment("<!-- hidden elem -->")
+	return
 }
 
-func (b *IfBinder) Update(d DomBind) {
+func (b *IfBinder) Update(d DomBind) (err error) {
 	shown := d.Value.(bool)
 	if shown && !d.Elem.Exists() {
 		b.placeholder.ReplaceWith(d.Elem)
@@ -235,6 +238,8 @@ func (b *IfBinder) Update(d DomBind) {
 	if !shown && d.Elem.Exists() {
 		d.Elem.ReplaceWith(b.placeholder)
 	}
+
+	return
 }
 func (b *IfBinder) BindInstance() DomBinder { return new(IfBinder) }
 
@@ -246,8 +251,10 @@ type UnlessBinder struct {
 	*IfBinder
 }
 
-func (b *UnlessBinder) Update(d DomBind) {
+func (b *UnlessBinder) Update(d DomBind) (err error) {
 	d.Value = !(d.Value.(bool))
 	b.IfBinder.Update(d)
+
+	return
 }
 func (b *UnlessBinder) BindInstance() DomBinder { return &UnlessBinder{&IfBinder{}} }

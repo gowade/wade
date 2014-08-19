@@ -8,6 +8,10 @@ import (
 	"unicode"
 )
 
+const (
+	StrQuote = '\''
+)
+
 type TokenType int
 
 const (
@@ -31,6 +35,10 @@ type expr struct {
 	name string
 	typ  ExprType
 	args []*expr
+}
+
+func isValidExprChar(c rune) bool {
+	return c == '\'' || c == '.' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 // tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
@@ -61,7 +69,7 @@ func tokenize(spec string) (tokens []token, err error) {
 			case '(', ')', ',':
 				flush()
 				tokens = append(tokens, token{PuncToken, string(c)})
-			case '`':
+			case StrQuote:
 				strlitMode = true
 				tok += string(c)
 			default:
@@ -73,7 +81,7 @@ func tokenize(spec string) (tokens []token, err error) {
 				}
 			}
 		} else {
-			if c == '`' {
+			if c == StrQuote {
 				strlitMode = false
 			} else if !unicode.IsDigit(c) && !unicode.IsLetter(c) && !strings.ContainsRune(",(-_.)", c) {
 				err = fmt.Errorf("Use of characters other than numbers, " +
@@ -173,9 +181,9 @@ func parseExpr(expr string) (value interface{}, isLiteral bool, err error) {
 	floatMode := false
 	for i, c := range expr {
 		switch {
-		case c == '`':
+		case c == StrQuote:
 			if i == 0 { //string literal
-				if re[len(expr)-1] == '`' {
+				if re[len(expr)-1] == StrQuote {
 					value = string(re[1 : len(re)-1])
 					return
 				}

@@ -1,6 +1,7 @@
 package bind
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -17,16 +18,22 @@ func TestParser(t *testing.T) {
 	model.Data.Username = "Hai"
 	model.Data.Password = "Pk"
 	model.Test = "T"
-	b := NewBindEngine(nil)
-	b.RegisterHelper("addInt", func(a, b int) int {
-		return a + b
-	})
-	b.RegisterHelper("addFloat", func(a, b float32) float32 {
-		return a + b
-	})
-	b.RegisterHelper("fooAdd", func(str string) string {
-		return "foo" + str
-	})
+
+	helpers := map[string]interface{}{
+		"addInt": func(a, b int) int {
+			return a + b
+		},
+		"addFloat": func(a, b float32) float32 {
+			return a + b
+		},
+		"fooAdd": func(str string) string {
+			return "foo" + str
+		},
+	}
+
+	hst := helpersSymbolTable(helpers)
+	dhst := helpersSymbolTable(defaultHelpers())
+	bs := &bindScope{&scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
 	tests := map[string]interface{}{
 		"Test":                                                   "T",
 		"Data.Username":                                          "Hai",
@@ -35,11 +42,14 @@ func TestParser(t *testing.T) {
 		"concat(toUpper(Data.Username), toLower(Data.Password))": "HAIpk",
 		"addInt(1, 2)":       3,
 		"addFloat(1.0, 2.0)": float32(3),
-		"fooAdd(`bar-,`)":    "foobar-,",
+		"fooAdd('bar-,')":    "foobar-,",
 	}
 
-	for bs, result := range tests {
-		_, _, v := b.evaluateBindString(bs, model)
+	for bstr, result := range tests {
+		_, _, v, err := bs.evaluate(bstr)
+		if err != nil {
+			t.Fatal(err)
+		}
 		switch v.(type) {
 		case string, int, float32:
 			if v != result {
@@ -49,19 +59,19 @@ func TestParser(t *testing.T) {
 	}
 
 	errtests := []string{
-		"fooAdd(`bar)",
+		`fooAdd('bar)`,
 		`kdf*`,
 		`toUpper(Data.Username.)`,
 		`addInt(1a)`,
-		"addInt(```)",
-		"addInt(`*,`)",
+		`addInt(''')`,
+		`addInt('*,')`,
 	}
 	for _, et := range errtests {
-		_, _, _, err := b.evaluate(et, model)
+		_, _, _, err := bs.evaluate(et)
 		if err == nil {
 			t.Errorf("Expected an error, no error is returned.")
 		} else {
-			t.Logf("Log: got parse error: %s\n", err)
+			//t.Logf("Log: got parse error: %s\n", err)
 		}
 	}
 }

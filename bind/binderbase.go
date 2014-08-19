@@ -2,6 +2,7 @@ package bind
 
 import (
 	"fmt"
+
 	"github.com/phaikawl/wade/dom"
 )
 
@@ -12,15 +13,15 @@ type DomBinder interface {
 	// Update is called whenever the model's field changes, to perform
 	// dom updating, like setting the html content or setting
 	// an html attribute for the elem
-	Update(DomBind)
+	Update(DomBind) error
 
 	// Bind is similar to Update, but is called only once at the start, when
 	// the bind is being processed
-	Bind(DomBind)
+	Bind(DomBind) error
 
 	// Watch is used in 2-way binders, it watches the html element for changes
 	// and updates the model field accordingly
-	Watch(elem dom.Selection, updateFn ModelUpdateFn)
+	Watch(elem dom.Selection, updateFn ModelUpdateFn) error
 
 	// BindInstance is useful for binders that need to save some data for each
 	// separate element. This method returns an instance of the binder to be used.
@@ -48,7 +49,7 @@ func (d DomBind) RemoveBinding(elem dom.Selection) {
 	preventAllBinding(elem)
 }
 
-func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, outputs ...interface{}) {
+func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, outputs ...interface{}) error {
 	m := make(map[string]interface{})
 	if len(outputs) == len(d.outputs) {
 		for i, output := range d.outputs {
@@ -58,21 +59,24 @@ func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, ou
 		d.bind(elem, m, once, true)
 	} else {
 		if !optional || len(outputs) != 0 {
-			panic(fmt.Errorf("Wrong output specification for `%v`: there must be %v outputs instead of %v.",
-				d.metadata, len(d.outputs), len(outputs)))
+			return fmt.Errorf("Wrong output specification for `%v`: there must be %v outputs instead of %v.",
+				d.metadata, len(d.outputs), len(outputs))
 		}
 	}
-}
 
-func (d DomBind) Panic(msg string) {
-	panic(d.metadata + ": " + msg)
+	return nil
 }
 
 // BaseBinder provides the base so that binders will not have to provide empty
 // implement for the methods
 type BaseBinder struct{}
 
-func (b *BaseBinder) Bind(d DomBind) {
+func (b *BaseBinder) Bind(d DomBind) error {
+	return nil
 }
-func (b *BaseBinder) Update(d DomBind)                            {}
-func (b *BaseBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) {}
+func (b *BaseBinder) Update(d DomBind) error {
+	return nil
+}
+func (b *BaseBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) error {
+	return nil
+}
