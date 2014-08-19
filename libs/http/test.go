@@ -1,6 +1,8 @@
 package http
 
 import (
+	"fmt"
+
 	urlrouter "github.com/naoina/kocha-urlrouter"
 )
 
@@ -47,6 +49,9 @@ func NewMockBackend(handlers map[string]TestResponse) *MockBackend {
 
 func (mb *MockBackend) Do(r *Request) error {
 	match, _ := mb.Router.Lookup(r.Url)
+	if match == nil {
+		return fmt.Errorf("No such route found.")
+	}
 	tr := match.(TestResponse)
 	r.Response = &Response{
 		Data:       tr.Data,

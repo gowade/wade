@@ -112,6 +112,9 @@ const (
 </div>
 </div>`
 
+	FailSrc = `<div><wimport src="/kdkfk"></wimport></div>`
+	NoSrc   = `<div><wimport></wimport></div>`
+
 	SrcA = `<wimport src="/d"></wimport>`
 	SrcB = `b`
 	SrcC = `c`
@@ -137,7 +140,18 @@ func TestHtmlImport(t *testing.T) {
 		"/d": http.FakeOK(SrcD),
 	})
 
+	client := http.NewClient(mb)
+
 	root := goquery.GetDom().NewFragment(Src)
-	htmlImport(http.NewClient(mb), root, "/")
+	err := htmlImport(client, root, "/")
+	require.Equal(t, err, nil)
 	require.Equal(t, removeSpace(root.Html()), `ab<div>c</div>`)
+
+	root = root.NewFragment(FailSrc)
+	err = htmlImport(client, root, "/")
+	require.NotEqual(t, err, nil)
+
+	root = root.NewFragment(NoSrc)
+	err = htmlImport(client, root, "/")
+	require.NotEqual(t, err, nil)
 }

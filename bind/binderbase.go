@@ -2,8 +2,7 @@ package bind
 
 import (
 	"fmt"
-
-	jq "github.com/gopherjs/jquery"
+	"github.com/phaikawl/wade/dom"
 )
 
 type ModelUpdateFn func(value string)
@@ -21,7 +20,7 @@ type DomBinder interface {
 
 	// Watch is used in 2-way binders, it watches the html element for changes
 	// and updates the model field accordingly
-	Watch(elem jq.JQuery, updateFn ModelUpdateFn)
+	Watch(elem dom.Selection, updateFn ModelUpdateFn)
 
 	// BindInstance is useful for binders that need to save some data for each
 	// separate element. This method returns an instance of the binder to be used.
@@ -29,7 +28,7 @@ type DomBinder interface {
 }
 
 type DomBind struct {
-	Elem    jq.JQuery
+	Elem    dom.Selection
 	Value   interface{}
 	Args    []string
 	outputs []string
@@ -39,17 +38,17 @@ type DomBind struct {
 	metadata string
 }
 
-func (d DomBind) bind(elem jq.JQuery, model interface{}, once bool, bindrelem bool) {
+func (d DomBind) bind(elem dom.Selection, model interface{}, once bool, bindrelem bool) {
 	s := newModelScope(model)
 	s.merge(d.scope)
 	d.binding.bindWithScope(elem, once, bindrelem, s, nil)
 }
 
-func (d DomBind) RemoveBinding(elem jq.JQuery) {
+func (d DomBind) RemoveBinding(elem dom.Selection) {
 	preventAllBinding(elem)
 }
 
-func (d DomBind) ProduceOutputs(elem jq.JQuery, optional bool, once bool, outputs ...interface{}) {
+func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, outputs ...interface{}) {
 	m := make(map[string]interface{})
 	if len(outputs) == len(d.outputs) {
 		for i, output := range d.outputs {
@@ -75,5 +74,5 @@ type BaseBinder struct{}
 
 func (b *BaseBinder) Bind(d DomBind) {
 }
-func (b *BaseBinder) Update(d DomBind)                        {}
-func (b *BaseBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {}
+func (b *BaseBinder) Update(d DomBind)                            {}
+func (b *BaseBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) {}

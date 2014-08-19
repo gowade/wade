@@ -24,3 +24,7 @@ func (h History) CurrentPath() string {
 
 	return location.Get("pathname").Str()
 }
+
+func (h History) OnPopState(fn func()) {
+	gJQ(js.Global.Get("window")).On("popstate", fn)
+}

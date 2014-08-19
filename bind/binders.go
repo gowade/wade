@@ -3,9 +3,8 @@ package bind
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
-	jq "github.com/gopherjs/jquery"
+	"github.com/phaikawl/wade/dom"
 )
 
 const (
@@ -39,14 +38,14 @@ func (b *ValueBinder) Update(d DomBind) {
 }
 
 // Watch watches for javascript change event on the element
-func (b *ValueBinder) Watch(elem jq.JQuery, ufn ModelUpdateFn) {
-	tagname := strings.ToUpper(elem.Prop("tagName").(string))
+func (b *ValueBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) {
+	tagname, _ := elem.TagName()
 	if tagname != "INPUT" {
 		println(tagname)
 		panic("Can only watch for changes on html input, textarea and select.")
 	}
 
-	elem.On(jq.CHANGE, func(evt jq.Event) {
+	elem.On("change", func(evt dom.Event) {
 		ufn(elem.Val())
 	})
 }
@@ -105,7 +104,8 @@ func (b *EventBinder) Bind(d DomBind) {
 	if len(d.Args) > 1 {
 		panic("Too many dash arguments to event bind.")
 	}
-	d.Elem.On(d.Args[0], func(evt jq.Event) {
+
+	d.Elem.On(d.Args[0], func(evt dom.Event) {
 		evt.PreventDefault()
 		fn()
 	})
@@ -131,8 +131,8 @@ type indexFunc func(i int, v reflect.Value) (interface{}, reflect.Value)
 //	</div>
 type EachBinder struct {
 	*BaseBinder
-	marker    jq.JQuery
-	prototype jq.JQuery
+	marker    dom.Selection
+	prototype dom.Selection
 	indexFn   indexFunc
 	size      int
 }
@@ -161,7 +161,9 @@ func getIndexFunc(value interface{}) indexFunc {
 func (b *EachBinder) Bind(d DomBind) {
 	d.Elem.RemoveAttr(BindPrefix + "each")
 	b.indexFn = getIndexFunc(d.Value)
-	b.marker = gJQ("<!-- wade each -->").InsertBefore(d.Elem).First()
+	b.marker = d.Elem.NewFragment("<!-- wade each -->")
+	d.Elem.Before(b.marker)
+
 	b.prototype = d.Elem.Clone()
 	d.RemoveBinding(d.Elem)
 	d.Elem.Remove()
@@ -200,7 +202,8 @@ func (b *EachBinder) Update(d DomBind) {
 type PageBinder struct{ BaseBinder }
 
 func (b *PageBinder) Update(d DomBind) {
-	if strings.ToLower(d.Elem.Prop("tagName").(string)) != "a" {
+	tagname, _ := d.Elem.TagName()
+	if tagname != "a" {
 		panic("bind-page can only be used for links (<a> elements).")
 	}
 	uinf := d.Value.(UrlInfo)
@@ -215,21 +218,21 @@ func (b *PageBinder) BindInstance() DomBinder { return b }
 //	bind-if="BooleanExpression"
 type IfBinder struct {
 	*BaseBinder
-	placeholder jq.JQuery
+	placeholder dom.Selection
 }
 
 func (b *IfBinder) Bind(d DomBind) {
-	b.placeholder = gJQ("<!-- hidden elem -->")
+	b.placeholder = d.Elem.NewFragment("<!-- hidden elem -->")
 }
 
 func (b *IfBinder) Update(d DomBind) {
 	shown := d.Value.(bool)
-	if shown && !jqExists(d.Elem) {
+	if shown && !d.Elem.Exists() {
 		b.placeholder.ReplaceWith(d.Elem)
 		return
 	}
 
-	if !shown && jqExists(d.Elem) {
+	if !shown && d.Elem.Exists() {
 		d.Elem.ReplaceWith(b.placeholder)
 	}
 }

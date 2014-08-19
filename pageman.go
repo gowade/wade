@@ -6,10 +6,11 @@ import (
 	"unicode"
 
 	"github.com/gopherjs/gopherjs/js"
-	jq "github.com/gopherjs/jquery"
 	urlrouter "github.com/naoina/kocha-urlrouter"
 	_ "github.com/naoina/kocha-urlrouter/regexp"
 	"github.com/phaikawl/wade/bind"
+	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/icommon"
 )
 
 const (
@@ -23,18 +24,20 @@ type (
 	History interface {
 		ReplaceState(title string, path string)
 		PushState(title string, path string)
+		OnPopState(fn func())
 		CurrentPath() string
 	}
 
 	pageManager struct {
+		document     dom.Selection
 		routes       []urlrouter.Record
 		router       urlrouter.URLRouter
 		currentPage  *page
 		startPageId  string
 		basePath     string
 		notFoundPage *page
-		container    jq.JQuery
-		tcontainer   jq.JQuery
+		container    dom.Selection
+		tcontainer   dom.Selection
 
 		binding        *bind.Binding
 		tm             *custagMan
@@ -46,12 +49,20 @@ type (
 	}
 )
 
-func newPageManager(history History, config AppConfig,
-	tcontainer jq.JQuery, binding *bind.Binding, tm *custagMan) *pageManager {
+func newPageManager(history History, config AppConfig, document dom.Selection,
+	container dom.Selection, tcontainer dom.Selection, binding *bind.Binding,
+	tm *custagMan) *pageManager {
 
-	container := gJQ("<div class='wade-wrapper'></div>")
-	container.AppendTo(gJQ("body"))
+	if container == nil {
+		container = document.Find("body").First()
+	}
+
+	if container.Length() == 0 {
+		panic("App container doesn't exist.")
+	}
+
 	pm := &pageManager{
+		document:      document,
 		routes:        make([]urlrouter.Record, 0),
 		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
@@ -69,17 +80,6 @@ func newPageManager(history History, config AppConfig,
 
 	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
 	return pm
-}
-
-// Set the target element that receives Wade's real HTML output,
-// by default the container is <body>
-func (pm *pageManager) SetOutputContainer(elementId string) {
-	parent := gJQ("#" + elementId)
-	if parent.Length == 0 {
-		panic(fmt.Sprintf("No such element #%v.", elementId))
-	}
-
-	parent.Append(pm.container)
 }
 
 func (pm *pageManager) addRoute(p *page) {
@@ -150,8 +150,9 @@ func (pm *pageManager) prepare() {
 	pm.router.Build(pm.routes)
 
 	// preprocess wsection elements
-	pm.tcontainer.Find("wsection").Each(func(_ int, e jq.JQuery) {
-		name := strings.TrimSpace(e.Attr("name"))
+	for _, e := range pm.tcontainer.Find("wsection").Elements() {
+		na, _ := e.Attr("name")
+		name := strings.TrimSpace(na)
 		if name == "" {
 			panic(`Error: a <wsection> doesn't have or have empty name`)
 		}
@@ -161,22 +162,16 @@ func (pm *pageManager) prepare() {
 			}
 		}
 		e.SetAttr("id", WadeReservedPrefix+name)
-	})
-
-	if pm.container.Length == 0 {
-		panic(fmt.Sprintf("Cannot find the page container #%v.", pm.container))
 	}
 
-	gJQ(js.Global.Get("window")).On("popstate", func() {
+	pm.history.OnPopState(func() {
 		pm.updatePage(pm.history.CurrentPath(), false)
 	})
 
 	//Handle link events
-	pm.container.On(jq.CLICK, "a", func(e jq.Event) {
-		a := gJQ(e.Target)
-
-		pagepath := a.Attr(bind.WadePageAttr)
-		if pagepath == "" { //not a wade page link, let the browser do its job
+	pm.container.Listen("click", "a", func(e dom.Event) {
+		pagepath, ok := e.Target().Attr(bind.WadePageAttr)
+		if !ok { //not a wade page link, let the browser do its job
 			return
 		}
 
@@ -188,10 +183,10 @@ func (pm *pageManager) prepare() {
 	pm.setupPageOnLoad()
 }
 
-func walk(elem jq.JQuery, pm *pageManager) {
-	elem.Children("").Each(func(_ int, e jq.JQuery) {
-		belong := e.Attr("w-belong")
-		if belong == "" {
+func walk(elem dom.Selection, pm *pageManager) {
+	for _, e := range elem.Children().Elements() {
+		belong, ok := e.Attr("w-belong")
+		if !ok {
 			walk(e, pm)
 		} else {
 			if ds, ok := pm.displayScopes[belong]; ok {
@@ -204,7 +199,7 @@ func walk(elem jq.JQuery, pm *pageManager) {
 				panic(fmt.Sprintf(`Invalid value "%v" for w-belong, no such page or page group is registered.`, belong))
 			}
 		}
-	})
+	}
 }
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
@@ -239,29 +234,38 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		walk(pcontents, pm)
 		pm.container.SetHtml(pcontents.Html())
 
-		pm.container.Find("wrep").Each(func(_ int, e jq.JQuery) {
-			e.Remove()
-			pm.container.Find("#" + WadeReservedPrefix + e.Attr("target")).
-				SetHtml(e.Html())
-		})
+		for _, wrep := range pm.container.Find("wrep").Elements() {
+			wrep.Remove()
+			target, ok := wrep.Attr("target")
+			if !ok {
+				dom.ElementError(wrep, "No target specified for the wrep.")
+			}
+			pm.container.Find("#" + WadeReservedPrefix + target).
+				SetHtml(wrep.Html())
+		}
 
-		pm.container.Find("wsection").Each(func(_ int, e jq.JQuery) {
-			e.Children("").First().Unwrap()
-		})
+		for _, e := range pm.container.Find("wsection").Elements() {
+			e.Unwrap()
+		}
 
 		go func() {
 			pm.bind(params)
-			wrapperElemsUnwrap(pm.container)
+			icommon.WrapperUnwrap(pm.container)
 			pm.container.Show()
 		}()
 
-		tElem := gJQ("<title>").SetHtml(pm.formattedTitle)
-		oElem := gJQ("head").Find("title")
-		if oElem.Length == 0 {
-			gJQ("head").Append(tElem)
-		} else {
-			oElem.ReplaceWith(tElem)
-		}
+		pm.setTitle(pm.formattedTitle)
+	}
+}
+
+func (pm *pageManager) setTitle(title string) {
+	tElem := pm.document.NewFragment("<title>" + title + "</title>")
+	head := pm.document.Find("head").First()
+	oElem := head.Find("title")
+	if oElem.Length() == 0 {
+		head.Append(tElem)
+	} else {
+		oElem.ReplaceWith(tElem)
 	}
 }
 

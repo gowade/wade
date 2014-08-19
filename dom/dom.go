@@ -16,14 +16,28 @@ type (
 		NewRootFragment(html string) Selection
 	}
 
+	Event interface {
+		Target() Selection
+		PreventDefault()
+	}
+
+	EventHandler func(Event)
+
+	Attr struct {
+		Name  string
+		Value string
+	}
+
 	Selection interface {
 		TagName() (string, error)
+		Filter(selector string) Selection
 		Children() Selection
 		Contents() Selection
 		First() Selection
 		IsElement() bool
 		Find(selector string) Selection
 		Html() string
+		SetHtml(html string)
 		Length() int
 		Elements() []Selection
 		Append(Selection)
@@ -32,10 +46,28 @@ type (
 		ReplaceWith(Selection)
 		OuterHtml() string
 		Attr(attr string) (string, bool)
+		SetAttr(attr string, value string)
+		RemoveAttr(attr string)
+		Val() string
+		SetVal(val string)
 		Parents() Selection
 		Is(selector string) bool
 		Unwrap()
 		Parent() Selection
+		Next() Selection
+		Prev() Selection
+		Before(sel Selection)
+		After(sel Selection)
+		Exists() bool
+		Attrs() []Attr
+		On(Event string, handler EventHandler)
+		Listen(event string, selector string, handler EventHandler)
+		Hide()
+		Show()
+		AddClass(class string)
+		RemoveClass(class string)
+		HasClass(class string) bool
+		Text() string
 		Dom
 	}
 )

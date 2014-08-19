@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	wd "github.com/phaikawl/wade"
+	"github.com/phaikawl/wade"
 )
 
 type SwitchMenu struct {
@@ -12,26 +12,26 @@ type SwitchMenu struct {
 	ActiveClass string
 }
 
-func (sm *SwitchMenu) Init(ce *wd.CustomElem) error {
+func (sm *SwitchMenu) Init(ce wade.CustomElem) error {
 	if sm.Current == "" {
 		return fmt.Errorf(`"Current" attribute must be set.`)
 	}
 
-	cl := ce.Contents.Children("")
-	if cl.Length != 1 || !cl.First().Is("ul") {
+	cl := ce.Contents.Children()
+	if cl.Length() != 1 || !cl.First().Is("ul") {
 		return fmt.Errorf("switchmenu's contents must have exactly 1 child which is an <ul> element.")
 	}
 
-	for _, item := range wd.ToElemSlice(cl.First().Children("")) {
-		if wd.IsWrapperElem(item) {
-			item = item.Children("li").First()
+	for _, item := range cl.First().Children().Elements() {
+		if wade.IsWrapperElem(item) {
+			item = item.Children().Filter("li").First()
 		}
 
 		if !item.Is("li") {
 			return fmt.Errorf(`Direct children of the <ul> must be <li>.`)
 		}
 
-		if casestr := item.Attr("case"); casestr != "" {
+		if casestr, ok := item.Attr("case"); ok {
 			cases := strings.Split(casestr, " ")
 			accepted := false
 			for _, id := range cases {

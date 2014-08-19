@@ -1,6 +1,7 @@
 package wade
 
 import (
+	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 	"github.com/phaikawl/wade/libs/pdata"
 )
@@ -45,7 +46,6 @@ type PageManager interface {
 	CurrentPage() ThisPage
 	Fullpath(string) string
 	PageUrl(page string, params ...interface{}) (string, error)
-	SetOutputContainer(elementId string)
 }
 
 type NeedsInit interface {
@@ -54,7 +54,7 @@ type NeedsInit interface {
 
 type Registration interface {
 	RegisterDisplayScopes(map[string]DisplayScope)
-	RegisterCustomTags(src string, models map[string]interface{})
+	RegisterCustomTags(src string, models map[string]CustomElemProto)
 	RegisterController(displayScope string, controller PageControllerFunc)
 	ModuleInit(...NeedsInit)
 }
@@ -63,4 +63,5 @@ type AppConfig struct {
 	StartPage  string
 	BasePath   string
 	ServerBase string
+	Container  dom.Selection
 }

@@ -6,9 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	jq "github.com/gopherjs/jquery"
-
 	"github.com/phaikawl/wade/bind"
+	"github.com/phaikawl/wade/dom"
 )
 
 const (
@@ -24,48 +23,88 @@ var (
 	}
 )
 
-type CustomTag struct {
-	name        string
-	elem        jq.JQuery
-	prototype   interface{}
-	publicAttrs []string
+type (
+	CustomTag struct {
+		name        string
+		template    dom.Selection
+		prototype   CustomElemProto
+		publicAttrs []string
+	}
+
+	custagMan struct {
+		custags map[string]*CustomTag
+	}
+
+	CustomElem struct {
+		Dom      dom.Dom
+		Template dom.Selection
+		Contents dom.Selection
+	}
+
+	NoInit struct{}
+
+	Empty struct{}
+
+	CustomElemProto interface {
+		Init(CustomElem) error
+	}
+)
+
+func (ni NoInit) Init(ce CustomElem) error { return nil }
+
+func dePtr(proto CustomElemProto) reflect.Type {
+	if proto == nil {
+		return reflect.TypeOf(Empty{})
+	}
+
+	p := reflect.TypeOf(proto)
+	if p.Kind() == reflect.Ptr {
+		return p.Elem()
+	}
+
+	return p
 }
 
-func (tag *CustomTag) prepareAttributes(prototype reflect.Type) {
-	tagElem := tag.elem
+func (tag *CustomTag) prepareAttributes(prototype reflect.Type) error {
 	publicAttrs := make([]string, 0)
-	if attrs := tagElem.Attr("attributes"); attrs != "" {
-		publicAttrs = strings.Split(attrs, " ")
+	if attrs, ok := tag.template.Attr("attributes"); ok {
+		publicAttrs = strings.Split(strings.TrimSpace(attrs), " ")
 		for _, attr := range publicAttrs {
 			attr = strings.TrimSpace(attr)
+			if attr == "" {
+				continue
+			}
 			if isForbiddenAttr(attr) {
-				panic(fmt.Sprintf(`Unable to register custom tag "%v", use of `+
+				return fmt.Errorf(`Unable to register custom tag "%v", use of `+
 					`"%v" as a public attribute is forbidden because it conflicts `+
-					`with HTML's %v attribute.`, tag.name, attr, strings.ToLower(attr)))
+					`with HTML's %v attribute.`, tag.name, attr, strings.ToLower(attr))
 			}
 			if _, ok := prototype.FieldByName(attr); !ok {
-				panic(fmt.Sprintf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tag.name))
+				return fmt.Errorf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tag.name)
 			}
 		}
 	}
 
 	tag.publicAttrs = publicAttrs
+	return nil
 }
 
-func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}, contentBindFn func(jq.JQuery)) error {
+func (t *CustomTag) PrepareTagContents(elem dom.Selection, model interface{}, contentBindFn func(dom.Selection)) error {
 	contentElem := elem.Clone()
-	elem.SetHtml(t.elem.Html())
-	ce := &CustomElem{elem, contentElem}
-	if im, ok := model.(CustomElemInit); ok {
-		err := im.Init(ce)
+	elem.SetHtml(t.template.Html())
+	ce := CustomElem{
+		Dom:      elem,
+		Template: elem,
+		Contents: contentElem,
+	}
+	err := model.(CustomElemProto).Init(ce)
 
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 
 	contents := ce.Contents.Contents()
-	if contents.Length > 0 {
+	if contents.Length() > 0 {
 		elem.Find("wcontents").ReplaceWith(contents)
 		contentBindFn(contents)
 	} else {
@@ -74,16 +113,20 @@ func (t *CustomTag) PrepareTagContents(elem jq.JQuery, model interface{}, conten
 	return nil
 }
 
-func (t *CustomTag) NewModel(elem jq.JQuery) interface{} {
+func (t *CustomTag) NewModel(elem dom.Selection) interface{} {
 	if t.publicAttrs == nil {
-		panic("Something is wrong, publicAttrs unset.")
+		panic(fmt.Errorf("Something is wrong for %v, publicAttrs is not set.", t.name))
 	}
 
-	prototype := reflect.TypeOf(t.prototype)
+	if t.prototype == nil {
+		return nil
+	}
+
+	prototype := dePtr(t.prototype)
 	cptr := reflect.New(prototype)
 	clone := cptr.Elem()
 	for _, attr := range t.publicAttrs {
-		if val := elem.Attr(attr); val != "" {
+		if val, ok := elem.Attr(attr); ok {
 			field := clone.FieldByName(attr)
 			var err error = nil
 			var v interface{}
@@ -121,25 +164,10 @@ consider using attribute binding instead.`, kind, attr, t.name)
 	return cptr.Interface()
 }
 
-type custagMan struct {
-	custags    map[string]*CustomTag
-	tcontainer jq.JQuery
-}
-
-func newCustagMan(tcontainer jq.JQuery) *custagMan {
+func newCustagMan() *custagMan {
 	return &custagMan{
-		custags:    make(map[string]*CustomTag),
-		tcontainer: tcontainer,
+		custags: make(map[string]*CustomTag),
 	}
-}
-
-type CustomElem struct {
-	Elem     jq.JQuery
-	Contents jq.JQuery
-}
-
-type CustomElemInit interface {
-	Init(*CustomElem) error
 }
 
 func isForbiddenAttr(attr string) bool {
@@ -152,36 +180,47 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *custagMan) registerTags(tagElems []jq.JQuery, protoMap map[string]interface{}) error {
+func (tm *custagMan) registerTags(tagElems []dom.Selection, protoMap map[string]CustomElemProto) (ret error) {
 	for _, elem := range tagElems {
-		tagname := elem.Attr("tagname")
-		if tagname == "" {
-			return fmt.Errorf("No tag name specified for the element with content:\n `%v`", elem.Get(0).Get("outerHTML").Str())
+		tagname, ok := elem.Attr("tagname")
+		if !ok {
+			return fmt.Errorf(`No tag name specified (tagname="") for the element to register tag %v.`, tagname)
 		}
 
-		if prototype, ok := protoMap[tagname]; ok {
+		prototype, _ := protoMap[tagname]
+		if prototype != nil {
 			p := reflect.ValueOf(prototype)
+
 			if p.Kind() == reflect.Ptr {
 				p = p.Elem()
 			}
 
 			if p.Kind() != reflect.Struct {
-				return fmt.Errorf(`Custom tag prototype for "%v", type "%v" is not a struct or pointer to struct.`, tagname, p.Type().String())
+				return fmt.Errorf(`Custom tag prototype for "%v" has type "%v", it must be a struct or pointer to struct instead.`, tagname, p.Type().String())
 			}
-
-			custag := &CustomTag{tagname, elem, p.Interface(), nil}
-			custag.prepareAttributes(p.Type())
-			tm.custags[strings.ToUpper(tagname)] = custag
-		} else {
-			return fmt.Errorf(`No prototype is specified for the custom element tag "%v", there must be one.`, tagname)
 		}
+
+		custag := &CustomTag{tagname, elem, prototype, nil}
+		err := custag.prepareAttributes(dePtr(prototype))
+		if err != nil {
+			ret = err
+			continue
+		}
+		tm.custags[strings.ToLower(tagname)] = custag
 	}
 
-	return nil
+	return ret
 }
 
 // GetCustomTag checks if the element's tag is of a registered custom tag
-func (tm *custagMan) GetCustomTag(elem jq.JQuery) (ct bind.CustomTag, ok bool) {
-	ct, ok = tm.custags[strings.ToUpper(elem.Prop("tagName").(string))]
+func (tm *custagMan) GetCustomTag(elem dom.Selection) (ct bind.CustomTag, ok bool) {
+	if elem.Length() > 1 {
+		panic("You are getting a custom tag for multiple elements, it's likely an error.")
+	}
+	tagname, err := elem.TagName()
+	if err != nil {
+		return nil, false
+	}
+	ct, ok = tm.custags[tagname]
 	return
 }

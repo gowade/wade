@@ -5,12 +5,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/gopherjs/gopherjs/js"
-	jq "github.com/gopherjs/jquery"
-)
-
-var (
-	gJQ = jq.NewJQuery
+	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/icommon"
 )
 
 const (
@@ -18,175 +14,59 @@ const (
 	ReservedBindPrefix = "wade-rsvd"
 )
 
-func toString(value interface{}) string {
-	if value == nil {
-		return ""
-	}
-	return fmt.Sprintf("%v", value)
-}
-
-type CustomElemManager interface {
-	GetCustomTag(jq.JQuery) (CustomTag, bool)
-}
-
-type CustomTag interface {
-	NewModel(jq.JQuery) interface{}
-	PrepareTagContents(jq.JQuery, interface{}, func(jq.JQuery)) error
-}
-
-type scopeSymbol interface {
-	value() (reflect.Value, error)
-	call([]reflect.Value) (reflect.Value, error)
-}
-
-type symbolTable interface {
-	lookup(symbol string) (scopeSymbol, bool)
-}
-
-type scope struct {
-	symTables []symbolTable
-}
-
-func newScope() *scope {
-	return &scope{make([]symbolTable, 0)}
-}
-
-func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
-	for _, st := range s.symTables {
-		var ok bool
-		sym, ok = st.lookup(symbol)
-		if ok {
-			return
-		}
+type (
+	CustomElemManager interface {
+		GetCustomTag(dom.Selection) (CustomTag, bool)
 	}
 
-	err = fmt.Errorf(`Unable to find symbol "%v" in the scope`, symbol)
-	return
-}
-
-func (s *scope) merge(target *scope) {
-	for _, st := range target.symTables {
-		s.symTables = append(s.symTables, st)
-	}
-}
-
-type mapSymbolTable struct {
-	m map[string]scopeSymbol
-}
-
-func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
-	sym, ok = st.m[symbol]
-	return
-}
-
-func (st mapSymbolTable) registerFunc(name string, fn interface{}) {
-	st.m[name] = newFuncSymbol(name, fn)
-}
-
-type funcSymbol struct {
-	name string
-	fn   reflect.Value
-}
-
-func newFuncSymbol(name string, fn interface{}) funcSymbol {
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func {
-		panic(fmt.Sprintf(`Can't create funcSymbol "%v" from a non-function.`, name))
+	CustomTag interface {
+		NewModel(dom.Selection) interface{}
+		PrepareTagContents(dom.Selection, interface{}, func(dom.Selection)) error
 	}
 
-	if fnType.NumOut() > 1 {
-		panic(fmt.Sprintf(`"%v": funcSymbol cannot have more than 1 return value.`, name))
+	DomAttr struct {
+		dom.Attr
+		bs *bindScope
 	}
 
-	return funcSymbol{name, reflect.ValueOf(fn)}
-}
-
-func (fs funcSymbol) value() (reflect.Value, error) {
-	return fs.fn, nil
-}
-
-func (fs funcSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
-	v, err = callFunc(fs.fn, args)
-	if err != nil {
-		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
-	}
-	return
-}
-
-func helpersSymbolTable(helpers map[string]interface{}) mapSymbolTable {
-	m := make(map[string]scopeSymbol)
-	for name, helper := range helpers {
-		m[name] = newFuncSymbol(name, helper)
+	AdditionalBinds struct {
+		binds map[string]string
+		bs    *bindScope
 	}
 
-	return mapSymbolTable{m}
-}
-
-type modelSymbolTable struct {
-	model reflect.Value
-}
-
-type modelFieldSymbol struct {
-	name string
-	eval *objEval
-}
-
-func (mf modelFieldSymbol) bindObj() *objEval {
-	return mf.eval
-}
-
-func (mf modelFieldSymbol) value() (v reflect.Value, err error) {
-	return mf.eval.fieldRefl, nil
-}
-
-func (mf modelFieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
-	if mf.eval.fieldRefl.Kind() != reflect.Func {
-		err = fmt.Errorf(`Cannot call "%v", it's not a method.`, mf.name)
-		return
+	jsWatcher interface {
+		Watch(modelRefl reflect.Value, field string, callback func())
 	}
 
-	v, err = callFunc(mf.eval.fieldRefl, args)
-	if err != nil {
-		err = fmt.Errorf(`"%v": %v`, mf.name, err.Error())
-	}
-	return
-}
+	Binding struct {
+		tm         CustomElemManager
+		domBinders map[string]DomBinder
+		helpers    mapSymbolTable
 
-func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
-	if st.model.Kind() == reflect.Ptr && st.model.IsNil() {
-		ok = false
-		return
+		watcher   jsWatcher
+		scope     *scope
+		pageModel interface{}
 	}
 
-	var eval *objEval
-	eval, ok = evaluateObjField(symbol, st.model)
-	if ok {
-		sym = modelFieldSymbol{symbol, eval}
+	objEval struct {
+		fieldRefl reflect.Value
+		modelRefl reflect.Value
+		field     string
 	}
 
-	return
-}
-
-func newModelScope(model interface{}) *scope {
-	stl := []symbolTable{}
-	if model != nil {
-		stl = append(stl, modelSymbolTable{reflect.ValueOf(model)})
+	bindable interface {
+		bindObj() *objEval
 	}
-	return &scope{stl}
-}
 
-type Binding struct {
-	tm         CustomElemManager
-	domBinders map[string]DomBinder
-	helpers    mapSymbolTable
+	bindScope struct {
+		scope *scope
+	}
+)
 
-	scope     *scope
-	pageModel interface{}
-}
-
-func NewBindEngine(tm CustomElemManager) *Binding {
+func NewBindEngine(tm CustomElemManager, watcher jsWatcher) *Binding {
 	b := &Binding{
 		tm:         tm,
+		watcher:    watcher,
 		domBinders: defaultBinders(),
 		helpers:    helpersSymbolTable(defaultHelpers()),
 	}
@@ -214,20 +94,6 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 
 	panic(fmt.Sprintf("Helper with name %v already exists.", name))
 	return
-}
-
-type objEval struct {
-	fieldRefl reflect.Value
-	modelRefl reflect.Value
-	field     string
-}
-
-type bindable interface {
-	bindObj() *objEval
-}
-
-type bindScope struct {
-	scope *scope
 }
 
 // evaluateRec recursively evaluates the parsed expressions and return the result value, it also
@@ -320,23 +186,15 @@ func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callba
 		//use watchjs to watch for changes to the model
 		(func(bi bindable) {
 			bo := bi.bindObj()
-			obj := js.InternalObject(bo.modelRefl.Interface()).Get("$val")
-			//workaround for gopherjs's protection disallowing js access to maps
-			//setDummyHopFn(obj, "")
-			js.Global.Call("watch",
-				obj,
-				bo.field,
-				func(prop string, action string,
-					_ js.Object,
-					_2 js.Object) {
-					newResult, _, _ := bs.evaluateRec(root)
-					callback(newResult.Interface())
-				})
+			b.watcher.Watch(bo.modelRefl, bo.field, func() {
+				newResult, _, _ := bs.evaluateRec(root)
+				callback(newResult.Interface())
+			})
 		})(bi)
 	}
 }
 
-func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScope, once bool) {
+func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bindScope, once bool) {
 	parts := strings.Split(astr, "-")
 	if len(parts) <= 1 {
 		panic(`Illegal "bind-".`)
@@ -398,9 +256,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScop
 				b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					domBind.Value = newResult
 					binder.Update(domBind)
-					elem.Find("wrapper").Each(func(_ int, e jq.JQuery) {
-						e.Children("").First().Unwrap()
-					})
+					icommon.WrapperUnwrap(elem)
 				})
 			}
 		})(args, outputs)
@@ -409,7 +265,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem jq.JQuery, bs *bindScop
 	}
 }
 
-func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, bs *bindScope, once bool, tModel interface{}) {
+func (b *Binding) processAttrBind(astr, bstr string, elem dom.Selection, bs *bindScope, once bool, tModel interface{}) {
 	fbinds := strings.Split(bstr, ";")
 	for i, fb := range fbinds {
 		if i == len(fbinds)-1 && fb == "" {
@@ -451,30 +307,31 @@ func (b *Binding) processAttrBind(astr, bstr string, elem jq.JQuery, bs *bindSco
 	}
 }
 
-func preventBinding(elem jq.JQuery, bindattr string) {
+func preventBinding(elem dom.Selection, bindattr string) {
 	elem.SetAttr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-"), "t")
 }
 
-func preventTreeBinding(elem jq.JQuery, bindattr string) {
+func preventTreeBinding(elem dom.Selection, bindattr string) {
 	preventBinding(elem, bindattr)
-	elem.Find("*").Each(func(_ int, d jq.JQuery) {
+	for _, d := range elem.Find("*").Elements() {
 		preventBinding(d, bindattr)
-	})
+	}
 }
 
-func preventAllBinding(elem jq.JQuery) {
+func preventAllBinding(elem dom.Selection) {
 	preventBinding(elem, "all")
-	elem.Find("*").Each(func(_ int, d jq.JQuery) {
+	for _, d := range elem.Find("*").Elements() {
 		preventBinding(d, "all")
-	})
+	}
 }
 
-func bindingPrevented(elem jq.JQuery, bindattr string) bool {
-	return elem.Attr(ReservedBindPrefix+"-all") == "t" ||
-		elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-")) == "t"
+func bindingPrevented(elem dom.Selection, bindattr string) bool {
+	allb, ok1 := elem.Attr(ReservedBindPrefix + "-all")
+	bb, ok2 := elem.Attr(strings.Join([]string{ReservedBindPrefix, bindattr}, "-"))
+	return (ok1 && allb == "t") || (ok2 && bb == "t")
 }
 
-func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(jq.JQuery, string, string)) func() {
+func wrapBindCall(elem dom.Selection, bindattr, bindstr string, fn func(dom.Selection, string, string)) func() {
 	return func() {
 		if !bindingPrevented(elem, bindattr) {
 			fn(elem, bindattr, bindstr)
@@ -483,48 +340,30 @@ func wrapBindCall(elem jq.JQuery, bindattr, bindstr string, fn func(jq.JQuery, s
 	}
 }
 
-type DomAttr struct {
-	Name  string
-	Value string
-	bs    *bindScope
-}
-
-type AdditionalBinds struct {
-	binds map[string]string
-	bs    *bindScope
-}
-
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindrelem bool, additionalbinds *AdditionalBinds) (bindTasks []func(), customElemTasks []func()) {
-	if relems.Length == 0 {
+func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bindrelem bool, additionalbinds *AdditionalBinds) (bindTasks []func(), customElemTasks []func()) {
+	if relems.Length() == 0 {
 		panic("Incorrect element for bind.")
 	}
 
 	bindTasks = make([]func(), 0)
 	customElemTasks = make([]func(), 0)
 
-	relemList := make([]jq.JQuery, relems.Length)
-	relems.Each(func(i int, relem jq.JQuery) {
-		relemList[i] = relem
-	})
-
-	for _, relem := range relemList {
-		elems := make([]jq.JQuery, 0)
+	for _, relem := range relems.Elements() {
+		elems := make([]dom.Selection, 0)
 		if bindrelem {
 			elems = append(elems, relem)
 		}
 
-		relem.Contents().Each(func(i int, elem jq.JQuery) {
-			elems = append(elems, elem)
-		})
+		elems = append(elems, relems.Contents().Elements()...)
 
 		for idx, elem := range elems {
-			if elem.Get(0).Get("nodeType").Int() != 1 {
+			if !elem.IsElement() {
 				continue
 			}
 
 			custag, isCustom := b.tm.GetCustomTag(elem)
-			isWrapper := elem.Is("wrapper")
+			isWrapper := icommon.IsWrapperElem(elem)
 			var binds map[string]string
 			if isWrapper || isCustom {
 				binds = make(map[string]string)
@@ -532,17 +371,15 @@ func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindre
 
 			bsclone := bs.clone()
 
-			htmla := elem.Get(0).Get("attributes")
 			attrs := make([]DomAttr, 0)
 			if additionalbinds != nil {
 				for k, v := range additionalbinds.binds {
-					attrs = append(attrs, DomAttr{k, v, additionalbinds.bs})
+					attrs = append(attrs, DomAttr{dom.Attr{k, v}, additionalbinds.bs})
 				}
 			}
 
-			for i := 0; i < htmla.Length(); i++ {
-				attr := htmla.Index(i)
-				attrs = append(attrs, DomAttr{attr.Get("name").Str(), attr.Get("value").Str(), bsclone})
+			for _, dattr := range elem.Attrs() {
+				attrs = append(attrs, DomAttr{dattr, bsclone})
 			}
 
 			var customTagModel interface{} = nil
@@ -552,19 +389,20 @@ func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindre
 
 			for _, attr := range attrs {
 				name, bstr, ebs := attr.Name, attr.Value, attr.bs
+				tagname, _ := elem.TagName()
 				if name == "bind" { //attribute binding
 					if !isCustom {
-						panic(fmt.Sprintf(`Processing bind string %v="%v": Element %v hasn't been registered as a custom element.`, name, bstr, elem.Prop("tagName")))
+						panic(fmt.Sprintf(`Processing bind string %v="%v": Element %v hasn't been registered as a custom element.`, name, bstr, tagname))
 					}
 
 					(func(customTagModel interface{}, bs *bindScope) {
 						bindTasks = append(bindTasks,
-							wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+							wrapBindCall(elem, name, bstr, func(elem dom.Selection, astr, bstr string) {
 								b.processAttrBind(astr, bstr, elem, ebs, once, customTagModel)
 							}))
 					})(customTagModel, ebs)
 				} else if strings.HasPrefix(name, BindPrefix) && //dom binding
-					jqExists(relem) == jqExists(elem) { //element still exists
+					relem.Exists() == elem.Exists() { //element still exists
 
 					if isWrapper || isCustom {
 						binds[name] = bstr
@@ -573,7 +411,7 @@ func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindre
 
 					(func(bs *bindScope) {
 						bindTasks = append(bindTasks,
-							wrapBindCall(elem, name, bstr, func(elem jq.JQuery, astr, bstr string) {
+							wrapBindCall(elem, name, bstr, func(elem dom.Selection, astr, bstr string) {
 								b.processDomBind(astr, bstr, elem, ebs, once)
 							}))
 					})(ebs)
@@ -583,17 +421,17 @@ func (b *Binding) bindPrepare(relems jq.JQuery, bs *bindScope, once bool, bindre
 			if !bindrelem || idx > 0 {
 				(func(bs *bindScope) {
 					if isCustom {
-						(func(elem jq.JQuery, customTagModel interface{}, binds map[string]string) {
+						(func(elem dom.Selection, customTagModel interface{}, binds map[string]string) {
 							customElemTasks = append(customElemTasks, func() {
 								err := custag.PrepareTagContents(elem, customTagModel,
-									func(contentElem jq.JQuery) {
+									func(contentElem dom.Selection) {
 										s := newModelScope(customTagModel)
 										s.merge(bs.scope)
 										b.bindWithScope(contentElem, once, true, s, nil)
 									})
 
 								if err != nil {
-									elemError(elem, err.Error())
+									dom.ElementError(elem, err.Error())
 								}
 
 								b.bindWithScope(elem, once, false, b.newModelScope(customTagModel), &AdditionalBinds{binds, bs})
@@ -621,12 +459,12 @@ func (b *Binding) newModelScope(model interface{}) *scope {
 }
 
 // Bind binds a model to an element and its ascendants
-func (b *Binding) Bind(relem jq.JQuery, model interface{}, once bool, bindrelem bool) {
+func (b *Binding) Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool) {
 	b.bindWithScope(relem, once, bindrelem, b.newModelScope(model), nil)
 }
 
 // BindMergeScope merges the given scope to the basic scope and performs binding
-func (b *Binding) BindModels(relem jq.JQuery, models []interface{}, once bool, bindrelem bool) {
+func (b *Binding) BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool) {
 	s := newScope()
 	for _, model := range models {
 		if model != nil {
@@ -638,7 +476,7 @@ func (b *Binding) BindModels(relem jq.JQuery, models []interface{}, once bool, b
 	b.bindWithScope(relem, once, bindrelem, s, nil)
 }
 
-func (b *Binding) bindWithScope(relem jq.JQuery, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
+func (b *Binding) bindWithScope(relem dom.Selection, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
 	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem, additionalbinds)
 	for _, fn := range btasks {

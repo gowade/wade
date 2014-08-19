@@ -20,7 +20,15 @@ type (
 	}
 
 	Dom struct{}
+
+	Event struct {
+		*jquery.Event
+	}
 )
+
+func (e Event) Target() dom.Selection {
+	return newSelection(gJQ(e.Event.Target))
+}
 
 func GetDom() dom.Dom {
 	return gDom
@@ -135,4 +143,88 @@ func (s Selection) Unwrap() {
 
 func (s Selection) Parent() dom.Selection {
 	return newSelection(s.JQuery.Parent())
+}
+
+func (s Selection) SetHtml(content string) {
+	s.JQuery.SetHtml(content)
+}
+
+func (s Selection) SetVal(val string) {
+	s.JQuery.SetVal(val)
+}
+
+func (s Selection) Val() string {
+	return s.JQuery.Val()
+}
+
+func (s Selection) SetAttr(attr, value string) {
+	s.JQuery.SetAttr(attr, value)
+}
+
+func (s Selection) RemoveAttr(attr string) {
+	s.JQuery.RemoveAttr(attr)
+}
+
+func (s Selection) After(sel dom.Selection) {
+	s.JQuery.After(sel.(Selection).JQuery)
+}
+
+func (s Selection) Next() dom.Selection {
+	return newSelection(s.JQuery.Next())
+}
+
+func (s Selection) Exists() bool {
+	return s.JQuery.Parents("html").Length > 0
+}
+
+func (s Selection) Before(sel dom.Selection) {
+	s.JQuery.Before(sel.(Selection).JQuery)
+}
+
+func (s Selection) Attrs() []dom.Attr {
+	htmla := s.JQuery.Get(0).Get("attributes")
+	attrs := make([]dom.Attr, htmla.Length())
+	for i := 0; i < htmla.Length(); i++ {
+		attr := htmla.Index(i)
+		attrs[i].Name = attr.Get("name").Str()
+		attrs[i].Value = attr.Get("value").Str()
+	}
+
+	return attrs
+}
+
+func (s Selection) Prev() dom.Selection {
+	return newSelection(s.JQuery.Prev())
+}
+
+func (s Selection) On(eventname string, handler dom.EventHandler) {
+	s.JQuery.On(eventname, func(event *jquery.Event) {
+		handler(Event{event})
+	})
+}
+
+func (s Selection) Listen(event string, selector string, handler dom.EventHandler) {
+	s.JQuery.On(event, selector, func(event *jquery.Event) {
+		handler(Event{event})
+	})
+}
+
+func (s Selection) Hide() {
+	s.JQuery.Hide()
+}
+
+func (s Selection) Show() {
+	s.JQuery.Show()
+}
+
+func (s Selection) Filter(selector string) dom.Selection {
+	return newSelection(s.JQuery.Filter(selector))
+}
+
+func (s Selection) AddClass(class string) {
+	s.JQuery.AddClass(class)
+}
+
+func (s Selection) RemoveClass(class string) {
+	s.JQuery.RemoveClass(class)
 }

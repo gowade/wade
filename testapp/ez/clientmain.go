@@ -174,7 +174,10 @@ func mainFn(r wade.Registration) {
 }
 
 func main() {
-	err := wade.StartApp("pg-home", "/web", mainFn)
+	err := wade.StartApp(wade.AppConfig{
+		StartPage: "pg-home",
+		BasePath:  "/web",
+	}, mainFn)
 	if err != nil {
 		panic(fmt.Errorf("Failed to load with error %v", err))
 	}
