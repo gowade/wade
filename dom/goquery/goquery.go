@@ -26,7 +26,7 @@ type (
 	operateFunc func(dst, src *html.Node)
 )
 
-func GetDom() dom.Dom {
+func GetDom() Dom {
 	return gDom
 }
 

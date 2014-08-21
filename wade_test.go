@@ -74,35 +74,6 @@ func stubInit() {
 	js.Global = &JsStub{}
 }
 
-func TestPageUrl(t *testing.T) {
-	pm := pageManager{}
-	pm.displayScopes = make(map[string]displayScope)
-	route := "/:testparam/:testparam2/*testparam3"
-	pm.registerDisplayScopes(map[string]DisplayScope{
-		"test": MakePage(route, ""),
-	})
-
-	var u string
-	var err error
-	u, err = pm.PageUrl("test", 12, "abc", "some.go")
-	expected := "/12/abc/some.go"
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	require.Equal(t, u, expected)
-
-	u, err = pm.PageUrl("test", 12, "abc")
-	if err == nil {
-		t.Fatalf("It should have raised an error for not having enough parameters.")
-	}
-
-	u, err = pm.PageUrl("test", 12, "abc", "zz", 22)
-	if err == nil {
-		t.Fatalf("It should have raised an error for having too many parameters.")
-	}
-}
-
 const (
 	Src = `<div>
 <wimport src="/a"></wimport>

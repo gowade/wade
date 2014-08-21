@@ -96,9 +96,9 @@ func (r registry) RegisterController(displayScope string, fn PageControllerFunc)
 	r.w.pm.registerController(displayScope, fn)
 }
 
-// RegisterDisplayScopes registers the given map of pages and page groups
-func (r registry) RegisterDisplayScopes(m map[string]DisplayScope) {
-	r.w.pm.registerDisplayScopes(m)
+// RegisterDisplayScopes registers the given maps of pages and page groups
+func (r registry) RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
+	r.w.pm.registerDisplayScopes(pages, pageGroups)
 }
 
 var (
@@ -179,7 +179,7 @@ func StartApp(config AppConfig, appFn AppFunc) error {
 
 	wd := &wade{
 		errChan:    make(chan error),
-		pm:         newPageManager(jsb.History(), config, document, config.Container, templateContainer, binding, tm),
+		pm:         newPageManager(jsb.History(), config, document, templateContainer, binding),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,

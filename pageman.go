@@ -2,6 +2,7 @@ package wade
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"unicode"
 
@@ -28,6 +29,11 @@ type (
 		CurrentPath() string
 	}
 
+	BindEngine interface {
+		Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool)
+		BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool)
+	}
+
 	pageManager struct {
 		document     dom.Selection
 		routes       []urlrouter.Record
@@ -39,8 +45,7 @@ type (
 		container    dom.Selection
 		tcontainer   dom.Selection
 
-		binding        *bind.Binding
-		tm             *custagMan
+		binding        BindEngine
 		pc             *PageCtrl
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
@@ -50,9 +55,9 @@ type (
 )
 
 func newPageManager(history History, config AppConfig, document dom.Selection,
-	container dom.Selection, tcontainer dom.Selection, binding *bind.Binding,
-	tm *custagMan) *pageManager {
+	tcontainer dom.Selection, binding BindEngine) *pageManager {
 
+	container := config.Container
 	if container == nil {
 		container = document.Find("body").First()
 	}
@@ -61,18 +66,22 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		panic("App container doesn't exist.")
 	}
 
+	basePath := config.BasePath
+	if basePath == "" {
+		basePath = "/"
+	}
+
 	pm := &pageManager{
 		document:      document,
 		routes:        make([]urlrouter.Record, 0),
 		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
-		basePath:      config.BasePath,
+		basePath:      basePath,
 		startPageId:   config.StartPage,
 		notFoundPage:  nil,
 		container:     container,
 		tcontainer:    tcontainer,
 		binding:       binding,
-		tm:            tm,
 		displayScopes: make(map[string]displayScope),
 		globalDs:      &globalDisplayScope{},
 		history:       history,
@@ -119,13 +128,13 @@ func (pm *pageManager) SetNotFoundPage(pageId string) {
 }
 
 // Url returns the full path
-func (pm *pageManager) Fullpath(path string) string {
-	return pm.basePath + path
+func (pm *pageManager) Fullpath(pa string) string {
+	return path.Join(pm.basePath, pa)
 }
 
 func (pm *pageManager) setupPageOnLoad() {
 	path := pm.cutPath(pm.history.CurrentPath())
-	if path == "/" {
+	if path == "" || path == "/" {
 		startPage := pm.page(pm.startPageId)
 		path = startPage.path
 		pm.history.ReplaceState(startPage.title, pm.Fullpath(path))
@@ -204,7 +213,7 @@ func walk(elem dom.Selection, pm *pageManager) {
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
 	url = pm.cutPath(url)
-	println("path: " + url)
+
 	match, routeparams := pm.router.Lookup(url)
 	if match == nil {
 		if pm.notFoundPage != nil {
@@ -248,12 +257,9 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 			e.Unwrap()
 		}
 
-		go func() {
-			pm.bind(params)
-			icommon.WrapperUnwrap(pm.container)
-			pm.container.Show()
-		}()
-
+		pm.bind(params)
+		icommon.WrapperUnwrap(pm.container)
+		pm.container.Show()
 		pm.setTitle(pm.formattedTitle)
 	}
 }
@@ -378,13 +384,17 @@ func (pm *pageManager) registerController(displayScope string, fn PageController
 	ds.addController(fn)
 }
 
-// RegisterDisplayScopes registers the given map of pages and page groups
-func (pm *pageManager) registerDisplayScopes(m map[string]DisplayScope) {
-	for id, item := range m {
-		if id == "" {
-			panic("id of page/page group cannot be empty.")
+// RegisterDisplayScopes registers the given maps of pages and pageGroups
+func (pm *pageManager) registerDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
+	if pages != nil {
+		for _, pg := range pages {
+			pm.displayScopes[pg.id] = pg.Register(pm)
 		}
+	}
 
-		pm.displayScopes[id] = item.Register(id, pm)
+	if pageGroups != nil {
+		for _, pg := range pageGroups {
+			pm.displayScopes[pg.id] = pg.Register(pm)
+		}
 	}
 }

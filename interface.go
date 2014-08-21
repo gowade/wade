@@ -53,7 +53,7 @@ type NeedsInit interface {
 }
 
 type Registration interface {
-	RegisterDisplayScopes(map[string]DisplayScope)
+	RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
 	RegisterCustomTags(src string, models map[string]CustomElemProto)
 	RegisterController(displayScope string, controller PageControllerFunc)
 	ModuleInit(...NeedsInit)

@@ -84,48 +84,48 @@ func (s *globalDisplayScope) hasPage(id string) bool {
 	return true
 }
 
-type DisplayScope interface {
-	Register(id string, pm *pageManager) displayScope
-}
-
 type PageDesc struct {
+	id    string
 	route string
 	title string
 }
 
-func (p PageDesc) Register(pageId string, pm *pageManager) displayScope {
+func (p PageDesc) Register(pm *pageManager) displayScope {
 	route := p.route
 
-	if _, exist := pm.displayScopes[pageId]; exist {
-		panic(fmt.Sprintf(`Page or page group with id "%v" already registered.`, pageId))
+	if _, exist := pm.displayScopes[p.id]; exist {
+		panic(fmt.Sprintf(`Page or page group with id "%v" already registered.`, p.id))
 	}
 
-	page := newPage(pageId, route, p.title)
-	pm.displayScopes[pageId] = page
+	page := newPage(p.id, route, p.title)
+	pm.displayScopes[p.id] = page
 
 	pm.addRoute(page)
 
 	return page
 }
 
-func MakePage(route string, title string) PageDesc {
+func MakePage(id string, route string, title string) PageDesc {
 	return PageDesc{
+		id:    id,
 		route: route,
 		title: title,
 	}
 }
 
 type PageGroupDesc struct {
+	id      string
 	pageids []string
 }
 
-func MakePageGroup(pageids ...string) PageGroupDesc {
+func MakePageGroup(id string, pageids ...string) PageGroupDesc {
 	return PageGroupDesc{
+		id:      id,
 		pageids: pageids,
 	}
 }
 
-func (pg PageGroupDesc) Register(id string, pm *pageManager) displayScope {
+func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
 	grp := newPageGroup(make([]*page, len(pg.pageids)))
 	for i, pid := range pg.pageids {
 		page := pm.page(pid)
