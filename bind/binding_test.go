@@ -3,6 +3,7 @@ package bind
 import (
 	"reflect"
 	"testing"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/phaikawl/wade/dom"
@@ -19,6 +20,7 @@ type (
 	}
 
 	customTag struct {
+		html string
 	}
 
 	Model struct {
@@ -37,11 +39,16 @@ func (ct *customTag) NewModel(elem dom.Selection) interface{} {
 }
 
 func (ct *customTag) PrepareTagContents(elem dom.Selection, model interface{}, fn func(dom.Selection)) error {
+	ce := elem.Clone()
+	elem.SetHtml(ct.html)
+	elem.Find("wcontents").ReplaceWith(ce)
+	fn(ce.Contents())
+	ce.Unwrap()
 	return nil
 }
 
 func (cem *ceManager) GetCustomTag(elem dom.Selection) (CustomTag, bool) {
-	if tn, err := elem.TagName(); err != nil && tn == "test" {
+	if tn, err := elem.TagName(); err == nil && tn == "test" {
 		return cem.ct, true
 	}
 
@@ -52,10 +59,14 @@ func (w *watcher) Watch(modelRefl reflect.Value, field string, callback func()) 
 	w.watches = append(w.watches, callback)
 }
 
+func initTestBind() (wc *watcher, cem *ceManager, b *Binding) {
+	wc = &watcher{make([]func(), 0)}
+	cem = &ceManager{ct: &customTag{}}
+	return wc, cem, NewBindEngine(cem, wc)
+}
+
 func TestBinding(t *testing.T) {
-	wc := &watcher{}
-	cem := &ceManager{ct: &customTag{}}
-	b := NewBindEngine(cem, wc)
+	wc, cem, b := initTestBind()
 	sc := &Scope{"a", 9000}
 	bs := &bindScope{b.newModelScope(sc)}
 
@@ -92,4 +103,38 @@ func TestBinding(t *testing.T) {
 	sc.Num = 9999
 	wc.watches[1]()
 	require.Equal(t, model.Value, 9999)
+
+	//full test
+	tag, ok := cem.GetCustomTag(elem)
+	if !ok {
+		panic("WTF is wrong with the tag?")
+	}
+	tag.(*customTag).html = `
+	<div>
+		<wcontents></wcontents>
+		<span bind-html="Name"></span>
+		<p bind-html="Value"></p>
+	</div>
+	`
+	src := `
+	<div>
+		<ww bind-attr-class="Name">
+			<div id="0" bind-html="Num"></div>
+			<test bind="Value: Num; Name: 'abc'" bind-attr-id="1"><span bind-html="Name"></span></test>
+		</ww>
+	</div>
+	`
+	sc.Name = "scope"
+	root := goquery.GetDom().NewFragment(src)
+	b.Bind(root, sc, false, false)
+	require.Equal(t, root.Find("#0").HasClass(sc.Name), true)
+	require.Equal(t, root.Find("#1").HasClass(sc.Name), true)
+	require.Equal(t, root.Find("#0").Html(), "9999")
+	require.Equal(t, root.Find("#1").Length(), 1)
+	tn, _ := root.Find("#1").TagName()
+	require.Equal(t, tn, "div")
+	felems := root.Find("#1").Children().Elements()
+	require.Equal(t, felems[0].Html(), sc.Name)
+	require.Equal(t, felems[1].Html(), "abc")
+	require.Equal(t, felems[2].Html(), "9999")
 }

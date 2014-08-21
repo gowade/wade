@@ -60,10 +60,6 @@ func parseHTML(source string) []*html.Node {
 		panic(err)
 	}
 
-	if len(nodes) == 0 {
-		panic("Source string is empty or cannot be parsed.")
-	}
-
 	for _, node := range nodes {
 		node.Parent = nil
 		node.PrevSibling = nil
@@ -81,6 +77,12 @@ func selFromNodes(nodes []*html.Node) dom.Selection {
 
 func newFragment(source string) dom.Selection {
 	nodes := parseHTML(source)
+	if len(nodes) == 0 {
+		empty := goquery.NewDocumentFromNode(nil)
+		empty.Nodes = []*html.Node{}
+		return newSelection(empty.Selection)
+	}
+
 	if nodes[0].Type == html.ErrorNode {
 		panic("Parsing failed. Note that parsing html, head or body element *as fragment* will kill the parser. This may be the case.")
 	}

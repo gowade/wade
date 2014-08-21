@@ -2,12 +2,12 @@ package wade
 
 import (
 	"testing"
-	"unicode"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -121,17 +121,6 @@ const (
 	SrcD = `a`
 )
 
-func removeSpace(src string) string {
-	r := ""
-	for _, c := range src {
-		if !unicode.IsSpace(c) {
-			r += string(c)
-		}
-	}
-
-	return r
-}
-
 func TestHtmlImport(t *testing.T) {
 	mb := http.NewMockBackend(map[string]http.TestResponse{
 		"/a": http.FakeOK(SrcA),
@@ -145,7 +134,7 @@ func TestHtmlImport(t *testing.T) {
 	root := goquery.GetDom().NewFragment(Src)
 	err := htmlImport(client, root, "/")
 	require.Equal(t, err, nil)
-	require.Equal(t, removeSpace(root.Html()), `ab<div>c</div>`)
+	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `ab<div>c</div>`)
 
 	root = root.NewFragment(FailSrc)
 	err = htmlImport(client, root, "/")

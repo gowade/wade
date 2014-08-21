@@ -21,6 +21,9 @@ func TestEverything(t *testing.T) {
 	s := d.NewFragment(`
 	` + "<div><wade>" + Awesome + "</wade></div><div></div>")
 
+	empty := d.NewFragment("")
+	require.Equal(t, empty.Length(), 0)
+
 	require.Equal(t, len(s.Elements()), 2)
 
 	s = s.First()

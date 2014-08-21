@@ -203,7 +203,7 @@ func (b *Binding) processFieldBind(bstr string, elem dom.Selection, bs *bindScop
 		}
 		fv := strings.Split(fb, ":")
 		if len(fv) != 2 {
-			bstrPanic(fmt.Sprintf(`Invalid syntax. There should be a ":" in each binding of a field instead of %v`, len(fv)), bstr, elem)
+			bstrPanic(fmt.Sprintf(`Invalid syntax. There should be 1 ":" in each binding of a field instead of %v`, len(fv)), bstr, elem)
 		}
 		field := strings.TrimSpace(fv[0])
 		valuestr := strings.TrimSpace(fv[1])
@@ -316,10 +316,11 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 				customTagModel = custag.NewModel(elem)
 			}
 
+			//Make a list of binds to perform (add to bindTasks)
 			for _, attr := range attrs {
 				name, bstr, ebs := attr.Name, attr.Value, attr.bs
 				tagname, _ := elem.TagName()
-				if name == "bind" { //attribute binding
+				if name == "bind" { //field binding
 					if !isCustom {
 						bstrPanic(fmt.Sprintf(`Element %v hasn't been registered as a custom element.`, tagname),
 							bstr, elem)
@@ -332,7 +333,7 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 							}))
 					})(customTagModel, ebs)
 				} else if strings.HasPrefix(name, BindPrefix) && //dom binding
-					relem.Exists() == elem.Exists() { //element still exists
+					relem.Exists() == elem.Exists() {
 
 					if isWrapper || isCustom {
 						binds[name] = bstr
@@ -342,22 +343,23 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 					(func(bs *bindScope) {
 						bindTasks = append(bindTasks,
 							wrapBindCall(elem, name, bstr, func(elem dom.Selection, astr, bstr string) {
-								b.processDomBind(astr, bstr, elem, ebs, once)
+								b.processDomBind(astr, bstr, elem, bs, once)
 							}))
 					})(ebs)
 				}
 			}
 
+			// Perform custom element rendering if it's a custom element, otherwise
+			// get bind tasks and custom elem tasks from descendants.
+			// Custom element's descendants are used as contents, so we don't recur to them
 			if !bindrelem || idx > 0 {
 				(func(bs *bindScope) {
 					if isCustom {
 						(func(elem dom.Selection, customTagModel interface{}, binds map[string]string) {
 							customElemTasks = append(customElemTasks, func() {
 								err := custag.PrepareTagContents(elem, customTagModel,
-									func(contentElem dom.Selection) {
-										s := newModelScope(customTagModel)
-										s.merge(bs.scope)
-										b.bindWithScope(contentElem, once, true, s, nil)
+									func(contentElems dom.Selection) {
+										b.bindWithScope(contentElems, once, true, bs.scope, nil)
 									})
 
 								if err != nil {
