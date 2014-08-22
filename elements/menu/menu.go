@@ -53,8 +53,8 @@ func (sm *SwitchMenu) Init(ce wade.CustomElem) error {
 	return nil
 }
 
-func Spec() map[string]interface{} {
-	return map[string]interface{}{
-		"switchmenu": SwitchMenu{},
+func Spec() map[string]wade.CustomElemProto {
+	return map[string]wade.CustomElemProto{
+		"switchmenu": &SwitchMenu{},
 	}
 }

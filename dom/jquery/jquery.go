@@ -22,12 +22,16 @@ type (
 	Dom struct{}
 
 	Event struct {
-		*jquery.Event
+		jquery.Event
 	}
 )
 
 func (e Event) Target() dom.Selection {
 	return newSelection(gJQ(e.Event.Target))
+}
+
+func (e Event) PreventDefault() {
+	e.Event.PreventDefault()
 }
 
 func GetDom() dom.Dom {
@@ -198,13 +202,13 @@ func (s Selection) Prev() dom.Selection {
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
-	s.JQuery.On(eventname, func(event *jquery.Event) {
+	s.JQuery.On(eventname, func(event jquery.Event) {
 		handler(Event{event})
 	})
 }
 
 func (s Selection) Listen(event string, selector string, handler dom.EventHandler) {
-	s.JQuery.On(event, selector, func(event *jquery.Event) {
+	s.JQuery.On(event, selector, func(event jquery.Event) {
 		handler(Event{event})
 	})
 }

@@ -42,9 +42,8 @@ func (b *ValueBinder) Update(d DomBind) (err error) {
 // Watch watches for javascript change event on the element
 func (b *ValueBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) error {
 	tagname, _ := elem.TagName()
-	if tagname != "INPUT" {
-		println(tagname)
-		return fmt.Errorf("Can only watch for changes on html input, textarea and select.")
+	if tagname != "input" {
+		return fmt.Errorf("Can only watch for changes on html input, textarea and select")
 	}
 
 	elem.On("change", func(evt dom.Event) {
@@ -103,16 +102,16 @@ type EventBinder struct{ BaseBinder }
 func (b *EventBinder) Bind(d DomBind) error {
 	fni := d.Value
 	if fni == nil {
-		return fmt.Errorf("Event must be bound to an EventHandler function, not a nil. If you're trying to call a function on this event, please use a method that is an EventHandler, or call a method that returns an EventHandler.")
+		return fmt.Errorf("Event must be bound to an EventHandler function, not a nil. Note that it binds to a function, not a function call.")
 	}
-	fn, ok := fni.(EventHandler)
+	fn, ok := fni.(func())
 	if !ok {
-		return fmt.Errorf("Wrong type %v for EventBinder's handler, must be of type EventHandler.",
+		return fmt.Errorf("Wrong type %v for EventBinder's handler, must be of type EventHandler",
 			reflect.TypeOf(fni).String())
 	}
 
 	if len(d.Args) > 1 {
-		return fmt.Errorf("Too many dash arguments to event bind.")
+		return fmt.Errorf("Too many dash arguments to event bind")
 	}
 
 	d.Elem.On(d.Args[0], func(evt dom.Event) {
@@ -204,7 +203,7 @@ type PageBinder struct{ BaseBinder }
 func (b *PageBinder) Update(d DomBind) error {
 	tagname, _ := d.Elem.TagName()
 	if tagname != "a" {
-		return fmt.Errorf("bind-page can only be used for links (<a> elements).")
+		return fmt.Errorf("bind-page can only be used for links (<a> elements)")
 	}
 	uinf := d.Value.(UrlInfo)
 	d.Elem.SetAttr("href", uinf.fullUrl)

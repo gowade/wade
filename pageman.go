@@ -186,7 +186,7 @@ func (pm *pageManager) prepare() {
 
 		e.PreventDefault()
 
-		pm.updatePage(pagepath, true)
+		go pm.updatePage(pagepath, true)
 	})
 
 	pm.setupPageOnLoad()

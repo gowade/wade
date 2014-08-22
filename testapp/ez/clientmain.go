@@ -16,7 +16,7 @@ type UserInfo struct {
 	Age  int
 }
 
-func (uinf *UserInfo) Init(ce *wade.CustomElem) error {
+func (uinf *UserInfo) Init(ce wade.CustomElem) error {
 	ce.Contents.SetHtml(strings.Replace(
 		strings.Replace(ce.Contents.Html(), "&lt;3", `<span style="color: crimson">♥</span>`, -1),
 		":wink:", `<span style="color: DimGray">◕‿↼</span>`, -1))
@@ -28,6 +28,7 @@ type AuthedStat struct {
 }
 
 type UsernamePassword struct {
+	wade.NoInit
 	Username string
 	Password string
 }
@@ -65,31 +66,35 @@ func (r *RegUser) Submit() {
 }
 
 type PostView struct {
+	wade.NoInit
 	PostId int
 }
 
 type ErrorListModel struct {
+	wade.NoInit
 	Errors map[string]string
 }
 
-type HomeView struct{}
+type HomeView struct {
+	wade.NoInit
+}
 
 func (hv *HomeView) Highlight(word string) string {
 	return ">> <strong>" + word + "<strong> <<"
 }
 
 func mainFn(r wade.Registration) {
-	r.RegisterDisplayScopes(map[string]wade.DisplayScope{
-		"pg-home":          wade.MakePage("/home", "Home"),
-		"pg-user-bio":      wade.MakePage("/user/bio", "Bio"),
-		"pg-user-secrets":  wade.MakePage("/user/secrets", "Secrets"),
-		"pg-user-register": wade.MakePage("/user/register", "Register"),
-		"pg-user-login":    wade.MakePage("/user/login", "Login"),
-		"pg-post":          wade.MakePage("/post", "Posting"),
-		"pg-post-view":     wade.MakePage("/post/view/:postid", "Viewing post %v"),
-		"pg-not-found":     wade.MakePage("/404", "Page not found"),
-
-		"grp-user-profile": wade.MakePageGroup("pg-user-bio", "pg-user-secrets"),
+	r.RegisterDisplayScopes([]wade.PageDesc{
+		wade.MakePage("pg-home", "/home", "Home"),
+		wade.MakePage("pg-user-bio", "/user/bio", "Bio"),
+		wade.MakePage("pg-user-secrets", "/user/secrets", "Secrets"),
+		wade.MakePage("pg-user-register", "/user/register", "Register"),
+		wade.MakePage("pg-user-login", "/user/login", "Login"),
+		wade.MakePage("pg-post", "/post", "Posting"),
+		wade.MakePage("pg-post-view", "/post/view/:postid", "Viewing post %v"),
+		wade.MakePage("pg-not-found", "/404", "Page not found"),
+	}, []wade.PageGroupDesc{
+		wade.MakePageGroup("grp-user-profile", "pg-user-bio", "pg-user-secrets"),
 	})
 
 	/* Register custom tags to be used in the html content.
@@ -101,10 +106,10 @@ func mainFn(r wade.Registration) {
 	use of the custom element.
 	*/
 
-	r.RegisterCustomTags("/public/elements.html", map[string]interface{}{
-		"userinfo":  UserInfo{},
-		"errorlist": ErrorListModel{},
-		"test":      UsernamePassword{},
+	r.RegisterCustomTags("/public/elements.html", map[string]wade.CustomElemProto{
+		"userinfo":  &UserInfo{},
+		"errorlist": &ErrorListModel{},
+		"test":      &UsernamePassword{},
 	})
 
 	// Import the menu custom element from wade's packages

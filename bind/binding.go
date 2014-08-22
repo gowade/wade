@@ -104,7 +104,7 @@ func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callba
 }
 
 func bstrPanic(mess, bindstring string, elem dom.Selection) {
-	panic(dom.ElementError(elem, fmt.Sprintf(mess+`, while processing bind string "%v"`, bindstring)))
+	panic(dom.ElementError(elem, fmt.Sprintf(mess+`. While processing bind string "%v"`, bindstring)))
 }
 
 func reportBinderError(err error, bstr string, elem dom.Selection) {
@@ -162,12 +162,12 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 
 		if len(binds) == 1 {
 			fmodel := binds[0].bindObj().fieldRefl
-			binder.Watch(elem, func(newVal string) {
+			reportBinderError(binder.Watch(elem, func(newVal string) {
 				if !fmodel.CanSet() {
 					bstrPanic("Cannot set field.", bstr, elem)
 				}
 				fmodel.Set(reflect.ValueOf(newVal))
-			})
+			}), bstr, elem)
 		}
 
 		domBind := DomBind{

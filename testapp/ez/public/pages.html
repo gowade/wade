@@ -2,11 +2,11 @@
    <div class="header">
 		<switchmenu ActiveClass="active" bind="Current: pageId()">
 		    <ul class="nav nav-pills pull-right" role="tablist">
-	            <li case="pg-home"><a bind-page="url(`pg-home`)">Home</a></li>
-	            <li case="pg-post"><a bind-page="url(`pg-post`)">Posting</a></li>
-	            <li case="pg-user-bio pg-user-secrets"><a bind-page="url(`pg-user-bio`)">Profile</a></li>
-	            <li case="pg-user-login"><a bind-page="url(`pg-user-login`)">Login</a></li>
-	            <li case="pg-user-register"><a bind-page="url(`pg-user-register`)">Register</a></li>
+	            <li case="pg-home"><a bind-page="url('pg-home')">Home</a></li>
+	            <li case="pg-post"><a bind-page="url('pg-post')">Posting</a></li>
+	            <li case="pg-user-bio pg-user-secrets"><a bind-page="url('pg-user-bio')">Profile</a></li>
+	            <li case="pg-user-login"><a bind-page="url('pg-user-login')">Login</a></li>
+	            <li case="pg-user-register"><a bind-page="url('pg-user-register')">Register</a></li>
 		    </ul>
 		</switchmenu>
 	    <h3 class="text-muted">Wade.go Demo</h3>
@@ -14,7 +14,7 @@
 	
    <div class="jumbotron">
     	<wrapper w-belong="pg-home">
-            Welcome to this world, a world of <% Highlight(`Awesomeness`) %>.
+            Welcome to this world, a world of <% Highlight('Awesomeness') %>.
         </wrapper>
         
         <wrapper w-belong="grp-user-profile">
@@ -53,7 +53,7 @@
         </wrapper>
         
         <wrapper w-belong="pg-post">
-            <a bind-page="url(`pg-post-view`, 42)">
+            <a bind-page="url('pg-post-view', 42)">
                 Post #42: Life, universe and everything.
             </a>
         </wrapper>
