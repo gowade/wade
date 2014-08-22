@@ -143,7 +143,6 @@ type EachBinder struct {
 	*BaseBinder
 	marker    dom.Selection
 	prototype dom.Selection
-	indexFn   lb.IndexFunc
 	size      int
 }
 
@@ -151,12 +150,8 @@ func (b *EachBinder) BindInstance() DomBinder {
 	return new(EachBinder)
 }
 
-func (b *EachBinder) Bind(d DomBind) error {
+func (b *EachBinder) Bind(d DomBind) (err error) {
 	d.Elem.RemoveAttr(BindPrefix + "each")
-	b.indexFn = lb.GetIndexFunc(d.Value)
-	if b.indexFn == nil {
-		return fmt.Errorf("Wrong type of value for the EachBinder, it must be a slice or map.")
-	}
 	b.marker = d.Elem.NewFragment("<!-- wade each -->")
 	d.Elem.Before(b.marker)
 
@@ -164,7 +159,7 @@ func (b *EachBinder) Bind(d DomBind) error {
 	d.RemoveBinding(d.Elem)
 	d.Elem.Remove()
 
-	return nil
+	return
 }
 
 func (b *EachBinder) Update(d DomBind) (err error) {
@@ -182,11 +177,16 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 
 	prev := b.marker
 
-	for i := 0; i < b.size; i++ {
-		k, v := b.indexFn(i, val)
+	m, e := lb.GetLoopList(d.Value)
+	if e != nil {
+		err = e
+		return
+	}
+	for _, item := range m {
+		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
 		prev.Next().ReplaceWith(nx)
-		err = d.ProduceOutputs(nx, true, true, k, v.Interface())
+		err = d.ProduceOutputs(nx, true, true, k.Interface(), v.Interface())
 		prev = nx
 	}
 
