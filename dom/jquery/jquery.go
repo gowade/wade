@@ -30,8 +30,42 @@ func (e Event) Target() dom.Selection {
 	return newSelection(gJQ(e.Event.Target))
 }
 
+func (e Event) CurrentTarget() dom.Selection {
+	return newSelection(gJQ(e.Event.CurrentTarget))
+}
+func (e Event) RelatedTarget() dom.Selection {
+	return newSelection(gJQ(e.Event.RelatedTarget))
+}
+func (e Event) DelegateTarget() dom.Selection {
+	return newSelection(gJQ(e.Event.DelegateTarget))
+}
+
 func (e Event) PreventDefault() {
 	e.Event.PreventDefault()
+}
+
+func (e Event) StopPropagation() {
+	e.Event.StopPropagation()
+}
+
+func (e Event) KeyCode() int {
+	return e.Event.KeyCode
+}
+
+func (e Event) Which() int {
+	return e.Event.Which
+}
+
+func (e Event) MetaKey() bool {
+	return e.Event.MetaKey
+}
+
+func (e Event) PageXY() (int, int) {
+	return e.Event.PageX, e.Event.PageY
+}
+
+func (e Event) Type() string {
+	return e.Event.Type
 }
 
 func GetDom() dom.Dom {

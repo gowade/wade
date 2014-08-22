@@ -18,7 +18,16 @@ type (
 
 	Event interface {
 		Target() Selection
+		CurrentTarget() Selection
+		DelegateTarget() Selection
+		RelatedTarget() Selection
 		PreventDefault()
+		StopPropagation()
+		KeyCode() int
+		Which() int
+		MetaKey() bool
+		PageXY() (int, int)
+		Type() string
 	}
 
 	EventHandler func(Event)

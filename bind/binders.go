@@ -88,8 +88,6 @@ Correct Usage: bind-attr-<attribute>="Field".`, len(d.Args))
 }
 func (b *AttrBinder) BindInstance() DomBinder { return b }
 
-type EventHandler func()
-
 // EventBinder is a 1-way binder that binds a method of the model to an event
 // that occurs on the element.
 // It takes 1 extra dash arg that is the event name, for example "click",
@@ -99,14 +97,31 @@ type EventHandler func()
 //	bind-on-<eventName>="HandlerMethod"
 type EventBinder struct{ BaseBinder }
 
+func heuristicPreventDefault(evtname string, elem dom.Selection) bool {
+	if evtname == "click" {
+		if elem.Is("button") {
+			return true
+		}
+
+		if elem.Is("a") {
+			href, hashref := elem.Attr("href")
+			return !hashref || href == "" || href == "#"
+		}
+	}
+
+	return false
+}
+
 func (b *EventBinder) Bind(d DomBind) error {
 	fni := d.Value
 	if fni == nil {
-		return fmt.Errorf("Event must be bound to an EventHandler function, not a nil. Note that it binds to a function, not a function call.")
+		return fmt.Errorf("Event must be bound to a handler function of type func() or func(dom.Event), not a nil. Note that generally the return value of a call is used for binding, not the call itself. So you may need to use a function that returns a handler function for this.")
 	}
-	fn, ok := fni.(func())
-	if !ok {
-		return fmt.Errorf("Wrong type %v for EventBinder's handler, must be of type EventHandler",
+	handler0, ok0 := fni.(func())
+	handler1, ok1 := fni.(func(dom.Event))
+
+	if !ok0 && !ok1 {
+		return fmt.Errorf("Wrong type %v for EventBinder's bind target, must be a function of type of type func() or func(dom.Event)",
 			reflect.TypeOf(fni).String())
 	}
 
@@ -114,9 +129,16 @@ func (b *EventBinder) Bind(d DomBind) error {
 		return fmt.Errorf("Too many dash arguments to event bind")
 	}
 
-	d.Elem.On(d.Args[0], func(evt dom.Event) {
-		evt.PreventDefault()
-		fn()
+	evtname := d.Args[0]
+	d.Elem.On(evtname, func(evt dom.Event) {
+		if heuristicPreventDefault(evtname, d.Elem) {
+			evt.PreventDefault()
+		}
+		if ok0 {
+			handler0()
+		} else if ok1 {
+			handler1(evt)
+		}
 	})
 
 	return nil
