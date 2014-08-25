@@ -13,7 +13,7 @@ var (
 type (
 	Dom interface {
 		NewFragment(html string) Selection
-		NewRootFragment(html string) Selection
+		NewRootFragment() Selection
 	}
 
 	Event interface {

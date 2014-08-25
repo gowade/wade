@@ -8,11 +8,7 @@ import (
 
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/dom/jquery"
-	"github.com/phaikawl/wade/jsbackend"
 	"github.com/phaikawl/wade/libs/http"
-	"github.com/phaikawl/wade/libs/http/clientside"
-	"github.com/phaikawl/wade/libs/pdata"
 )
 
 var (
@@ -20,6 +16,12 @@ var (
 )
 
 type (
+	RenderBackend struct {
+		JsBackend   JsBackend
+		Document    dom.Selection
+		HttpBackend http.Backend
+	}
+
 	wade struct {
 		errChan    chan error
 		pm         *pageManager
@@ -38,16 +40,9 @@ type (
 		DepChecker
 		History() History
 		Watch(modelRefl reflect.Value, field string, callback func())
-	}
-
-	jsBackend struct {
-		*jsbackend.BackendImp
+		WebStorages() (Storage, Storage)
 	}
 )
-
-func (b jsBackend) History() History {
-	return b.BackendImp.History
-}
 
 // RegisterCustomTags registers custom element tags declared inside a given html file
 // srcFile and associate them with given model prototypes. srcFile is used
@@ -79,8 +74,8 @@ func (b jsBackend) History() History {
 // attributes. If it's pointer version has a method "Init" which satisfies the
 // CustomElementInit interface, Init will be called
 // when the custom element is processed.
-func (r registry) RegisterCustomTags(srcFile string, protomap map[string]CustomElemProto) {
-	r.w.customTags[srcFile] = protomap
+func (r registry) RegisterCustomTags(customTags ...CustomTag) {
+	r.w.tm.registerTags(customTags)
 }
 
 // ModuleInit calls the modules' Init method with an AppEnv
@@ -113,73 +108,44 @@ func parseTemplate(source string) string {
 	})
 }
 
-func initServices(pm PageManager) {
-	AppServices.Http = http.NewClient(clientside.XhrBackend{})
-	AppServices.LocalStorage = pdata.Service(pdata.LocalStorage)
-	AppServices.SessionStorage = pdata.Service(pdata.SessionStorage)
+func initServices(pm PageManager, rb RenderBackend) {
+	AppServices.Http = http.NewClient(rb.HttpBackend)
+	AppServices.LocalStorage, AppServices.SessionStorage = rb.JsBackend.WebStorages()
 	AppServices.PageManager = pm
 }
 
-func loadHtml(document dom.Selection) dom.Selection {
-	templateContainer := document.NewRootFragment("<div></div>")
-	temps := document.Find("script[type='text/wadin']")
-	for _, part := range temps.Elements() {
-		templateContainer.Append(document.NewFragment(part.Html()))
-	}
+// loadHtml loads html from script[type='text/wadin'], performs html imports
+// and sets the resulting contents back to the script element
+func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string) (dom.Selection, error) {
+	templateContainer := document.NewRootFragment()
+	temp := document.Find("script[type='text/wadin']").First()
+	templateContainer.Append(document.NewFragment(temp.Text()))
 
-	return templateContainer
+	err := htmlImport(httpClient, templateContainer, serverBase)
+	temp.SetHtml(templateContainer.Html())
+	return templateContainer, err
 }
 
-func (wd *wade) loadCustomElemsHTML(httpClient *http.Client, dombackend dom.Dom) {
-	queueChan := make(chan bool, 100)
-	finishChan := make(chan bool, len(wd.customTags))
-	for srcFile, protoMap := range wd.customTags {
-		go func(srcFile string, protoMap map[string]CustomElemProto) {
-			src, err := wd.getHtml(httpClient, srcFile)
-
-			queueChan <- true
-
-			if len(queueChan) == len(wd.customTags) {
-				close(queueChan)
-				finishChan <- true
-			}
-
-			if err != nil {
-				wd.errChan <- fmt.Errorf(`Cannot load custom tag HTML file "%v".`, srcFile)
-				return
-			}
-
-			wd.tm.registerTags(dombackend.NewFragment(src).Filter("welement").Elements(), protoMap)
-		}(srcFile, protoMap)
-	}
-	<-finishChan
-}
-
-// StartApp gets and processes HTML source from script[type="text/wadin"]
-// elements, performs HTML imports and initializes the app.
+// StartApp initializes the app.
 //
 // "appFn" is the main function for your app.
-func StartApp(config AppConfig, appFn AppFunc) error {
-	var jsb JsBackend = jsBackend{jsbackend.Get()}
-	jsDepCheck(jsb)
-	http.SetDefaultClient(http.NewClient(clientside.XhrBackend{}))
+func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
+	jsDepCheck(rb.JsBackend)
+	http.SetDefaultClient(http.NewClient(rb.HttpBackend))
+	document := rb.Document
 
-	dombackend := jquery.GetDom()
-	var document dom.Selection = jquery.Document()
+	templateContainer, err := loadHtml(document, http.DefaultClient(), config.ServerBase)
 
-	templateContainer := loadHtml(document)
-
-	err := htmlImport(http.DefaultClient(), templateContainer, config.ServerBase)
 	if err != nil {
 		return err
 	}
 
 	tm := newCustagMan()
-	binding := bind.NewBindEngine(tm, jsb)
+	binding := bind.NewBindEngine(tm, rb.JsBackend)
 
 	wd := &wade{
 		errChan:    make(chan error),
-		pm:         newPageManager(jsb.History(), config, document, templateContainer, binding),
+		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,
@@ -188,17 +154,16 @@ func StartApp(config AppConfig, appFn AppFunc) error {
 	}
 
 	wd.init()
-	initServices(wd.pm)
+	initServices(wd.pm, rb)
 
 	appFn(registry{wd})
-
-	wd.loadCustomElemsHTML(http.DefaultClient(), dombackend)
 
 	wd.start()
 
 	select {
 	case err = <-wd.errChan:
 		return err
+	default:
 	}
 
 	return nil

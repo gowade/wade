@@ -89,7 +89,7 @@ func TestPageManager(t *testing.T) {
 	`)
 
 	b := &NoopBindEngine{}
-	pm := newPageManager(newNoopHistory(),
+	pm := newPageManager(NewNoopHistory(),
 		AppConfig{StartPage: "pg-home", BasePath: "/web"},
 		doc,
 		template,
@@ -118,7 +118,6 @@ func TestPageManager(t *testing.T) {
 	})
 
 	pm.prepare()
-	pm.setupPageOnLoad()
 
 	require.Equal(t, globalCalled, true)
 	require.Equal(t, <-mess, 1)

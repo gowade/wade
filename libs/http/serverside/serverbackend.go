@@ -1,6 +1,7 @@
 package serverside
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -27,12 +28,15 @@ func (h Headers) String() string {
 }
 
 func (b ServerBackend) Do(r *wadehttp.Request) error {
-	b.ClientReq.Method = r.Method
-	b.ClientReq.URL, _ = url.Parse(r.Url)
-	b.ClientReq.Body = ioutil.NopCloser(bytes.NewBufferString(r.Data()))
+	buf := bytes.NewBufferString("")
+	b.ClientReq.Write(buf)
+	req, _ := http.ReadRequest(bufio.NewReader(buf))
+	req.Method = r.Method
+	req.URL, _ = url.Parse(r.Url)
+	req.Body = ioutil.NopCloser(bytes.NewBufferString(r.Data()))
 
 	resp := httptest.NewRecorder()
-	b.Server.ServeHTTP(resp, b.ClientReq)
+	b.Server.ServeHTTP(resp, req)
 
 	dbytes, _ := ioutil.ReadAll(resp.Body)
 	data := string(dbytes)

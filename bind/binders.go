@@ -251,7 +251,8 @@ func (b *IfBinder) Bind(d DomBind) (err error) {
 
 func (b *IfBinder) Update(d DomBind) (err error) {
 	shown := d.Value.(bool)
-	if shown && !d.Elem.Exists() {
+
+	if shown && b.placeholder.Exists() {
 		b.placeholder.ReplaceWith(d.Elem)
 		return
 	}

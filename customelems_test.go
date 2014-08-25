@@ -10,14 +10,6 @@ import (
 )
 
 const (
-	TestTemp = `
-	<welement tagname="nothing"></welement>
-	<welement tagname="test" attributes="Str Num Fnum Tf">
-		<span><wcontents></wcontents></span>
-	</welement>
-	<welement tagname="testfail" attributes="   Id Gender"></welement>
-	`
-
 	Real = `
 	<test str="Awesome!" num="69" fnum="669.99" Tf="true"><smile></smile>_<smile></smile></test>
 	`
@@ -40,11 +32,17 @@ func (t *Test) Init(ce CustomElem) error {
 func TestCustomTag(t *testing.T) {
 	d := goquery.GetDom()
 	tm := newCustagMan()
-	elem := d.NewFragment(TestTemp).Filter("welement")
-	err := tm.registerTags(elem.Elements(), map[string]CustomElemProto{
-		"testfail": NoInit{},
-		"test":     &Test{},
-	})
+	err := tm.registerTags([]CustomTag{CustomTag{
+		Name:       "testfail",
+		Attributes: []string{"Id", "Gender"},
+		Prototype:  BaseProto{},
+		Html:       ``,
+	}, CustomTag{
+		Name:       "test",
+		Attributes: []string{"Str", "Num", "Fnum", "Tf"},
+		Prototype:  &Test{},
+		Html:       `<span><wcontents></wcontents></span>`,
+	}})
 
 	require.NotEqual(t, err, nil)
 	require.Equal(t, strings.Contains(err.Error(), "forbidden"), true)

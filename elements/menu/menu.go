@@ -8,6 +8,7 @@ import (
 )
 
 type SwitchMenu struct {
+	wade.BaseProto
 	Current     string
 	ActiveClass string
 }
@@ -53,8 +54,13 @@ func (sm *SwitchMenu) Init(ce wade.CustomElem) error {
 	return nil
 }
 
-func Spec() map[string]wade.CustomElemProto {
-	return map[string]wade.CustomElemProto{
-		"switchmenu": &SwitchMenu{},
+func CustomTags() []wade.CustomTag {
+	return []wade.CustomTag{
+		wade.CustomTag{
+			Name:       "switchmenu",
+			Attributes: []string{"Current", "ActiveClass"},
+			Prototype:  &SwitchMenu{},
+			Html:       `<wcontents></wcontents>`,
+		},
 	}
 }

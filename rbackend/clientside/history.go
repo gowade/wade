@@ -1,4 +1,4 @@
-package jsbackend
+package clientside
 
 import "github.com/gopherjs/gopherjs/js"
 
@@ -27,4 +27,8 @@ func (h History) CurrentPath() string {
 
 func (h History) OnPopState(fn func()) {
 	gJQ(js.Global.Get("window")).On("popstate", fn)
+}
+
+func (h History) RedirectTo(url string) {
+	js.Global.Get("window").Set("location", url)
 }

@@ -74,4 +74,10 @@ func TestEverything(t *testing.T) {
 	require.Equal(t, haint.HasClass(E11t3), true)
 	haint.RemoveClass(N0rm41)
 	require.Equal(t, haint.HasClass(N0rm41), false)
+
+	nt := d.NewFragment(`<div>abc</div><div>def</div>`)
+	require.Equal(t, nt.Clone().Text(), "abcdef")
+	nt = d.NewFragment(`<div><b>zz</b><b>zz</b></div>`)
+	nt.Find("b").Unwrap()
+	require.Equal(t, nt.Html(), "zzzz")
 }

@@ -45,8 +45,8 @@ func (d Dom) NewDocument(source string) dom.Selection {
 	return newSelection(s.Selection.Children().First())
 }
 
-func (d Dom) NewRootFragment(source string) dom.Selection {
-	return d.NewFragment(source)
+func (d Dom) NewRootFragment() dom.Selection {
+	return d.NewFragment("<wroot></wroot>")
 }
 
 func parseHTML(source string) []*html.Node {
@@ -164,18 +164,23 @@ func (s Selection) Remove() {
 
 func (s Selection) Clone() dom.Selection {
 	var sel *goquery.Selection
-	for i, node := range s.Nodes {
+	nnodes := make([]*html.Node, 0)
+	i := 0
+	for _, node := range s.Nodes {
 		buf := bytes.NewBufferString("")
 		html.Render(buf, node)
-		nn := parseHTML(buf.String())[0]
-		if i == 0 {
-			sel = goquery.NewDocumentFromNode(nn).Selection
-		} else {
-			sel.AddNodes(nn)
+		pnodes := parseHTML(buf.String())
+		if len(pnodes) == 1 {
+			if i == 0 {
+				sel = goquery.NewDocumentFromNode(pnodes[0]).Selection
+			} else {
+				nnodes = append(nnodes, pnodes[0])
+			}
+			i++
 		}
 	}
 
-	return newSelection(sel)
+	return newSelection(sel.AddNodes(nnodes...))
 }
 
 func (s Selection) operate(sel dom.Selection, opFunc operateFunc) {
@@ -228,7 +233,9 @@ func (s Selection) Parent() dom.Selection {
 }
 
 func (s Selection) Unwrap() {
-	s.ReplaceWith(s.Contents())
+	for _, elem := range s.Elements() {
+		elem.ReplaceWith(elem.Contents())
+	}
 }
 
 func (s Selection) SetHtml(content string) {
@@ -305,7 +312,8 @@ func (s Selection) Next() dom.Selection {
 }
 
 func (s Selection) Exists() bool {
-	return s.Selection.ParentFiltered("html").Length() > 0
+	return s.Selection.ParentsFiltered("wroot").Length() > 0 ||
+		s.Selection.ParentsFiltered("html").Length() > 0
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {

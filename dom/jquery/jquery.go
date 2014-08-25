@@ -84,8 +84,8 @@ func (d Dom) NewFragment(html string) dom.Selection {
 	return newSelection(gJQ(html))
 }
 
-func (d Dom) NewRootFragment(html string) dom.Selection {
-	return newSelection(gJQ(js.Global.Get(jquery.JQ).Call("parseHTML", html)))
+func (d Dom) NewRootFragment() dom.Selection {
+	return newSelection(gJQ(js.Global.Get(jquery.JQ).Call("parseHTML", "<wroot></wroot>")))
 }
 
 func (s Selection) TagName() (string, error) {
@@ -212,7 +212,8 @@ func (s Selection) Next() dom.Selection {
 }
 
 func (s Selection) Exists() bool {
-	return s.JQuery.Parents("html").Length > 0
+	return s.JQuery.Parents("wroot").Length > 0 ||
+		s.JQuery.Parents("html").Length > 0
 }
 
 func (s Selection) Before(sel dom.Selection) {

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gopherjs/gopherjs/js"
 	urlrouter "github.com/naoina/kocha-urlrouter"
 	_ "github.com/naoina/kocha-urlrouter/regexp"
 	"github.com/phaikawl/wade/bind"
@@ -27,6 +26,7 @@ type (
 		PushState(title string, path string)
 		OnPopState(fn func())
 		CurrentPath() string
+		RedirectTo(url string)
 	}
 
 	BindEngine interface {
@@ -35,15 +35,16 @@ type (
 	}
 
 	pageManager struct {
-		document     dom.Selection
-		routes       []urlrouter.Record
-		router       urlrouter.URLRouter
-		currentPage  *page
-		startPageId  string
-		basePath     string
-		notFoundPage *page
-		container    dom.Selection
-		tcontainer   dom.Selection
+		document      dom.Selection
+		routes        []urlrouter.Record
+		router        urlrouter.URLRouter
+		currentPage   *page
+		startPageId   string
+		basePath      string
+		notFoundPage  *page
+		container     dom.Selection
+		tcontainer    dom.Selection
+		realContainer dom.Selection
 
 		binding        BindEngine
 		pc             *PageCtrl
@@ -57,12 +58,12 @@ type (
 func newPageManager(history History, config AppConfig, document dom.Selection,
 	tcontainer dom.Selection, binding BindEngine) *pageManager {
 
-	container := config.Container
-	if container == nil {
-		container = document.Find("body").First()
+	realContainer := config.Container
+	if realContainer == nil {
+		realContainer = document.Find("body").First()
 	}
 
-	if container.Length() == 0 {
+	if realContainer.Length() == 0 {
 		panic("App container doesn't exist.")
 	}
 
@@ -79,8 +80,9 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		basePath:      basePath,
 		startPageId:   config.StartPage,
 		notFoundPage:  nil,
-		container:     container,
+		container:     document.NewRootFragment(),
 		tcontainer:    tcontainer,
+		realContainer: realContainer,
 		binding:       binding,
 		displayScopes: make(map[string]displayScope),
 		globalDs:      &globalDisplayScope{},
@@ -132,16 +134,6 @@ func (pm *pageManager) Fullpath(pa string) string {
 	return path.Join(pm.basePath, pa)
 }
 
-func (pm *pageManager) setupPageOnLoad() {
-	path := pm.cutPath(pm.history.CurrentPath())
-	if path == "" || path == "/" {
-		startPage := pm.page(pm.startPageId)
-		path = startPage.path
-		pm.history.ReplaceState(startPage.title, pm.Fullpath(path))
-	}
-	pm.updatePage(path, false)
-}
-
 func (pm *pageManager) RedirectToPage(page string, params ...interface{}) {
 	url, err := pm.PageUrl(page, params...)
 	if err != nil {
@@ -151,7 +143,11 @@ func (pm *pageManager) RedirectToPage(page string, params ...interface{}) {
 }
 
 func (pm *pageManager) RedirectToUrl(url string) {
-	js.Global.Get("window").Set("location", url)
+	if strings.HasPrefix(url, pm.BasePath()) {
+		pm.updatePage(url, true)
+	} else {
+		pm.history.RedirectTo(url)
+	}
 }
 
 func (pm *pageManager) prepare() {
@@ -189,7 +185,7 @@ func (pm *pageManager) prepare() {
 		go pm.updatePage(pagepath, true)
 	})
 
-	pm.setupPageOnLoad()
+	pm.updatePage(pm.history.CurrentPath(), false)
 }
 
 func walk(elem dom.Selection, pm *pageManager) {
@@ -212,9 +208,14 @@ func walk(elem dom.Selection, pm *pageManager) {
 }
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
-	url = pm.cutPath(url)
+	path := pm.cutPath(url)
+	if path == "" || path == "/" {
+		startPage := pm.page(pm.startPageId)
+		path = startPage.path
+		pm.history.ReplaceState(startPage.title, pm.Fullpath(path))
+	}
 
-	match, routeparams := pm.router.Lookup(url)
+	match, routeparams := pm.router.Lookup(path)
 	if match == nil {
 		if pm.notFoundPage != nil {
 			pm.updatePage(pm.notFoundPage.path, false)
@@ -237,11 +238,10 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 	if pm.currentPage != page {
 		pm.formattedTitle = page.title
-		pm.container.Hide()
+
 		pm.currentPage = page
-		pcontents := pm.tcontainer.Clone()
-		walk(pcontents, pm)
-		pm.container.SetHtml(pcontents.Html())
+		pm.container.SetHtml(pm.tcontainer.Html())
+		walk(pm.container, pm)
 
 		for _, wrep := range pm.container.Find("wrep").Elements() {
 			wrep.Remove()
@@ -259,7 +259,9 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 		pm.bind(params)
 		icommon.WrapperUnwrap(pm.container)
-		pm.container.Show()
+
+		pm.realContainer.SetHtml(pm.container.Html())
+
 		pm.setTitle(pm.formattedTitle)
 	}
 }

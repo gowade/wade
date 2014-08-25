@@ -3,7 +3,6 @@ package wade
 import (
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
-	"github.com/phaikawl/wade/libs/pdata"
 )
 
 var (
@@ -36,8 +35,8 @@ type ThisPage interface {
 type GlobalServices struct {
 	Http           *http.Client
 	PageManager    PageManager
-	LocalStorage   pdata.Storage
-	SessionStorage pdata.Storage
+	LocalStorage   Storage
+	SessionStorage Storage
 }
 
 type PageManager interface {
@@ -54,7 +53,7 @@ type NeedsInit interface {
 
 type Registration interface {
 	RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
-	RegisterCustomTags(src string, models map[string]CustomElemProto)
+	RegisterCustomTags(...CustomTag)
 	RegisterController(displayScope string, controller PageControllerFunc)
 	ModuleInit(...NeedsInit)
 }
@@ -62,6 +61,7 @@ type Registration interface {
 type AppConfig struct {
 	StartPage  string
 	BasePath   string
-	ServerBase string
 	Container  dom.Selection
+	ServerBase string
+	ServerMode bool
 }
