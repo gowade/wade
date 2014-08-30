@@ -165,8 +165,8 @@ func (j *JsStub) IsNull() bool {
 	return j.Value == nil
 }
 
-func NewNoopHistory() *noopHistory {
-	return &noopHistory{path: "/"}
+func NewNoopHistory(path string) *noopHistory {
+	return &noopHistory{path: path}
 }
 
 func (h *noopHistory) ReplaceState(title string, path string) {

@@ -50,6 +50,7 @@ type (
 		Length() int
 		Elements() []Selection
 		Append(Selection)
+		Prepend(Selection)
 		Remove()
 		Clone() Selection
 		ReplaceWith(Selection)

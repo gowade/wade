@@ -187,6 +187,8 @@ func (tm *custagMan) registerTags(customTags []CustomTag) (ret error) {
 			ret = err
 			continue
 		}
+
+		ct.Html = parseTemplate(ct.Html)
 		tm.custags[strings.ToLower(ct.Name)] = ct
 	}
 

@@ -89,7 +89,7 @@ func TestPageManager(t *testing.T) {
 	`)
 
 	b := &NoopBindEngine{}
-	pm := newPageManager(NewNoopHistory(),
+	pm := newPageManager(NewNoopHistory("/"),
 		AppConfig{StartPage: "pg-home", BasePath: "/web"},
 		doc,
 		template,

@@ -34,40 +34,32 @@ type UrlInfo struct {
 }
 
 type GetSetable interface {
-	Get(key string) (v interface{}, ok bool)
+	Get(key string, v interface{}) (ok bool)
 	Set(key string, v interface{})
+	Delete(key string)
 }
 
 type Storage struct {
 	GetSetable
 }
 
-func (s *Storage) GetBool(key string) (v bool, ok bool) {
-	var ov interface{}
-	ov, ok = s.Get(key)
-	if ok {
-		v = ov.(bool)
-	}
-
+func (stg Storage) GetBool(key string) (v bool, ok bool) {
+	ok = stg.Get(key, &v)
 	return
 }
 
-func (s *Storage) GetInt(key string) (v int, ok bool) {
-	var ov interface{}
-	ov, ok = s.Get(key)
-	if ok {
-		v = ov.(int)
-	}
-
+func (stg Storage) GetStr(key string) (v string, ok bool) {
+	ok = stg.Get(key, &v)
 	return
 }
 
-func (s *Storage) GetStr(key string) (v string, ok bool) {
-	var ov interface{}
-	ov, ok = s.Get(key)
-	if ok {
-		v = ov.(string)
-	}
-
+func (stg Storage) GetInt(key string) (v int, ok bool) {
+	ok = stg.Get(key, &v)
 	return
+}
+
+//Get the stored value with key key and store it in v.
+//Typically used for struct values.
+func (stg Storage) GetTo(key string, v interface{}) bool {
+	return stg.Get(key, v)
 }

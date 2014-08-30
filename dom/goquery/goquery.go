@@ -205,6 +205,14 @@ func (s Selection) Append(sel dom.Selection) {
 	})
 }
 
+func (s Selection) Prepend(sel dom.Selection) {
+	if s.Contents().Length() > 0 {
+		s.Contents().First().Before(sel)
+	} else {
+		s.Append(sel)
+	}
+}
+
 func (s Selection) ReplaceWith(sel dom.Selection) {
 	s.operate(sel, func(dst, src *html.Node) {
 		if dst.Parent == nil {

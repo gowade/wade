@@ -9,8 +9,6 @@ var (
 	AppServices GlobalServices
 )
 
-type EventHandler func()
-
 type AppFunc func(Registration)
 
 // PageControllerFunc is the function to be run on the load of a specific page.

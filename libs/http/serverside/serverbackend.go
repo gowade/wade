@@ -12,13 +12,13 @@ import (
 	wadehttp "github.com/phaikawl/wade/libs/http"
 )
 
+type Headers struct {
+	http.Header
+}
+
 type ServerBackend struct {
 	Server    http.Handler
 	ClientReq *http.Request
-}
-
-type Headers struct {
-	http.Header
 }
 
 func (h Headers) String() string {

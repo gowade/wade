@@ -267,3 +267,7 @@ func (s Selection) AddClass(class string) {
 func (s Selection) RemoveClass(class string) {
 	s.JQuery.RemoveClass(class)
 }
+
+func (s Selection) Prepend(sel dom.Selection) {
+	s.JQuery.Prepend(sel.(Selection).JQuery)
+}

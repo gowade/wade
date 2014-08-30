@@ -9,7 +9,9 @@ import (
 const WrapperTag = "ww"
 
 func WrapperUnwrap(elem dom.Selection) {
-	elem.Find(WrapperTag).Unwrap()
+	for _, e := range elem.Find(WrapperTag).Elements() {
+		e.Unwrap()
+	}
 }
 
 func IsWrapperElem(elem dom.Selection) bool {

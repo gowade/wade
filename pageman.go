@@ -60,7 +60,14 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 
 	realContainer := config.Container
 	if realContainer == nil {
-		realContainer = document.Find("body").First()
+		body := document.Find("body")
+		realContainer = body.Find(".wade-app-container")
+		if realContainer.Length() > 0 {
+			realContainer = realContainer.First()
+		} else {
+			realContainer = document.NewFragment(`<div class="wade-app-container"></div>`)
+			body.Prepend(realContainer)
+		}
 	}
 
 	if realContainer.Length() == 0 {
@@ -139,12 +146,16 @@ func (pm *pageManager) RedirectToPage(page string, params ...interface{}) {
 	if err != nil {
 		panic(err.Error())
 	}
-	pm.updatePage(url, true)
+	go func() {
+		pm.updatePage(url, true)
+	}()
 }
 
 func (pm *pageManager) RedirectToUrl(url string) {
 	if strings.HasPrefix(url, pm.BasePath()) {
-		pm.updatePage(url, true)
+		go func() {
+			pm.updatePage(url, true)
+		}()
 	} else {
 		pm.history.RedirectTo(url)
 	}
@@ -170,11 +181,13 @@ func (pm *pageManager) prepare() {
 	}
 
 	pm.history.OnPopState(func() {
-		pm.updatePage(pm.history.CurrentPath(), false)
+		go func() {
+			pm.updatePage(pm.history.CurrentPath(), false)
+		}()
 	})
 
 	//Handle link events
-	pm.container.Listen("click", "a", func(e dom.Event) {
+	pm.realContainer.Listen("click", "a", func(e dom.Event) {
 		pagepath, ok := e.Target().Attr(bind.WadePageAttr)
 		if !ok { //not a wade page link, let the browser do its job
 			return
@@ -257,10 +270,9 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 			e.Unwrap()
 		}
 
-		pm.bind(params)
 		icommon.WrapperUnwrap(pm.container)
-
 		pm.realContainer.SetHtml(pm.container.Html())
+		pm.bind(params)
 
 		pm.setTitle(pm.formattedTitle)
 	}
@@ -371,9 +383,9 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 	}
 
 	if len(models) == 0 {
-		pm.binding.Bind(pm.container, nil, true, false)
+		pm.binding.Bind(pm.realContainer, nil, true, false)
 	} else {
-		pm.binding.BindModels(pm.container, models, false, false)
+		pm.binding.BindModels(pm.realContainer, models, false, false)
 	}
 
 	pm.pc = pc

@@ -80,4 +80,6 @@ func TestEverything(t *testing.T) {
 	nt = d.NewFragment(`<div><b>zz</b><b>zz</b></div>`)
 	nt.Find("b").Unwrap()
 	require.Equal(t, nt.Html(), "zzzz")
+	nt.Prepend(d.NewFragment("<div>aa</div>"))
+	require.Equal(t, nt.Text(), "aazzzz")
 }

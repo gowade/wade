@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -33,22 +34,33 @@ func Do(request *Request) (resp *Response, err error) {
 	return
 }
 
-type Backend interface {
-	Do(*Request) error
-}
+type (
+	Backend interface {
+		Do(*Request) error
+	}
 
-type ResponseHeaders interface {
-	String() string
-	Get(string) string
-}
+	ResponseHeaders interface {
+		String() string
+		Get(string) string
+	}
 
-type Response struct {
-	RawData    interface{}
-	Data       string
-	Status     string
-	StatusCode int
-	Type       string
-	Headers    ResponseHeaders
+	Response struct {
+		RawData    interface{}
+		Data       string
+		Status     string
+		StatusCode int
+		Type       string
+		Headers    ResponseHeaders
+	}
+
+	HttpRecord struct {
+		Response *Response
+		Error    error
+	}
+)
+
+func RequestIdent(r *Request) string {
+	return r.Method + "::" + r.Url
 }
 
 func (r *Response) Failed() bool {
@@ -113,6 +125,14 @@ func (h HttpHeader) Del(key string) {
 	if _, ok := h[key]; ok {
 		delete(h, key)
 	}
+}
+
+func (h HttpHeader) String() (s string) {
+	for key, values := range h {
+		s += key + ": " + strings.Join(values, ";") + "\n"
+	}
+
+	return
 }
 
 type Request struct {
