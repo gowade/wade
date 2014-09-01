@@ -146,16 +146,13 @@ func (pm *pageManager) RedirectToPage(page string, params ...interface{}) {
 	if err != nil {
 		panic(err.Error())
 	}
-	go func() {
-		pm.updatePage(url, true)
-	}()
+
+	pm.updatePage(url, true)
 }
 
 func (pm *pageManager) RedirectToUrl(url string) {
 	if strings.HasPrefix(url, pm.BasePath()) {
-		go func() {
-			pm.updatePage(url, true)
-		}()
+		pm.updatePage(url, true)
 	} else {
 		pm.history.RedirectTo(url)
 	}
@@ -270,9 +267,11 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 			e.Unwrap()
 		}
 
-		icommon.WrapperUnwrap(pm.container)
+		pm.realContainer.Hide()
 		pm.realContainer.SetHtml(pm.container.Html())
 		pm.bind(params)
+		icommon.WrapperUnwrap(pm.realContainer)
+		pm.realContainer.Show()
 
 		pm.setTitle(pm.formattedTitle)
 	}
@@ -342,7 +341,7 @@ func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *P
 	}
 }
 
-func (pm *pageManager) CurrentPage() ThisPage {
+func (pm *pageManager) CurrentPage() *PageCtrl {
 	return pm.pc
 }
 
@@ -372,7 +371,8 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		for _, controller := range controllers {
 			go func(controller PageControllerFunc) {
 				//gopherjs:blocking
-				models = append(models, controller(pc))
+				model := controller(pc)
+				models = append(models, model)
 				queueChan <- true
 				if len(queueChan) == len(controllers) {
 					completeChan <- true

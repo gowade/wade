@@ -13,21 +13,11 @@ type AppFunc func(Registration)
 
 // PageControllerFunc is the function to be run on the load of a specific page.
 // It returns a model to be used in bindings of the elements in the page.
-type PageControllerFunc func(ThisPage) interface{}
+type PageControllerFunc func(*PageCtrl) interface{}
 
 type Redirecter interface {
 	RedirectToPage(page string, params ...interface{})
 	RedirectToUrl(string)
-}
-
-type ThisPage interface {
-	Services() GlobalServices
-	Manager() PageManager
-	Info() PageInfo
-	FormatTitle(params ...interface{})
-	GetParam(param string, dest interface{}) error
-	RegisterHelper(name string, fn interface{})
-	Redirecter
 }
 
 type GlobalServices struct {
@@ -40,7 +30,7 @@ type GlobalServices struct {
 type PageManager interface {
 	Redirecter
 	BasePath() string
-	CurrentPage() ThisPage
+	CurrentPage() *PageCtrl
 	Fullpath(string) string
 	PageUrl(page string, params ...interface{}) (string, error)
 }

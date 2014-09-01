@@ -134,11 +134,15 @@ func (b *EventBinder) Bind(d DomBind) error {
 		if heuristicPreventDefault(evtname, d.Elem) {
 			evt.PreventDefault()
 		}
-		if ok0 {
-			handler0()
-		} else if ok1 {
-			handler1(evt)
-		}
+		go func() {
+			if ok0 {
+				//gopherjs:blocking
+				handler0()
+			} else if ok1 {
+				//gopherjs:blocking
+				handler1(evt)
+			}
+		}()
 	})
 
 	return nil

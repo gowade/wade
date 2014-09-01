@@ -3,8 +3,8 @@ package utils
 import (
 	"reflect"
 
-	"github.com/pengux/check"
 	"github.com/phaikawl/wade/libs/http"
+	"github.com/phaikawl/wade/libs/validate"
 )
 
 type ErrorMap map[string]map[string]string
@@ -53,11 +53,13 @@ type ErrorMapHolder interface {
 // Validated implements the ErrorMapHolder interface, so you just need to
 // embed Validated into your form struct and pass it to this function.
 
-func ProcessForm(httpClient *http.Client, url string, data interface{}, errdst ErrorMapHolder, validator check.Struct) (*http.Response, error) {
+func ProcessForm(httpClient *http.Client, url string, data interface{}, errdst ErrorMapHolder, validator validate.Struct) (resp *http.Response, isValid bool, err error) {
 	if reflect.TypeOf(data).Kind() != reflect.Struct {
 		panic("The dataModel given to ProcessForm must be a struct.")
 	}
-	errdst.setErrors(validator.Validate(data).ToMessages())
-	resp, err := httpClient.POST(url, data)
-	return resp, err
+	verrors := validator.Validate(data).ToMessages()
+	errdst.setErrors(verrors)
+	isValid = len(verrors) == 0
+	resp, err = httpClient.POST(url, data)
+	return
 }
