@@ -97,8 +97,8 @@ func TestBinding(t *testing.T) {
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
 	model := &Model{}
-	b.processFieldBind("Name: 'Hai'; Value: Num", elem, bs, false, model)
-	require.Equal(t, model.Name, "Hai")
+	b.processFieldBind("Name: |':Hai;'; Value: Num", elem, bs, false, model)
+	require.Equal(t, model.Name, ":Hai;")
 	require.Equal(t, model.Value, 9000)
 	sc.Num = 9999
 	wc.watches[1]()
@@ -120,7 +120,7 @@ func TestBinding(t *testing.T) {
 	<div>
 		<ww bind-attr-class="Name">
 			<div id="0" bind-html="Num"></div>
-			<test bind="Value: Num; Name: 'abc'" bind-attr-id="1"><span bind-html="Name"></span></test>
+			<test bind="Value: Num; Name: |'abc'" bind-attr-id="|1"><span bind-html="Name"></span></test>
 		</ww>
 	</div>
 	`

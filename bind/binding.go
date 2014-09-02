@@ -90,17 +90,22 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
-func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callback func(interface{})) {
+func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *bindScope, callback func(interface{})) error {
 	for _, bi := range binds {
+		if !bi.bindObj().fieldRefl.CanAddr() {
+			return fmt.Errorf("Cannot watch this field. Please make sure it's addressable (struct fields are addressable; immutable values returned by a function are not).")
+		}
 		//use watchjs to watch for changes to the model
 		(func(bi bindable) {
 			bo := bi.bindObj()
 			b.watcher.Watch(bo.modelRefl, bo.field, func() {
-				newResult, _, _ := bs.evaluateRec(root)
+				newResult, _ := bs.evaluateRec(root, watches)
 				callback(newResult.Interface())
 			})
 		})(bi)
 	}
+
+	return nil
 }
 
 func bstrPanic(mess, bindstring string, elem dom.Selection) {
@@ -155,7 +160,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 			bstrPanic(err.Error(), bstr, elem)
 		}
 
-		roote, binds, v, err := bs.evaluate(bexpr)
+		roote, binds, watches, v, err := bs.evaluate(bexpr)
 		if err != nil {
 			bstrPanic(err.Error(), bstr, elem)
 		}
@@ -183,7 +188,7 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 			reportBinderError(binder.Bind(domBind), bstr, elem)
 			reportBinderError(binder.Update(domBind), bstr, elem)
 			if !once {
-				b.watchModel(binds, roote, bs, func(newResult interface{}) {
+				b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
 					domBind.Value = newResult
 					reportBinderError(binder.Update(domBind), bstr, elem)
 					icommon.WrapperUnwrap(elem)
@@ -196,26 +201,24 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 }
 
 func (b *Binding) processFieldBind(bstr string, elem dom.Selection, bs *bindScope, once bool, tModel interface{}) {
-	fbinds := strings.Split(bstr, ";")
-	for i, fb := range fbinds {
-		if i == len(fbinds)-1 && fb == "" {
-			continue
-		}
-		fv := strings.Split(fb, ":")
-		if len(fv) != 2 {
-			bstrPanic(fmt.Sprintf(`Invalid syntax. There should be 1 ":" in each binding of a field instead of %v`, len(fv)), bstr, elem)
-		}
-		field := strings.TrimSpace(fv[0])
-		valuestr := strings.TrimSpace(fv[1])
-		for _, c := range field {
-			if !isValidExprChar(c) {
-				bstrPanic(fmt.Sprintf("invalid character %q", c), field, elem)
-			}
+	tokens, err := tokenize(bstr)
+	if err != nil {
+		bstrPanic(err.Error(), bstr, elem)
+	}
+	fbinds, err := parseFieldBind(tokens)
+	if err != nil {
+		bstrPanic(err.Error(), bstr, elem)
+	}
+
+	for field, btoks := range fbinds {
+		watches, roote, er := parseBind(btoks)
+		if er != nil {
+			bstrPanic(er.Error(), bstr, elem)
 		}
 
-		roote, binds, v, err := bs.evaluate(valuestr)
-		if err != nil {
-			bstrPanic(err.Error(), bstr, elem)
+		binds, v, er := bs.evaluatePart(watches, roote)
+		if er != nil {
+			bstrPanic(er.Error(), bstr, elem)
 		}
 
 		oe, ok := evaluateObjField(field, reflect.ValueOf(tModel))
@@ -231,7 +234,7 @@ func (b *Binding) processFieldBind(bstr string, elem dom.Selection, bs *bindScop
 		isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
 		oe.fieldRefl.Set(reflect.ValueOf(v))
 		if !once {
-			b.watchModel(binds, roote, bs, func(newResult interface{}) {
+			b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
 				isCompat(nr.Type(), oe.fieldRefl.Type())
 				oe.fieldRefl.Set(nr)
@@ -322,7 +325,7 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 				tagname, _ := elem.TagName()
 				if name == "bind" { //field binding
 					if !isCustom {
-						bstrPanic(fmt.Sprintf(`Element %v hasn't been registered as a custom element.`, tagname),
+						bstrPanic(fmt.Sprintf(`Element %v hasn't been registered as a custom element`, tagname),
 							bstr, elem)
 					}
 
