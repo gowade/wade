@@ -26,11 +26,21 @@ type (
 	Model struct {
 		Name  string
 		Value int
+		Test  *TestModel
+	}
+
+	TestModel struct {
+		A A
+	}
+
+	A struct {
+		B bool
 	}
 
 	Scope struct {
 		Name string
 		Num  int
+		Test *TestModel
 	}
 )
 
@@ -67,7 +77,7 @@ func initTestBind() (wc *watcher, cem *ceManager, b *Binding) {
 
 func TestBinding(t *testing.T) {
 	wc, cem, b := initTestBind()
-	sc := &Scope{"a", 9000}
+	sc := &Scope{"a", 9000, &TestModel{A{true}}}
 	bs := &bindScope{b.newModelScope(sc)}
 
 	//Test parse dom bind string
@@ -97,9 +107,10 @@ func TestBinding(t *testing.T) {
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
 	model := &Model{}
-	b.processFieldBind("Name: |':Hai;'; Value: Num", elem, bs, false, model)
+	b.processFieldBind("Name: |':Hai;'; Value: Num;", elem, bs, false, model)
 	require.Equal(t, model.Name, ":Hai;")
 	require.Equal(t, model.Value, 9000)
+
 	sc.Num = 9999
 	wc.watches[1]()
 	require.Equal(t, model.Value, 9999)
@@ -114,13 +125,15 @@ func TestBinding(t *testing.T) {
 		<wcontents></wcontents>
 		<span bind-html="Name"></span>
 		<p bind-html="Value"></p>
+		<div bind-html="Test.A.B"></div>
 	</div>
 	`
 	src := `
 	<div>
 		<ww bind-attr-class="Name">
 			<div id="0" bind-html="Num"></div>
-			<test bind="Value: Num; Name: |'abc'" bind-attr-id="|1"><span bind-html="Name"></span></test>
+			<test bind="Value: Num; Name: |'abc'; Test: Test" bind-attr-id="|1"><span bind-html="Name"></span></test>
+			<div id="2" bind-html="Test.A.B"></div>
 		</ww>
 	</div>
 	`
@@ -131,10 +144,12 @@ func TestBinding(t *testing.T) {
 	require.Equal(t, root.Find("#1").HasClass(sc.Name), true)
 	require.Equal(t, root.Find("#0").Html(), "9999")
 	require.Equal(t, root.Find("#1").Length(), 1)
+	require.Equal(t, root.Find("#2").Html(), "true")
 	tn, _ := root.Find("#1").TagName()
 	require.Equal(t, tn, "div")
 	felems := root.Find("#1").Children().Elements()
 	require.Equal(t, felems[0].Html(), sc.Name)
 	require.Equal(t, felems[1].Html(), "abc")
 	require.Equal(t, felems[2].Html(), "9999")
+	require.Equal(t, felems[3].Html(), "true")
 }

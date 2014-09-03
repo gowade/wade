@@ -56,7 +56,7 @@ func tokenize(spec string) (tokens []token, err error) {
 
 	strlitMode := false //string literal mode
 
-	for _, c := range spec {
+	for i, c := range spec {
 		if !strlitMode {
 			switch c {
 			case ' ':
@@ -68,6 +68,12 @@ func tokenize(spec string) (tokens []token, err error) {
 			case '@':
 				if tok != "" {
 					err = errors.New("Invalid '@'")
+					return
+				}
+				tok += string(c)
+			case '-':
+				if tok != "" || i >= len(spec)-1 || !unicode.IsDigit(rune(spec[i+1])) {
+					err = errors.New("Invalid '-'")
 					return
 				}
 				tok += string(c)
@@ -269,6 +275,7 @@ func parseLiteralExpr(expr string) (value interface{}, isLiteral bool, err error
 
 	numberMode := false
 	floatMode := false
+
 	for i, c := range expr {
 		switch {
 		case c == StrQuote && i == 0: // string literal
@@ -279,6 +286,9 @@ func parseLiteralExpr(expr string) (value interface{}, isLiteral bool, err error
 			err = fmt.Errorf("No matching quote.")
 			return
 
+		case c == '-' && i == 0:
+			numberMode = true
+
 		case unicode.IsDigit(c):
 			if i == 0 {
 				numberMode = true
@@ -286,7 +296,7 @@ func parseLiteralExpr(expr string) (value interface{}, isLiteral bool, err error
 
 		case unicode.IsLetter(c) || c == '_':
 			if numberMode {
-				err = fmt.Errorf("Invalid: dynamic expression cannot start with a number")
+				err = fmt.Errorf("Invalid expression, dynamic expression cannot start with a number or dash.")
 				return
 			}
 

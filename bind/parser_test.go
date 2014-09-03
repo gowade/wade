@@ -41,9 +41,9 @@ func TestParser(t *testing.T) {
 		"Data.Username, Data.Password | concat(@1, @2)":                   "HaiPk",
 		"Data.Username | concat(@1, 'Pk|')":                               "HaiPk|",
 		"Data.Username, Data.Password | concat(toUpper(@1), toLower(@2))": "HAIpk",
-		"| addInt(1, 2)":       3,
-		"| addFloat(1.0, 2.0)": float32(3),
-		"| fooAdd('bar*|-,')":  "foobar*|-,",
+		"| addInt(-1, 2)":                                                 1,
+		"| addFloat(-1.0, 2.0)":                                           float32(1.0),
+		"| fooAdd('bar*|-,')":                                             "foobar*|-,",
 	}
 
 	for bstr, result := range tests {

@@ -51,7 +51,7 @@ func callFunc(fn reflect.Value, args []reflect.Value) (v reflect.Value, err erro
 
 // evaluateObj uses reflection to access a field (obj.field1.field2.field3) of the given model.
 // It returns an evaluation of the field, and a bool which indicates whether the field is found
-func evaluateObjField(query string, model reflect.Value) (*objEval, bool) {
+func evaluateObjField(query string, model reflect.Value) (oe *objEval, ok bool, err error) {
 	flist := strings.Split(query, ".")
 	vals := make([]reflect.Value, len(flist)+1)
 	o := model
@@ -63,24 +63,33 @@ func evaluateObjField(query string, model reflect.Value) (*objEval, bool) {
 
 	for i, field := range flist {
 		var found bool
-		o, found = getReflectField(o, field)
+		o, found, err = getReflectField(o, field)
+		if err != nil {
+			return
+		}
 		if !found {
-			return nil, false
+			return
 		}
 		vals[i+1] = o
 	}
 
-	return &objEval{
+	ok = true
+	oe = &objEval{
 		fieldRefl: vals[len(vals)-1],
 		modelRefl: vals[len(vals)-2],
 		field:     flist[len(flist)-1],
-	}, true
+	}
+
+	return
 }
 
 // getReflectField returns the field value of an object, be it a struct instance
 // or a map
-func getReflectField(o reflect.Value, field string) (reflect.Value, bool) {
-	var rv reflect.Value
+func getReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, err error) {
+	if o.Kind() == reflect.Ptr && o.IsNil() {
+		err = fmt.Errorf("Accessing field of a nil pointer")
+		return
+	}
 
 	if o.Kind() == reflect.Ptr {
 		o = o.Elem()
@@ -98,12 +107,10 @@ func getReflectField(o reflect.Value, field string) (reflect.Value, bool) {
 			rv = reflect.ValueOf(rv.Interface())
 		}
 	default:
-		return rv, false
+		return
 	}
 
-	if rv.IsValid() {
-		return rv, true
-	}
+	ok = rv.IsValid()
 
-	return rv, false
+	return
 }

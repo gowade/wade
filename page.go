@@ -137,8 +137,9 @@ func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
 
 // PageCtrl provides access to the page data and operations inside a controller func
 type PageCtrl struct {
-	pm *pageManager
-	p  *page
+	PageInfo *PageInfo
+	pm       *pageManager
+	p        *page
 
 	params  map[string]interface{}
 	helpers map[string]interface{}
@@ -148,15 +149,6 @@ type PageInfo struct {
 	Id    string
 	Route string
 	Title string
-}
-
-// PageInfo returns information about the page
-func (pc *PageCtrl) Info() PageInfo {
-	return PageInfo{
-		Id:    pc.p.id,
-		Route: pc.p.path,
-		Title: pc.p.title,
-	}
 }
 
 // Manager returns the page manager
@@ -175,6 +167,7 @@ func (pc *PageCtrl) RedirectToUrl(url string) {
 // FormatTitle formats the page's title with the given params
 func (pc *PageCtrl) FormatTitle(params ...interface{}) {
 	pc.pm.formattedTitle = fmt.Sprintf(pc.pm.currentPage.title, params...)
+	pc.PageInfo.Title = pc.pm.formattedTitle
 }
 
 // GetParam puts the value of a parameter to a dest.

@@ -107,12 +107,12 @@ func TestPageManager(t *testing.T) {
 
 	globalCalled := false
 
-	pm.registerController(GlobalDisplayScope, func(p ThisPage) interface{} {
+	pm.registerController(GlobalDisplayScope, func(p *PageCtrl) interface{} {
 		globalCalled = true
 		return Struct1{A: 0}
 	})
 
-	pm.registerController("pg-home", func(p ThisPage) interface{} {
+	pm.registerController("pg-home", func(p *PageCtrl) interface{} {
 		mess <- 1
 		return Struct2{B: 1}
 	})
@@ -126,15 +126,15 @@ func TestPageManager(t *testing.T) {
 	require.Equal(t, b.models[0].(Struct1).A, 0)
 	require.Equal(t, b.models[1].(Struct2).B, 1)
 
-	pm.registerController("grp-parent", func(p ThisPage) interface{} {
+	pm.registerController("grp-parent", func(p *PageCtrl) interface{} {
 		return Struct1{A: 2}
 	})
 
-	pm.registerController("pg-child-1", func(p ThisPage) interface{} {
+	pm.registerController("pg-child-1", func(p *PageCtrl) interface{} {
 		return Struct2{B: 3}
 	})
 
-	pm.registerController("pg-child-2", func(p ThisPage) interface{} {
+	pm.registerController("pg-child-2", func(p *PageCtrl) interface{} {
 		return Struct3{C: 4}
 	})
 

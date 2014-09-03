@@ -53,6 +53,10 @@ type (
 		formattedTitle string
 		history        History
 	}
+
+	defaultVars struct {
+		C_ *PageCtrl
+	}
 )
 
 func newPageManager(history History, config AppConfig, document dom.Selection,
@@ -122,14 +126,14 @@ func (pm *pageManager) page(id string) *page {
 		}
 	}
 
-	panic(fmt.Sprintf(`No such page "%v" found.`, id))
+	panic(fmt.Sprintf(`No such page "%v"`, id))
 }
 
 func (pm *pageManager) displayScope(id string) displayScope {
 	if ds, ok := pm.displayScopes[id]; ok {
 		return ds
 	}
-	panic(fmt.Sprintf(`No such page or page group "%v" found.`, id))
+	panic(fmt.Sprintf(`No such page or page group "%v"`, id))
 }
 
 func (pm *pageManager) SetNotFoundPage(pageId string) {
@@ -251,6 +255,8 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 		pm.currentPage = page
 		pm.container.SetHtml(pm.tcontainer.Html())
+		pm.container.Find("wdefine").Remove()
+
 		walk(pm.container, pm)
 
 		for _, wrep := range pm.container.Find("wrep").Elements() {
@@ -332,24 +338,27 @@ func (pm *pageManager) BasePath() string {
 	return pm.basePath
 }
 
+func (pm *pageManager) CurrentPage() *PageCtrl {
+	return pm.pc
+}
+
 func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *PageCtrl {
 	return &PageCtrl{
+		PageInfo: &PageInfo{
+			Id:    page.id,
+			Title: page.title,
+			Route: page.path,
+		},
 		pm:      pm,
 		p:       page,
 		params:  params,
 		helpers: make(map[string]interface{}),
 	}
 }
-
-func (pm *pageManager) CurrentPage() *PageCtrl {
-	return pm.pc
-}
-
 func (pm *pageManager) bind(params map[string]interface{}) {
+	pc := pm.newPageCtrl(pm.currentPage, params)
 	models := make([]interface{}, 0)
 	controllers := make([]PageControllerFunc, 0)
-
-	pc := pm.newPageCtrl(pm.currentPage, params)
 
 	add := func(ds displayScope) {
 		if ctrls := ds.Controllers(); ctrls != nil {
@@ -372,7 +381,9 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 			go func(controller PageControllerFunc) {
 				//gopherjs:blocking
 				model := controller(pc)
-				models = append(models, model)
+				if model != nil {
+					models = append(models, model)
+				}
 				queueChan <- true
 				if len(queueChan) == len(controllers) {
 					completeChan <- true
@@ -381,6 +392,8 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		}
 		<-completeChan
 	}
+
+	models = append(models, defaultVars{pc})
 
 	if len(models) == 0 {
 		pm.binding.Bind(pm.realContainer, nil, true, false)

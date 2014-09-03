@@ -22,6 +22,7 @@ func defaultBinders() map[string]DomBinder {
 		"page":  &PageBinder{},
 		"if":    new(IfBinder),
 		"ifn":   &UnlessBinder{&IfBinder{}},
+		"class": &ClassBinder{},
 	}
 }
 
@@ -87,6 +88,34 @@ Correct Usage: bind-attr-<attribute>="Field".`, len(d.Args))
 	return nil
 }
 func (b *AttrBinder) BindInstance() DomBinder { return b }
+
+// ClassBinder is a 1-way binder that adds/removes (toggle) a class based on
+// a boolean value.
+// It takes 1 extra dash arg that is the name of the class to be bound.
+//
+// Usage:
+//	bind-class-<class>="Expression"
+type ClassBinder struct{ BaseBinder }
+
+func (b *ClassBinder) Update(d DomBind) error {
+	if len(d.Args) != 1 {
+		return fmt.Errorf(`Incorrect number of args (%v)
+Correct Usage: bind-class-<class>="Field".`, len(d.Args))
+	}
+
+	class := d.Args[0]
+	enable := d.Value.(bool)
+	hasClass := d.Elem.HasClass(class)
+	if enable && !hasClass {
+		d.Elem.AddClass(class)
+	} else if !enable && hasClass {
+		d.Elem.RemoveClass(class)
+	}
+
+	return nil
+}
+
+func (b *ClassBinder) BindInstance() DomBinder { return b }
 
 // EventBinder is a 1-way binder that binds a method of the model to an event
 // that occurs on the element.

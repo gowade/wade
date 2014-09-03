@@ -94,6 +94,9 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 	for i, watch := range watches {
 		var sym scopeSymbol
 		sym, err = b.scope.lookup(watch.v)
+		if err != nil {
+			return
+		}
 		var ok bool
 		if blist[i], ok = sym.(bindable); !ok {
 			err = fmt.Errorf("Cannot watch Unbindable value %v. Note that struct field values are Bindable, while function return values are Unbindable.", watch.v)

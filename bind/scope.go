@@ -16,7 +16,7 @@ type (
 	}
 
 	symbolTable interface {
-		lookup(symbol string) (scopeSymbol, bool)
+		lookup(symbol string) (scopeSymbol, bool, error)
 	}
 
 	funcSymbol struct {
@@ -41,7 +41,11 @@ func newScope() *scope {
 func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
 	for _, st := range s.symTables {
 		var ok bool
-		sym, ok = st.lookup(symbol)
+		sym, ok, err = st.lookup(symbol)
+		if err != nil {
+			return
+		}
+
 		if ok {
 			return
 		}
@@ -61,7 +65,7 @@ type mapSymbolTable struct {
 	m map[string]scopeSymbol
 }
 
-func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
+func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
 	sym, ok = st.m[symbol]
 	return
 }
@@ -125,14 +129,14 @@ func (mf modelFieldSymbol) call(args []reflect.Value) (v reflect.Value, err erro
 	return
 }
 
-func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool) {
+func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
 	if st.model.Kind() == reflect.Ptr && st.model.IsNil() {
 		ok = false
 		return
 	}
 
 	var eval *objEval
-	eval, ok = evaluateObjField(symbol, st.model)
+	eval, ok, err = evaluateObjField(symbol, st.model)
 	if ok {
 		sym = modelFieldSymbol{symbol, eval}
 	}

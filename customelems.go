@@ -134,8 +134,8 @@ func (t CustomTag) NewModel(elem dom.Selection) interface{} {
 				case reflect.String:
 					v = val
 				default:
-					err = fmt.Errorf(`Unhandled type "%v", cannot use normal html to set the attribute "%v" of custom tag "%v".
-	consider using attribute binding instead.`, kind, attr, t.Name)
+					err = fmt.Errorf(`Unhandled type "%v", cannot use html to set the attribute "%v" of custom tag "%v".
+	consider using field binding syntax instead.`, kind, attr, t.Name)
 				}
 
 				if err != nil {

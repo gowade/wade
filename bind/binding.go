@@ -81,7 +81,7 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 		panic(fmt.Sprintf("Invalid helper %v, a helper must return something.", name))
 	}
 
-	if _, exist := b.helpers.lookup(name); !exist {
+	if _, exist, _ := b.helpers.lookup(name); !exist {
 		b.helpers.registerFunc(name, fn)
 		return
 	}
@@ -221,22 +221,28 @@ func (b *Binding) processFieldBind(bstr string, elem dom.Selection, bs *bindScop
 			bstrPanic(er.Error(), bstr, elem)
 		}
 
-		oe, ok := evaluateObjField(field, reflect.ValueOf(tModel))
+		oe, ok, err := evaluateObjField(field, reflect.ValueOf(tModel))
+		if err != nil {
+			bstrPanic(err.Error(), bstr, elem)
+		}
+
 		if !ok {
 			bstrPanic(fmt.Sprintf(`No such field "%v" to bind to`, field), bstr, elem)
 		}
-		isCompat := func(src reflect.Type, dst reflect.Type) {
+
+		checkCompat := func(src reflect.Type, dst reflect.Type) {
 			if !src.AssignableTo(dst) {
 				bstrPanic(fmt.Sprintf(`Unassignable, incompatible types "%v" and "%v" of the model field and the value`,
 					src.String(), dst.String()), bstr, elem)
 			}
 		}
-		isCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
+
+		checkCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
 		oe.fieldRefl.Set(reflect.ValueOf(v))
 		if !once {
 			b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
-				isCompat(nr.Type(), oe.fieldRefl.Type())
+				checkCompat(nr.Type(), oe.fieldRefl.Type())
 				oe.fieldRefl.Set(nr)
 			})
 		}
@@ -277,7 +283,7 @@ func wrapBindCall(elem dom.Selection, bindattr, bindstr string, fn func(dom.Sele
 }
 
 // bind parses the bind string, make a list of binds (this doesn't actually bind the elements)
-func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bindrelem bool, additionalbinds *AdditionalBinds) (bindTasks []func(), customElemTasks []func()) {
+func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bindrelem bool, additionalbinds *AdditionalBinds, custagProcessing string) (bindTasks []func(), customElemTasks []func()) {
 	bindTasks = make([]func(), 0)
 	customElemTasks = make([]func(), 0)
 
@@ -294,7 +300,13 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 				continue
 			}
 
+			tagname, _ := elem.TagName()
 			custag, isCustom := b.tm.GetCustomTag(elem)
+			if isCustom && tagname == custagProcessing {
+				panic(dom.ElementError(elem,
+					fmt.Sprintf(`Usage of custom tag "%v" inside its own definition. It would lead to an infinite loop!`, tagname, tagname)))
+			}
+
 			isWrapper := icommon.IsWrapperElem(elem)
 			var binds map[string]string
 			if isWrapper || isCustom {
@@ -360,6 +372,9 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 					if isCustom {
 						(func(elem dom.Selection, customTagModel interface{}, binds map[string]string) {
 							customElemTasks = append(customElemTasks, func() {
+								if bindingPrevented(elem, "-all-") {
+									return
+								}
 								err := custag.PrepareTagContents(elem, customTagModel,
 									func(contentElems dom.Selection) {
 										b.bindWithScope(contentElems, once, true, bs.scope, nil)
@@ -369,13 +384,13 @@ func (b *Binding) bindPrepare(relems dom.Selection, bs *bindScope, once bool, bi
 									dom.ElementError(elem, err.Error())
 								}
 
-								b.bindWithScope(elem, once, false, b.newModelScope(customTagModel), &AdditionalBinds{binds, bs})
+								b.bindCustomElem(elem, once, false, b.newModelScope(customTagModel), &AdditionalBinds{binds, bs})
 
 								elem.ReplaceWith(elem.Contents())
 							})
 						})(elem, customTagModel, binds)
 					} else {
-						bt, cet := b.bindPrepare(elem, bs, once, false, &AdditionalBinds{binds, bs})
+						bt, cet := b.bindPrepare(elem, bs, once, false, &AdditionalBinds{binds, bs}, custagProcessing)
 						bindTasks = append(bindTasks, bt...)
 						customElemTasks = append(customElemTasks, cet...)
 					}
@@ -413,7 +428,19 @@ func (b *Binding) BindModels(relem dom.Selection, models []interface{}, once boo
 
 func (b *Binding) bindWithScope(relem dom.Selection, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
 	// we have to do 2 steps like this to avoid missing out binding when things are removed
-	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem, additionalbinds)
+	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem, additionalbinds, "")
+	for _, fn := range btasks {
+		fn()
+	}
+
+	for _, fn := range customElemTasks {
+		fn()
+	}
+}
+
+func (b *Binding) bindCustomElem(relem dom.Selection, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
+	tn, _ := relem.TagName()
+	btasks, customElemTasks := b.bindPrepare(relem, &bindScope{s}, once, bindrelem, additionalbinds, tn)
 	for _, fn := range btasks {
 		fn()
 	}

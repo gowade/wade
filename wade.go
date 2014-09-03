@@ -157,6 +157,10 @@ func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
 	initServices(wd.pm, rb)
 
 	appFn(registry{wd})
+	err = wd.loadCustomTagDefs()
+	if err != nil {
+		return err
+	}
 
 	wd.start()
 
@@ -171,6 +175,23 @@ func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
 
 func (wd *wade) init() {
 	bind.RegisterInternalHelpers(wd.pm, wd.binding)
+}
+
+func (w *wade) loadCustomTagDefs() (err error) {
+	for _, d := range w.tcontainer.Find("wdefine").Elements() {
+		if tagname, ok := d.Attr("tagname"); ok {
+			tag, ok := w.tm.custags[tagname]
+			if !ok {
+				err = dom.ElementError(d, fmt.Sprintf(`Custom tag "%v" has not been registered.`, tagname))
+				return
+			}
+
+			tag.Html = d.Html()
+			w.tm.custags[tagname] = tag
+		}
+	}
+
+	return
 }
 
 // Start starts the real operation, meant to be called at the end of everything.
