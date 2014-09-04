@@ -153,11 +153,23 @@ func parseBind(tokens []token) (watches []token, root *expr, err error) {
 	watches = make([]token, 0)
 	for i, tok := range tokens {
 		if tok.kind == ExprToken {
+			if i > 0 && tokens[i-1].v != "," {
+				err = fmt.Errorf("Invalid syntax in watch list")
+			}
+
 			watches = append(watches, tok)
 		}
 
 		if tok.kind == PuncToken && tok.v == "|" {
 			root, err = parseCalcStr(tokens[i+1:])
+			return
+		}
+	}
+
+	for _, tok := range tokens {
+		if tok.kind != ExprToken && tok.v != "," {
+			err = fmt.Errorf("Invalid use of '%v' in watch list. If you want to call function in bind string or any kind of calculation, "+
+				"please put them behind '|'", tok.v)
 			return
 		}
 	}

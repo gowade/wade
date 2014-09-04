@@ -39,8 +39,9 @@ type (
 	JsBackend interface {
 		DepChecker
 		History() History
-		Watch(modelRefl reflect.Value, field string, callback func())
+		Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback func())
 		WebStorages() (Storage, Storage)
+		jsWatcher
 	}
 )
 
@@ -145,7 +146,7 @@ func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
 
 	wd := &wade{
 		errChan:    make(chan error),
-		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding),
+		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding, rb.JsBackend),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,

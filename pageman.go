@@ -29,8 +29,13 @@ type (
 		RedirectTo(url string)
 	}
 
+	jsWatcher interface {
+		ApplyChanges(ptr interface{})
+		Apply()
+		ResetWatchers()
+	}
+
 	BindEngine interface {
-		Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool)
 		BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool)
 	}
 
@@ -47,20 +52,17 @@ type (
 		realContainer dom.Selection
 
 		binding        BindEngine
-		pc             *PageCtrl
+		pc             *BaseScope
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
 		formattedTitle string
 		history        History
-	}
-
-	defaultVars struct {
-		C_ *PageCtrl
+		watcher        jsWatcher
 	}
 )
 
 func newPageManager(history History, config AppConfig, document dom.Selection,
-	tcontainer dom.Selection, binding BindEngine) *pageManager {
+	tcontainer dom.Selection, binding BindEngine, watcher jsWatcher) *pageManager {
 
 	realContainer := config.Container
 	if realContainer == nil {
@@ -98,6 +100,7 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		displayScopes: make(map[string]displayScope),
 		globalDs:      &globalDisplayScope{},
 		history:       history,
+		watcher:       watcher,
 	}
 
 	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
@@ -275,6 +278,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 		pm.realContainer.Hide()
 		pm.realContainer.SetHtml(pm.container.Html())
+		pm.watcher.ResetWatchers()
 		pm.bind(params)
 		icommon.WrapperUnwrap(pm.realContainer)
 		pm.realContainer.Show()
@@ -338,21 +342,20 @@ func (pm *pageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *pageManager) CurrentPage() *PageCtrl {
+func (pm *pageManager) CurrentPage() *BaseScope {
 	return pm.pc
 }
 
-func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *PageCtrl {
-	return &PageCtrl{
+func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *BaseScope {
+	return &BaseScope{
 		PageInfo: &PageInfo{
 			Id:    page.id,
 			Title: page.title,
 			Route: page.path,
 		},
-		pm:      pm,
-		p:       page,
-		params:  params,
-		helpers: make(map[string]interface{}),
+		pm:     pm,
+		p:      page,
+		params: params,
 	}
 }
 func (pm *pageManager) bind(params map[string]interface{}) {
@@ -393,13 +396,7 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		<-completeChan
 	}
 
-	models = append(models, defaultVars{pc})
-
-	if len(models) == 0 {
-		pm.binding.Bind(pm.realContainer, nil, true, false)
-	} else {
-		pm.binding.BindModels(pm.realContainer, models, false, false)
-	}
+	pm.binding.BindModels(pm.realContainer, models, false, false)
 
 	pm.pc = pc
 }

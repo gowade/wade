@@ -19,6 +19,10 @@ type (
 		lookup(symbol string) (scopeSymbol, bool, error)
 	}
 
+	mapSymbolTable struct {
+		m map[string]scopeSymbol
+	}
+
 	funcSymbol struct {
 		name string
 		fn   reflect.Value
@@ -59,10 +63,6 @@ func (s *scope) merge(target *scope) {
 	for _, st := range target.symTables {
 		s.symTables = append(s.symTables, st)
 	}
-}
-
-type mapSymbolTable struct {
-	m map[string]scopeSymbol
 }
 
 func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {

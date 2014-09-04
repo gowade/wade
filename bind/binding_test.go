@@ -65,7 +65,7 @@ func (cem *ceManager) GetCustomTag(elem dom.Selection) (CustomTag, bool) {
 	return nil, false
 }
 
-func (w *watcher) Watch(modelRefl reflect.Value, field string, callback func()) {
+func (w *watcher) Watch(fieldRefl, modelRefl reflect.Value, field string, callback func()) {
 	w.watches = append(w.watches, callback)
 }
 

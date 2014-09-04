@@ -135,8 +135,8 @@ func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
 	return grp
 }
 
-// PageCtrl provides access to the page data and operations inside a controller func
-type PageCtrl struct {
+// BaseScope provides access to the page data and operations inside a controller func
+type BaseScope struct {
 	PageInfo *PageInfo
 	pm       *pageManager
 	p        *page
@@ -152,29 +152,40 @@ type PageInfo struct {
 }
 
 // Manager returns the page manager
-func (pc *PageCtrl) Manager() PageManager {
+func (pc *BaseScope) Manager() PageManager {
 	return pc.pm
 }
 
-func (pc *PageCtrl) RedirectToPage(page string, params ...interface{}) {
+func (pc *BaseScope) needsToEmbedBaseScope() {
+}
+
+func (pc *BaseScope) RedirectToPage(page string, params ...interface{}) {
 	pc.pm.RedirectToPage(page, params...)
 }
 
-func (pc *PageCtrl) RedirectToUrl(url string) {
+func (pc *BaseScope) RedirectToUrl(url string) {
 	pc.pm.RedirectToUrl(url)
 }
 
 // FormatTitle formats the page's title with the given params
-func (pc *PageCtrl) FormatTitle(params ...interface{}) {
+func (pc *BaseScope) FormatTitle(params ...interface{}) {
 	pc.pm.formattedTitle = fmt.Sprintf(pc.pm.currentPage.title, params...)
 	pc.PageInfo.Title = pc.pm.formattedTitle
+}
+
+func (pc *BaseScope) ApplyChanges(object interface{}) {
+	pc.pm.watcher.ApplyChanges(object)
+}
+
+func (pc *BaseScope) Apply() {
+	pc.pm.watcher.Apply()
 }
 
 // GetParam puts the value of a parameter to a dest.
 // The dest must be a pointer, typically it would be a pointer to a model's field,
 // for example
 //	pc.GetParam("postid", &pmodel.PostId)
-func (pc *PageCtrl) GetParam(param string, dest interface{}) (err error) {
+func (pc *BaseScope) GetParam(param string, dest interface{}) (err error) {
 	v, ok := pc.params[param]
 	if !ok {
 		err = fmt.Errorf("No such parameter %v.", param)
@@ -188,11 +199,11 @@ func (pc *PageCtrl) GetParam(param string, dest interface{}) (err error) {
 	return
 }
 
-func (pc *PageCtrl) Services() GlobalServices {
+func (pc *BaseScope) Services() GlobalServices {
 	return AppServices
 }
 
 // RegisterHelper registers fn as a local helper with the given name.
-func (pc *PageCtrl) RegisterHelper(name string, fn interface{}) {
+func (pc *BaseScope) RegisterHelper(name string, fn interface{}) {
 	pc.helpers[name] = fn
 }

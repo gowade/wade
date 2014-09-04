@@ -14,6 +14,10 @@ type SwitchMenu struct {
 }
 
 func (sm *SwitchMenu) Init(ce wade.CustomElem) error {
+	if sm.ActiveClass == "" {
+		sm.ActiveClass = "active"
+	}
+
 	if sm.Current == "" {
 		return fmt.Errorf(`"Current" attribute must be set.`)
 	}

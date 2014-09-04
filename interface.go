@@ -9,47 +9,54 @@ var (
 	AppServices GlobalServices
 )
 
-type AppFunc func(Registration)
+type (
+	//interface to enforce that every page model must embed *BaseScope
+	ScopeModel interface {
+		needsToEmbedBaseScope()
+	}
 
-// PageControllerFunc is the function to be run on the load of a specific page.
-// It returns a model to be used in bindings of the elements in the page.
-type PageControllerFunc func(*PageCtrl) interface{}
+	AppFunc func(Registration)
 
-type Redirecter interface {
-	RedirectToPage(page string, params ...interface{})
-	RedirectToUrl(string)
-}
+	// PageControllerFunc is the function to be run on the load of a specific page.
+	// It returns a model to be used in bindings of the elements in the page.
+	PageControllerFunc func(*BaseScope) ScopeModel
 
-type GlobalServices struct {
-	Http           *http.Client
-	PageManager    PageManager
-	LocalStorage   Storage
-	SessionStorage Storage
-}
+	Redirecter interface {
+		RedirectToPage(page string, params ...interface{})
+		RedirectToUrl(string)
+	}
 
-type PageManager interface {
-	Redirecter
-	BasePath() string
-	CurrentPage() *PageCtrl
-	Fullpath(string) string
-	PageUrl(page string, params ...interface{}) (string, error)
-}
+	GlobalServices struct {
+		Http           *http.Client
+		PageManager    PageManager
+		LocalStorage   Storage
+		SessionStorage Storage
+	}
 
-type NeedsInit interface {
-	Init(services GlobalServices)
-}
+	PageManager interface {
+		Redirecter
+		BasePath() string
+		CurrentPage() *BaseScope
+		Fullpath(string) string
+		PageUrl(page string, params ...interface{}) (string, error)
+	}
 
-type Registration interface {
-	RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
-	RegisterCustomTags(...CustomTag)
-	RegisterController(displayScope string, controller PageControllerFunc)
-	ModuleInit(...NeedsInit)
-}
+	NeedsInit interface {
+		Init(services GlobalServices)
+	}
 
-type AppConfig struct {
-	StartPage  string
-	BasePath   string
-	Container  dom.Selection
-	ServerBase string
-	ServerMode bool
-}
+	Registration interface {
+		RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
+		RegisterCustomTags(...CustomTag)
+		RegisterController(displayScope string, controller PageControllerFunc)
+		ModuleInit(...NeedsInit)
+	}
+
+	AppConfig struct {
+		StartPage  string
+		BasePath   string
+		Container  dom.Selection
+		ServerBase string
+		ServerMode bool
+	}
+)

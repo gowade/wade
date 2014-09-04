@@ -35,7 +35,7 @@ type (
 	}
 
 	jsWatcher interface {
-		Watch(modelRefl reflect.Value, field string, callback func())
+		Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback func())
 	}
 
 	Binding struct {
@@ -98,7 +98,7 @@ func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *
 		//use watchjs to watch for changes to the model
 		(func(bi bindable) {
 			bo := bi.bindObj()
-			b.watcher.Watch(bo.modelRefl, bo.field, func() {
+			b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func() {
 				newResult, _ := bs.evaluateRec(root, watches)
 				callback(newResult.Interface())
 			})
@@ -408,12 +408,6 @@ func (b *Binding) newModelScope(model interface{}) *scope {
 	return s
 }
 
-// Bind binds a model to an element and its ascendants
-func (b *Binding) Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool) {
-	b.bindWithScope(relem, once, bindrelem, b.newModelScope(model), nil)
-}
-
-// BindMergeScope merges the given scope to the basic scope and performs binding
 func (b *Binding) BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool) {
 	s := newScope()
 	for _, model := range models {
@@ -424,6 +418,10 @@ func (b *Binding) BindModels(relem dom.Selection, models []interface{}, once boo
 	s.merge(b.scope)
 
 	b.bindWithScope(relem, once, bindrelem, s, nil)
+}
+
+func (b *Binding) Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool) {
+	b.BindModels(relem, []interface{}{model}, once, bindrelem)
 }
 
 func (b *Binding) bindWithScope(relem dom.Selection, once bool, bindrelem bool, s *scope, additionalbinds *AdditionalBinds) {
