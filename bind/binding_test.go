@@ -1,29 +1,16 @@
 package bind
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/custom"
 	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/stretchr/testify/require"
 )
 
 type (
-	watcher struct {
-		watches []func()
-	}
-
-	ceManager struct {
-		ct CustomTag
-	}
-
-	customTag struct {
-		html string
-	}
-
 	Model struct {
+		custom.BaseProto
 		Name  string
 		Value int
 		Test  *TestModel
@@ -44,41 +31,25 @@ type (
 	}
 )
 
-func (ct *customTag) NewModel(elem dom.Selection) interface{} {
-	return &Model{}
-}
-
-func (ct *customTag) PrepareTagContents(elem dom.Selection, model interface{}, fn func(dom.Selection)) error {
-	ce := elem.Clone()
-	elem.SetHtml(ct.html)
-	elem.Find("wcontents").ReplaceWith(ce)
-	fn(ce.Contents())
-	ce.Unwrap()
-	return nil
-}
-
-func (cem *ceManager) GetCustomTag(elem dom.Selection) (CustomTag, bool) {
-	if tn, err := elem.TagName(); err == nil && tn == "test" {
-		return cem.ct, true
-	}
-
-	return nil, false
-}
-
-func (w *watcher) Watch(fieldRefl, modelRefl reflect.Value, field string, callback func()) {
-	w.watches = append(w.watches, callback)
-}
-
-func initTestBind() (wc *watcher, cem *ceManager, b *Binding) {
-	wc = &watcher{make([]func(), 0)}
-	cem = &ceManager{ct: &customTag{}}
-	return wc, cem, NewBindEngine(cem, wc)
-}
-
 func TestBinding(t *testing.T) {
-	wc, cem, b := initTestBind()
+	b := NewTestBindEngine()
 	sc := &Scope{"a", 9000, &TestModel{A{true}}}
 	bs := &bindScope{b.newModelScope(sc)}
+
+	testct := custom.HtmlTag{
+		Name: "test",
+		Html: `
+			<wcontents></wcontents>
+			<span bind-html="Name"></span>
+			<p bind-html="Value"></p>
+			<div bind-html="Test.A.B"></div>
+			<wcontents></wcontents>
+			`,
+		Prototype: &Model{},
+	}
+	b.tm.RegisterTags([]custom.HtmlTag{
+		testct,
+	})
 
 	//Test parse dom bind string
 	tbs := "kdfk(dfdf)"
@@ -101,52 +72,40 @@ func TestBinding(t *testing.T) {
 	b.processDomBind("bind-html", "Name", elem, bs, false)
 	require.Equal(t, elem.Html(), "a")
 	sc.Name = "b"
-	wc.watches[0]()
+	b.watcher.ApplyChanges(&sc.Name)
 	require.Equal(t, elem.Html(), "b")
 
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
-	model := &Model{}
-	b.processFieldBind("Name: |':Hai;'; Value: Num;", elem, bs, false, model)
+	ct := testct.NewElem(elem)
+	model := ct.Model().(*Model)
+	b.processFieldBind("Name: |':Hai;'; Value: Num;", elem, bs, false, ct)
 	require.Equal(t, model.Name, ":Hai;")
 	require.Equal(t, model.Value, 9000)
 
 	sc.Num = 9999
-	wc.watches[1]()
+	b.watcher.ApplyChanges(&sc.Num)
 	require.Equal(t, model.Value, 9999)
 
 	//full test
-	tag, ok := cem.GetCustomTag(elem)
-	if !ok {
-		panic("WTF is wrong with the tag?")
-	}
-	tag.(*customTag).html = `
-	<div>
-		<wcontents></wcontents>
-		<span bind-html="Name"></span>
-		<p bind-html="Value"></p>
-		<div bind-html="Test.A.B"></div>
-	</div>
-	`
 	src := `
-	<div>
-		<ww bind-attr-class="Name">
-			<div id="0" bind-html="Num"></div>
-			<test bind="Value: Num; Name: |'abc'; Test: Test" bind-attr-id="|1"><span bind-html="Name"></span></test>
-			<div id="2" bind-html="Test.A.B"></div>
-		</ww>
-	</div>
+		<wroot>
+			<ww bind-attr-class="Name">
+				<div id="0" bind-html="Num"></div>
+				<test bind="Value: Num; Name: |'abc'; Test: Test" bind-attr-id="|1"><span bind-html="Name"></span><!-- --></test>
+				<div id="2" bind-html="Test.A.B"></div>
+			</ww>
+		</wroot>
 	`
 	sc.Name = "scope"
 	root := goquery.GetDom().NewFragment(src)
-	b.Bind(root, sc, false, false)
+	b.Bind(root, sc, false)
 	require.Equal(t, root.Find("#0").HasClass(sc.Name), true)
 	require.Equal(t, root.Find("#1").HasClass(sc.Name), true)
 	require.Equal(t, root.Find("#0").Html(), "9999")
 	require.Equal(t, root.Find("#1").Length(), 1)
 	require.Equal(t, root.Find("#2").Html(), "true")
-	tn, _ := root.Find("#1").TagName()
-	require.Equal(t, tn, "div")
+
 	felems := root.Find("#1").Children().Elements()
 	require.Equal(t, felems[0].Html(), sc.Name)
 	require.Equal(t, felems[1].Html(), "abc")

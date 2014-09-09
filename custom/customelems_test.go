@@ -1,4 +1,4 @@
-package wade
+package custom
 
 import (
 	"strings"
@@ -17,6 +17,7 @@ const (
 
 type (
 	Test struct {
+		BaseProto
 		Str  string
 		Num  int
 		Fnum float32
@@ -24,20 +25,20 @@ type (
 	}
 )
 
-func (t *Test) Init(ce CustomElem) error {
-	ce.Contents.Find("smile").ReplaceWith(ce.Dom.NewFragment(":D"))
+func (t *Test) ProcessContents(ctl ContentsCtl) error {
+	ctl.ContentsCtn().Find("smile").ReplaceWith(ctl.Dom().NewFragment(":D"))
 	return nil
 }
 
 func TestCustomTag(t *testing.T) {
 	d := goquery.GetDom()
-	tm := newCustagMan()
-	err := tm.registerTags([]CustomTag{CustomTag{
+	tm := NewTagManager()
+	err := tm.RegisterTags([]HtmlTag{HtmlTag{
 		Name:       "testfail",
 		Attributes: []string{"Id", "Gender"},
 		Prototype:  BaseProto{},
 		Html:       ``,
-	}, CustomTag{
+	}, HtmlTag{
 		Name:       "test",
 		Attributes: []string{"Str", "Num", "Fnum", "Tf"},
 		Prototype:  &Test{},
@@ -47,19 +48,20 @@ func TestCustomTag(t *testing.T) {
 	require.NotEqual(t, err, nil)
 	require.Equal(t, strings.Contains(err.Error(), "forbidden"), true)
 
-	tag, ok := tm.GetCustomTag(d.NewFragment("<div></div>"))
+	tag, ok := tm.GetTag(d.NewFragment("<div></div>"))
 	require.Equal(t, ok, false)
 
 	re := d.NewFragment(Real)
-	tag, ok = tm.GetCustomTag(re)
+	tag, ok = tm.GetTag(re)
 	require.Equal(t, ok, true)
 
-	model := tag.NewModel(re).(*Test)
+	elem := tag.NewElem(re)
+	model := elem.Model().(*Test)
 	require.Equal(t, model.Str, "Awesome!")
 	require.Equal(t, model.Num, 69)
 	require.Equal(t, model.Fnum, 669.99)
 	require.Equal(t, model.Tf, true)
 
-	tag.PrepareTagContents(re, model, func(s dom.Selection) {})
+	elem.PrepareContents(func(s dom.Selection) {})
 	require.Equal(t, re.Find("span").Text(), ":D_:D")
 }

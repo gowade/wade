@@ -39,14 +39,20 @@ type DomBind struct {
 	metadata string
 }
 
-func (d DomBind) bind(elem dom.Selection, model interface{}, once bool, bindrelem bool) {
-	s := newModelScope(model)
+func (d DomBind) bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
+	s := newModelScope(m)
 	s.merge(d.scope)
-	d.binding.bindWithScope(elem, once, bindrelem, s, nil)
+
+	d.binding.bindWithScope(elem, s, once, bindRoot, d.Elem)
 }
 
-func (d DomBind) RemoveBinding(elem dom.Selection) {
-	preventAllBinding(elem)
+// Performs real removal of the element, no binding for it and its descendants will be performed
+func (d DomBind) Banish(elem dom.Selection) {
+	if e, ok := elem.(drmElem); ok {
+		e.Selection.Remove()
+	} else {
+		e.Remove()
+	}
 }
 
 func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, outputs ...interface{}) error {

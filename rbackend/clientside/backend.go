@@ -31,8 +31,7 @@ func RenderBackend() wade.RenderBackend {
 
 type (
 	JsBackend struct {
-		watchers map[reflect.Value][]func()
-		history  History
+		history History
 	}
 
 	storage struct {
@@ -121,8 +120,11 @@ func (b *JsBackend) CheckJsDep(symbol string) bool {
 	return true
 }
 
-// Watch calls Watch.js to watch the object's changes
-func (b *JsBackend) Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback func()) {
+func (b *JsBackend) History() wade.History {
+	return b.history
+}
+
+func (b *JsBackend) Watch(modelRefl reflect.Value, field string, callback func()) {
 	obj := js.InternalObject(modelRefl.Interface()).Get("$val")
 	js.Global.Call("watch",
 		obj,
@@ -132,42 +134,6 @@ func (b *JsBackend) Watch(fieldRefl reflect.Value, modelRefl reflect.Value, fiel
 			_2 js.Object) {
 			callback()
 		})
-
-	_, ok := b.watchers[fieldRefl]
-	if !ok {
-		b.watchers[fieldRefl] = make([]func(), 0)
-	}
-	b.watchers[fieldRefl] = append(b.watchers[fieldRefl], callback)
-}
-
-func (b *JsBackend) ApplyChanges(ptr interface{}) {
-	p := reflect.ValueOf(ptr)
-	if p.Kind() != reflect.Ptr {
-		panic("Argument to ApplyChanges must be a pointer.")
-	}
-	if p.IsNil() {
-		panic("Call of ApplyChanges with nil pointer.")
-	}
-
-	for _, fn := range b.watchers[p.Elem()] {
-		fn()
-	}
-}
-
-func (b *JsBackend) Apply() {
-	for _, olist := range b.watchers {
-		for _, fn := range olist {
-			fn()
-		}
-	}
-}
-
-func (b *JsBackend) ResetWatchers() {
-	b.watchers = make(map[reflect.Value][]func())
-}
-
-func (b *JsBackend) History() wade.History {
-	return b.history
 }
 
 func (b *JsBackend) WebStorages() (wade.Storage, wade.Storage) {

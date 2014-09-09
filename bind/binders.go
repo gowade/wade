@@ -205,13 +205,12 @@ func (b *EachBinder) BindInstance() DomBinder {
 }
 
 func (b *EachBinder) Bind(d DomBind) (err error) {
-	d.Elem.RemoveAttr(BindPrefix + "each")
+	d.Elem.RemoveAttr("bind-each")
 	b.marker = d.Elem.NewFragment("<!-- wade each -->")
 	d.Elem.Before(b.marker)
 
 	b.prototype = d.Elem.Clone()
-	d.RemoveBinding(d.Elem)
-	d.Elem.Remove()
+	d.Banish(d.Elem)
 
 	return
 }
@@ -236,6 +235,7 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 		err = e
 		return
 	}
+
 	for _, item := range m {
 		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
@@ -284,7 +284,6 @@ func (b *IfBinder) Bind(d DomBind) (err error) {
 
 func (b *IfBinder) Update(d DomBind) (err error) {
 	shown := d.Value.(bool)
-
 	if shown && b.placeholder.Exists() {
 		b.placeholder.ReplaceWith(d.Elem)
 		return

@@ -78,6 +78,7 @@ type (
 		RemoveClass(class string)
 		HasClass(class string) bool
 		Text() string
+		Index() int
 		Dom
 	}
 )
@@ -91,12 +92,12 @@ func DebugInfo(sel Selection) string {
 	if id, ok := sel.Attr("id"); ok {
 		str += "#" + id
 	}
-	str += " ("
+	str += fmt.Sprintf(":%v", sel.Index()) + " ("
 	parents := sel.Parents().Elements()
 	for j := len(parents) - 1; j >= 0; j-- {
 		t, err := parents[j].TagName()
 		if err == nil {
-			str += t + ">"
+			str += t + fmt.Sprintf(":%v", parents[j].Index()) + "/"
 		}
 	}
 	str += ")"

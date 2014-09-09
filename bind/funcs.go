@@ -101,11 +101,18 @@ func getReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, 
 		if !rv.IsValid() && o.CanAddr() {
 			rv = o.Addr().MethodByName(field)
 		}
+
 	case reflect.Map:
 		rv = o.MapIndex(reflect.ValueOf(field))
 		if rv.IsValid() {
 			rv = reflect.ValueOf(rv.Interface())
 		}
+
+	case reflect.Slice:
+		var num int
+		_, err = fmt.Sscan(field, &num)
+		rv = o.Index(num)
+
 	default:
 		return
 	}

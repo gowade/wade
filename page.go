@@ -174,11 +174,11 @@ func (pc *BaseScope) FormatTitle(params ...interface{}) {
 }
 
 func (pc *BaseScope) ApplyChanges(object interface{}) {
-	pc.pm.watcher.ApplyChanges(object)
+	pc.pm.binding.Watcher().ApplyChanges(object)
 }
 
 func (pc *BaseScope) Apply() {
-	pc.pm.watcher.Apply()
+	pc.pm.binding.Watcher().Apply()
 }
 
 // GetParam puts the value of a parameter to a dest.

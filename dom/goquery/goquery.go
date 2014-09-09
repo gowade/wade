@@ -214,12 +214,7 @@ func (s Selection) Prepend(sel dom.Selection) {
 }
 
 func (s Selection) ReplaceWith(sel dom.Selection) {
-	s.operate(sel, func(dst, src *html.Node) {
-		if dst.Parent == nil {
-			panic("Element has no parent, cannot perform replace.")
-		}
-		dst.Parent.InsertBefore(src, dst)
-	})
+	s.Before(sel)
 	s.Remove()
 }
 
@@ -379,10 +374,10 @@ func (s Selection) RemoveClass(class string) {
 	for _, elem := range s.Elements() {
 		if elem.HasClass(class) {
 			elClass, _ := elem.Attr("class")
-			elem.SetAttr("class", strings.Replace(" "+elClass+" ", " "+class+" ", " ", -1))
+			newCl := strings.Replace(" "+elClass+" ", " "+class+" ", " ", -1)
+			elem.SetAttr("class", newCl)
 		}
 	}
-
 }
 
 func (s Selection) Filter(selector string) dom.Selection {

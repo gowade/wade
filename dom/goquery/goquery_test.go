@@ -82,4 +82,9 @@ func TestEverything(t *testing.T) {
 	require.Equal(t, nt.Html(), "zzzz")
 	nt.Prepend(d.NewFragment("<div>aa</div>"))
 	require.Equal(t, nt.Text(), "aazzzz")
+
+	nt = d.NewFragment("<div><wcontents></wcontents>zz<wcontents></wcontents></div>")
+	aa := d.NewFragment("aa")
+	nt.Find("wcontents").ReplaceWith(aa)
+	require.Equal(t, nt.Html(), "aazzaa")
 }

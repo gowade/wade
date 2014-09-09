@@ -1,4 +1,4 @@
-package wade
+package custom
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/icommon"
 )
 
 var (
@@ -20,20 +20,20 @@ var (
 )
 
 type (
-	CustomTag struct {
+	HtmlTag struct {
 		Name       string
 		Html       string
-		Prototype  CustomElemProto
+		Prototype  TagPrototype
 		Attributes []string
 	}
 
-	custagMan struct {
-		custags map[string]CustomTag
+	TagManager struct {
+		custags map[string]HtmlTag
 	}
 
 	CustomElem struct {
-		Dom      dom.Dom
-		Template dom.Selection
+		model    TagPrototype
+		Elem     dom.Selection
 		Contents dom.Selection
 	}
 
@@ -41,14 +41,50 @@ type (
 
 	Empty struct{}
 
-	CustomElemProto interface {
-		Init(CustomElem) error
+	Ctl interface {
+		Dom() dom.Dom
+	}
+
+	ContentsCtl interface {
+		Ctl
+		ContentsCtn() dom.Selection //returns the contents container
+	}
+
+	ElemCtl interface {
+		Ctl
+		Element() dom.Selection // returns the element itself
+	}
+
+	TagPrototype interface {
+		ProcessContents(ContentsCtl) error
+		Update(ElemCtl) error
 	}
 )
 
-func (b BaseProto) Init(ce CustomElem) error { return nil }
+func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
+func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
 
-func dePtr(proto CustomElemProto) reflect.Type {
+func (c *CustomElem) Model() interface{} {
+	return c.model
+}
+
+func (c *CustomElem) ContentsCtn() dom.Selection {
+	return c.Contents
+}
+
+func (c *CustomElem) Element() dom.Selection {
+	return c.Elem
+}
+
+func (c *CustomElem) Update() error {
+	return c.model.Update(c)
+}
+
+func (c *CustomElem) Dom() dom.Dom {
+	return c.Elem
+}
+
+func dePtr(proto TagPrototype) reflect.Type {
 	if proto == nil {
 		return reflect.TypeOf(Empty{})
 	}
@@ -61,7 +97,7 @@ func dePtr(proto CustomElemProto) reflect.Type {
 	return p
 }
 
-func (tag CustomTag) prepareAttributes(prototype reflect.Type) error {
+func (tag HtmlTag) prepareAttributes(prototype reflect.Type) error {
 	for _, attr := range tag.Attributes {
 		attr = strings.TrimSpace(attr)
 		if isForbiddenAttr(attr) {
@@ -77,32 +113,35 @@ func (tag CustomTag) prepareAttributes(prototype reflect.Type) error {
 	return nil
 }
 
-func (t CustomTag) PrepareTagContents(elem dom.Selection, model interface{}, contentBindFn func(dom.Selection)) error {
-	contentElem := elem.Clone()
-	elem.SetHtml(t.Html)
-	ce := CustomElem{
-		Dom:      elem,
-		Template: elem,
-		Contents: contentElem,
-	}
-	err := model.(CustomElemProto).Init(ce)
-
+func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection)) (err error) {
+	err = ce.model.ProcessContents(ce)
 	if err != nil {
-		return err
+		return
 	}
 
 	contents := ce.Contents.Contents()
 	if contents.Length() > 0 {
-		elem.Find("wcontents").ReplaceWith(contents)
-		contentBindFn(contents)
+		for i, wc := range ce.Elem.Find("wcontents").Elements() {
+			c := contents
+			if i > 0 {
+				c = c.Clone()
+			}
+			wc.ReplaceWith(c)
+			contentBindFn(c)
+		}
 	} else {
-		elem.Find("wcontents").Remove()
+		ce.Elem.Find("wcontents").Remove()
 	}
 
-	return nil
+	err = ce.model.Update(ce)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
-func (t CustomTag) NewModel(elem dom.Selection) interface{} {
+func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 	if t.Prototype == nil {
 		return nil
 	}
@@ -148,12 +187,22 @@ func (t CustomTag) NewModel(elem dom.Selection) interface{} {
 		}
 	}
 
-	return cptr.Interface()
+	return cptr.Interface().(TagPrototype)
 }
 
-func newCustagMan() *custagMan {
-	return &custagMan{
-		custags: make(map[string]CustomTag),
+func (t HtmlTag) NewElem(elem dom.Selection) *CustomElem {
+	contentElem := elem.Clone()
+	elem.SetHtml(t.Html)
+	return &CustomElem{
+		model:    t.NewModel(elem),
+		Elem:     elem,
+		Contents: contentElem,
+	}
+}
+
+func NewTagManager() *TagManager {
+	return &TagManager{
+		custags: make(map[string]HtmlTag),
 	}
 }
 
@@ -167,7 +216,7 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *custagMan) registerTags(customTags []CustomTag) (ret error) {
+func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
 	for _, ct := range customTags {
 		prototype := ct.Prototype
 		if prototype != nil {
@@ -188,22 +237,36 @@ func (tm *custagMan) registerTags(customTags []CustomTag) (ret error) {
 			continue
 		}
 
-		ct.Html = parseTemplate(ct.Html)
+		ct.Html = icommon.ParseTemplate(ct.Html)
 		tm.custags[strings.ToLower(ct.Name)] = ct
 	}
 
 	return ret
 }
 
-// GetCustomTag checks if the element's tag is of a registered custom tag
-func (tm *custagMan) GetCustomTag(elem dom.Selection) (ct bind.CustomTag, ok bool) {
+// GetHtmlTag checks if the element's tag is of a registered custom tag
+func (tm *TagManager) GetTag(elem dom.Selection) (ct HtmlTag, ok bool) {
 	if elem.Length() > 1 {
 		panic("You are getting a custom tag for multiple elements, it's surely an error.")
 	}
 	tagname, err := elem.TagName()
 	if err != nil {
-		return nil, false
+		ok = false
+		return
 	}
+
 	ct, ok = tm.custags[tagname]
+	return
+}
+
+func (tm *TagManager) RedefTag(tagname string, html string) (err error) {
+	tag, ok := tm.custags[tagname]
+	if !ok {
+		err = fmt.Errorf(`Custom tag "%v" has not been registered.`, tagname)
+		return
+	}
+
+	tag.Html = html
+	tm.custags[tagname] = tag
 	return
 }

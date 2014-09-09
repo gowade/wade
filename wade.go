@@ -1,12 +1,8 @@
 package wade
 
 import (
-	"fmt"
-	"reflect"
-	"regexp"
-	"strings"
-
 	"github.com/phaikawl/wade/bind"
+	"github.com/phaikawl/wade/custom"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
@@ -25,11 +21,11 @@ type (
 	wade struct {
 		errChan    chan error
 		pm         *pageManager
-		tm         *custagMan
+		tm         *custom.TagManager
 		tcontainer dom.Selection
 		binding    *bind.Binding
 		serverBase string
-		customTags map[string]map[string]CustomElemProto
+		customTags map[string]map[string]custom.TagPrototype
 	}
 
 	registry struct {
@@ -39,9 +35,8 @@ type (
 	JsBackend interface {
 		DepChecker
 		History() History
-		Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback func())
+		bind.JsWatcher
 		WebStorages() (Storage, Storage)
-		jsWatcher
 	}
 )
 
@@ -75,8 +70,8 @@ type (
 // attributes. If it's pointer version has a method "Init" which satisfies the
 // CustomElementInit interface, Init will be called
 // when the custom element is processed.
-func (r registry) RegisterCustomTags(customTags ...CustomTag) {
-	r.w.tm.registerTags(customTags)
+func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
+	r.w.tm.RegisterTags(customTags)
 }
 
 // ModuleInit calls the modules' Init method with an AppEnv
@@ -95,18 +90,6 @@ func (r registry) RegisterController(displayScope string, fn PageControllerFunc)
 // RegisterDisplayScopes registers the given maps of pages and page groups
 func (r registry) RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
 	r.w.pm.registerDisplayScopes(pages, pageGroups)
-}
-
-var (
-	TempReplaceRegexp = regexp.MustCompile(`<%([^"<>]+)%>`)
-)
-
-// parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
-func parseTemplate(source string) string {
-	return TempReplaceRegexp.ReplaceAllStringFunc(source, func(m string) string {
-		bindstr := strings.TrimSpace(TempReplaceRegexp.FindStringSubmatch(m)[1])
-		return fmt.Sprintf(`<span bind-html="%v"></span>`, bindstr)
-	})
 }
 
 func initServices(pm PageManager, rb RenderBackend) {
@@ -141,17 +124,17 @@ func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
 		return err
 	}
 
-	tm := newCustagMan()
+	tm := custom.NewTagManager()
 	binding := bind.NewBindEngine(tm, rb.JsBackend)
 
 	wd := &wade{
 		errChan:    make(chan error),
-		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding, rb.JsBackend),
+		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,
 		serverBase: config.ServerBase,
-		customTags: make(map[string]map[string]CustomElemProto),
+		customTags: make(map[string]map[string]custom.TagPrototype),
 	}
 
 	wd.init()
@@ -181,14 +164,11 @@ func (wd *wade) init() {
 func (w *wade) loadCustomTagDefs() (err error) {
 	for _, d := range w.tcontainer.Find("wdefine").Elements() {
 		if tagname, ok := d.Attr("tagname"); ok {
-			tag, ok := w.tm.custags[tagname]
-			if !ok {
-				err = dom.ElementError(d, fmt.Sprintf(`Custom tag "%v" has not been registered.`, tagname))
+			err = w.tm.RedefTag(tagname, d.Html())
+			if err != nil {
+				err = dom.ElementError(d, err.Error())
 				return
 			}
-
-			tag.Html = d.Html()
-			w.tm.custags[tagname] = tag
 		}
 	}
 

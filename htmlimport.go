@@ -5,6 +5,7 @@ import (
 	"path"
 
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
 )
 
@@ -19,7 +20,7 @@ func getHtmlFile(httpClient *http.Client, serverbase string, href string) (strin
 		return "", fmt.Errorf(`Failed to load HTML file "%v"`, href)
 	}
 
-	return parseTemplate(resp.Data), nil
+	return icommon.ParseTemplate(resp.Data), nil
 }
 
 // htmlImport performs an HTML import

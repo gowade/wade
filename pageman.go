@@ -21,22 +21,17 @@ const (
 )
 
 type (
+	bindEngine interface {
+		Watcher() *bind.Watcher
+		BindModels(root dom.Selection, models []interface{}, once bool)
+	}
+
 	History interface {
 		ReplaceState(title string, path string)
 		PushState(title string, path string)
 		OnPopState(fn func())
 		CurrentPath() string
 		RedirectTo(url string)
-	}
-
-	jsWatcher interface {
-		ApplyChanges(ptr interface{})
-		Apply()
-		ResetWatchers()
-	}
-
-	BindEngine interface {
-		BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool)
 	}
 
 	pageManager struct {
@@ -51,18 +46,17 @@ type (
 		tcontainer    dom.Selection
 		realContainer dom.Selection
 
-		binding        BindEngine
+		binding        bindEngine
 		pc             *BaseScope
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
 		formattedTitle string
 		history        History
-		watcher        jsWatcher
 	}
 )
 
 func newPageManager(history History, config AppConfig, document dom.Selection,
-	tcontainer dom.Selection, binding BindEngine, watcher jsWatcher) *pageManager {
+	tcontainer dom.Selection, binding bindEngine) *pageManager {
 
 	realContainer := config.Container
 	if realContainer == nil {
@@ -100,7 +94,6 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		displayScopes: make(map[string]displayScope),
 		globalDs:      &globalDisplayScope{},
 		history:       history,
-		watcher:       watcher,
 	}
 
 	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
@@ -278,7 +271,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 		pm.realContainer.Hide()
 		pm.realContainer.SetHtml(pm.container.Html())
-		pm.watcher.ResetWatchers()
+		pm.binding.Watcher().ResetWatchers()
 		pm.bind(params)
 		icommon.WrapperUnwrap(pm.realContainer)
 		pm.realContainer.Show()
@@ -396,7 +389,7 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		<-completeChan
 	}
 
-	pm.binding.BindModels(pm.realContainer, models, false, false)
+	pm.binding.BindModels(pm.realContainer, models, false)
 
 	pm.pc = pc
 }

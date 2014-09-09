@@ -19,7 +19,7 @@ type (
 		lookup(symbol string) (scopeSymbol, bool, error)
 	}
 
-	mapSymbolTable struct {
+	helpersSymbolTable struct {
 		m map[string]scopeSymbol
 	}
 
@@ -32,7 +32,7 @@ type (
 		model reflect.Value
 	}
 
-	modelFieldSymbol struct {
+	fieldSymbol struct {
 		name string
 		eval *objEval
 	}
@@ -65,12 +65,12 @@ func (s *scope) merge(target *scope) {
 	}
 }
 
-func (st mapSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
+func (st helpersSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
 	sym, ok = st.m[symbol]
 	return
 }
 
-func (st mapSymbolTable) registerFunc(name string, fn interface{}) {
+func (st helpersSymbolTable) registerFunc(name string, fn interface{}) {
 	st.m[name] = newFuncSymbol(name, fn)
 }
 
@@ -99,32 +99,32 @@ func (fs funcSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
 	return
 }
 
-func helpersSymbolTable(helpers map[string]interface{}) mapSymbolTable {
+func newHelpersSymbolTable(helpers map[string]interface{}) helpersSymbolTable {
 	m := make(map[string]scopeSymbol)
 	for name, helper := range helpers {
 		m[name] = newFuncSymbol(name, helper)
 	}
 
-	return mapSymbolTable{m}
+	return helpersSymbolTable{m}
 }
 
-func (mf modelFieldSymbol) bindObj() *objEval {
-	return mf.eval
+func (fs fieldSymbol) bindObj() *objEval {
+	return fs.eval
 }
 
-func (mf modelFieldSymbol) value() (v reflect.Value, err error) {
-	return mf.eval.fieldRefl, nil
+func (fs fieldSymbol) value() (v reflect.Value, err error) {
+	return fs.eval.fieldRefl, nil
 }
 
-func (mf modelFieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
-	if mf.eval.fieldRefl.Kind() != reflect.Func {
-		err = fmt.Errorf(`Cannot call "%v", it's not a method.`, mf.name)
+func (fs fieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
+	if fs.eval.fieldRefl.Kind() != reflect.Func {
+		err = fmt.Errorf(`Cannot call "%v", it's not a method.`, fs.name)
 		return
 	}
 
-	v, err = callFunc(mf.eval.fieldRefl, args)
+	v, err = callFunc(fs.eval.fieldRefl, args)
 	if err != nil {
-		err = fmt.Errorf(`"%v": %v`, mf.name, err.Error())
+		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
 	}
 	return
 }
@@ -138,7 +138,7 @@ func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err 
 	var eval *objEval
 	eval, ok, err = evaluateObjField(symbol, st.model)
 	if ok {
-		sym = modelFieldSymbol{symbol, eval}
+		sym = fieldSymbol{symbol, eval}
 	}
 
 	return

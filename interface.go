@@ -1,6 +1,7 @@
 package wade
 
 import (
+	"github.com/phaikawl/wade/custom"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
@@ -47,7 +48,7 @@ type (
 
 	Registration interface {
 		RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
-		RegisterCustomTags(...CustomTag)
+		RegisterCustomTags(...custom.HtmlTag)
 		RegisterController(displayScope string, controller PageControllerFunc)
 		ModuleInit(...NeedsInit)
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/icommon"
@@ -31,9 +32,11 @@ type (
 	}
 )
 
-func (b *NoopBindEngine) Bind(relem dom.Selection, model interface{}, once bool, bindrelem bool) {}
+func (b *NoopBindEngine) Watcher() *bind.Watcher {
+	return bind.NewWatcher(bind.NoopJsWatcher{})
+}
 
-func (b *NoopBindEngine) BindModels(relem dom.Selection, models []interface{}, once bool, bindrelem bool) {
+func (b *NoopBindEngine) BindModels(root dom.Selection, models []interface{}, once bool) {
 	b.models = models
 }
 

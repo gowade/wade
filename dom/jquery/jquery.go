@@ -271,3 +271,7 @@ func (s Selection) RemoveClass(class string) {
 func (s Selection) Prepend(sel dom.Selection) {
 	s.JQuery.Prepend(sel.(Selection).JQuery)
 }
+
+func (s Selection) Index() int {
+	return s.JQuery.Underlying().Call("index").Int()
+}
