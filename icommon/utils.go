@@ -1,9 +1,6 @@
 package icommon
 
 import (
-	"fmt"
-	"regexp"
-	"strings"
 	"unicode"
 
 	"github.com/phaikawl/wade/dom"
@@ -30,16 +27,4 @@ func RemoveAllSpaces(src string) string {
 	}
 
 	return r
-}
-
-var (
-	TempReplaceRegexp = regexp.MustCompile(`<%([^"<>]+)%>`)
-)
-
-// parseTemplate replaces "<% bindstr %>" with <span bind-html="bindstr"></span>
-func ParseTemplate(source string) string {
-	return TempReplaceRegexp.ReplaceAllStringFunc(source, func(m string) string {
-		bindstr := strings.TrimSpace(TempReplaceRegexp.FindStringSubmatch(m)[1])
-		return fmt.Sprintf(`<span bind-html="%v"></span>`, bindstr)
-	})
 }

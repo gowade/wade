@@ -18,12 +18,12 @@ type UrlInfo struct {
 }
 
 func RegisterInternalHelpers(pm PageManager, b *Binding) {
-	b.RegisterHelper("url", func(pageid string, params ...interface{}) UrlInfo {
+	b.RegisterHelper("url", func(pageid string, params ...interface{}) string {
 		url, err := pm.PageUrl(pageid, params...)
 		if err != nil {
 			panic(fmt.Errorf(`url helper error: "%v", when getting url for page "%v"`, err.Error(), pageid))
 		}
-		return UrlInfo{url, pm.Fullpath(url)}
+		return url
 	})
 }
 
@@ -52,5 +52,11 @@ func defaultHelpers() map[string]interface{} {
 		"len": func(collection interface{}) int {
 			return reflect.ValueOf(collection).Len()
 		},
+
+		"isEmptyStr": func(str string) bool {
+			return str == ""
+		},
+
+		"toStr": toString,
 	}
 }

@@ -24,10 +24,10 @@ func (sm *SwitchMenu) ProcessContents(ctl custom.ContentsCtl) error {
 	}
 
 	if sm.Current == "" {
-		return fmt.Errorf(`"Current" attribute must be set.`)
+		return fmt.Errorf(`"Current" attribute must be set`)
 	}
 
-	cl := ctl.ContentsCtn().Children()
+	cl := ctl.Contents()
 	if cl.Length() != 1 || !cl.First().Is("ul") {
 		return fmt.Errorf("switchmenu's contents must have exactly 1 child which is an <ul> element.")
 	}

@@ -62,12 +62,18 @@ func tokenize(spec string) (tokens []token, err error) {
 			case ' ':
 				flush()
 
-			case '(', ')', ',', '|', ':', ';':
+			case '(', ')', ',', '|':
 				flush()
 				tokens = append(tokens, token{PuncToken, string(c)})
-			case '@':
+			case '$':
 				if tok != "" {
-					err = errors.New("Invalid '@'")
+					err = errors.New("Invalid '$'")
+					return
+				}
+				tok += string(c)
+			case ':':
+				if tok != "" {
+					err = errors.New("Invalid ':'")
 					return
 				}
 				tok += string(c)
@@ -121,36 +127,9 @@ func parse(spec string) (watches []token, calcTree *expr, err error) {
 	return
 }
 
-func parseFieldBind(tokens []token) (binds map[string][]token, err error) {
-	binds = make(map[string][]token)
-	parts := make([][]token, 0)
-
-	head := 0
-	for i, tok := range tokens {
-		if tok.v == ";" {
-			parts = append(parts, tokens[head:i])
-			head = i + 1
-		}
-	}
-
-	if head < len(tokens) {
-		parts = append(parts, tokens[head:])
-	}
-
-	for _, part := range parts {
-		if len(part) < 3 || part[0].kind != ExprToken || part[1].v != ":" {
-			err = fmt.Errorf("Invalid syntax")
-			return
-		}
-
-		binds[part[0].v] = part[2:]
-	}
-
-	return
-}
-
 func parseBind(tokens []token) (watches []token, root *expr, err error) {
 	watches = make([]token, 0)
+	sepPos := -1
 	for i, tok := range tokens {
 		if tok.kind == ExprToken {
 			if i > 0 && tokens[i-1].v != "," {
@@ -161,20 +140,36 @@ func parseBind(tokens []token) (watches []token, root *expr, err error) {
 		}
 
 		if tok.kind == PuncToken && tok.v == "|" {
-			root, err = parseCalcStr(tokens[i+1:])
-			return
+			sepPos = i
+			break
 		}
 	}
 
 	for _, tok := range tokens {
+		if tok.v == "|" {
+			break
+		}
+
 		if tok.kind != ExprToken && tok.v != "," {
-			err = fmt.Errorf("Invalid use of '%v' in watch list. If you want to call function in bind string or any kind of calculation, "+
+			err = fmt.Errorf("Invalid character '%v' in watch list. Note that if you want to call function, use literal in bind string or any kind of calculation, "+
 				"please put them behind '|'", tok.v)
 			return
 		}
+
+		if tok.kind == ExprToken {
+			if tok.v[0] != '_' && !unicode.IsLetter(rune(tok.v[0])) {
+				err = fmt.Errorf(`Invalid character "%c" in watch list. Note that if you want to call function, use literal in bind string or any kind of calculation, `+
+					`please put them behind '|'`, tok.v[0])
+				return
+			}
+		}
 	}
 
-	root, err = parseCalcStr(tokens[0:1])
+	if sepPos == -1 {
+		root, err = parseCalcStr(tokens[0:1])
+	} else {
+		root, err = parseCalcStr(tokens[sepPos+1:])
+	}
 	return
 }
 
@@ -246,32 +241,26 @@ func parseCalcStr(tokens []token) (root *expr, err error) {
 	return
 }
 
-func parseWatchExpr(expr string, watches []token) (realExpr string, isWatchAt bool, err error) {
-	rexpr := []rune(strings.TrimSpace(expr))
-	if rexpr[0] == '@' {
-		e := string(rexpr[1:])
-		var num int
-		_, err = fmt.Sscan(e, &num)
-		if err != nil {
-			err = fmt.Errorf(`Invalid expression "%v"`, e)
-			return
-		}
-
-		if num < 1 {
-			err = fmt.Errorf(`Only numbers greater than 1 can be used with @ expression, @%v used`, e, num)
-			return
-		}
-
-		if num > len(watches) {
-			err = fmt.Errorf(`Error: usage of "@%v" when only %v values are watched`, e, len(watches))
-			return
-		}
-
-		realExpr = watches[num-1].v
-		isWatchAt = true
+func parseDollarExpr(expr string, watches []token) (realExpr string, err error) {
+	e := string(expr[1:])
+	var num int
+	_, err = fmt.Sscan(e, &num)
+	if err != nil {
+		err = fmt.Errorf(`Invalid expression "%v"`, e)
 		return
 	}
 
+	if num < 1 {
+		err = fmt.Errorf(`Only numbers greater than 1 can be used with $ expression, $%v used`, e, num)
+		return
+	}
+
+	if num > len(watches) {
+		err = fmt.Errorf(`Error: usage of "$%v" when only %v values are watched`, e, len(watches))
+		return
+	}
+
+	realExpr = watches[num-1].v
 	return
 }
 

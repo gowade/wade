@@ -7,15 +7,12 @@ import (
 	"strings"
 
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/icommon"
 )
 
 var (
 	ForbiddenAttrs = [...]string{
 		"id",
 		"class",
-		"style",
-		"title",
 	}
 )
 
@@ -47,7 +44,11 @@ type (
 
 	ContentsCtl interface {
 		Ctl
-		ContentsCtn() dom.Selection //returns the contents container
+		Contents() dom.Selection //returns the contents container
+	}
+
+	contentsCtlImpl struct {
+		contents dom.Selection
 	}
 
 	ElemCtl interface {
@@ -60,6 +61,14 @@ type (
 		Update(ElemCtl) error
 	}
 )
+
+func (c contentsCtlImpl) Contents() dom.Selection {
+	return c.contents
+}
+
+func (c contentsCtlImpl) Dom() dom.Dom {
+	return c.contents
+}
 
 func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
 func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
@@ -113,12 +122,19 @@ func (tag HtmlTag) prepareAttributes(prototype reflect.Type) error {
 	return nil
 }
 
-func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection)) (err error) {
-	err = ce.model.ProcessContents(ce)
-	if err != nil {
-		return
+func (tag HtmlTag) HasAttr(attr string) (has bool, realName string) {
+	for _, a := range tag.Attributes {
+		if strings.ToLower(a) == attr {
+			has = true
+			realName = a
+			return
+		}
 	}
 
+	return
+}
+
+func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection, bool)) (err error) {
 	contents := ce.Contents.Contents()
 	if contents.Length() > 0 {
 		for i, wc := range ce.Elem.Find("wcontents").Elements() {
@@ -126,8 +142,14 @@ func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection)) (err er
 			if i > 0 {
 				c = c.Clone()
 			}
+
 			wc.ReplaceWith(c)
-			contentBindFn(c)
+			contentBindFn(c, false)
+
+			err = ce.model.ProcessContents(contentsCtlImpl{c})
+			if err != nil {
+				return
+			}
 		}
 	} else {
 		ce.Elem.Find("wcontents").Remove()
@@ -191,7 +213,8 @@ func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 }
 
 func (t HtmlTag) NewElem(elem dom.Selection) *CustomElem {
-	contentElem := elem.Clone()
+	contentElem := elem.NewFragment("<wroot></wroot>")
+	contentElem.SetHtml(elem.Html())
 	elem.SetHtml(t.Html)
 	return &CustomElem{
 		model:    t.NewModel(elem),
@@ -237,7 +260,6 @@ func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
 			continue
 		}
 
-		ct.Html = icommon.ParseTemplate(ct.Html)
 		tm.custags[strings.ToLower(ct.Name)] = ct
 	}
 

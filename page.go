@@ -23,6 +23,7 @@ func (h *handlable) Controllers() []PageControllerFunc {
 type displayScope interface {
 	hasPage(id string) bool
 	addController(fn PageControllerFunc)
+	addParent(parent *pageGroup)
 	Controllers() []PageControllerFunc
 }
 
@@ -35,7 +36,7 @@ type page struct {
 	groups []*pageGroup
 }
 
-func (p *page) addGroup(grp *pageGroup) {
+func (p *page) addParent(grp *pageGroup) {
 	if p.groups == nil {
 		p.groups = make([]*pageGroup, 0)
 	}
@@ -49,18 +50,23 @@ func (p *page) hasPage(id string) bool {
 
 type pageGroup struct {
 	handlable
-	pages []*page
+	children []displayScope
+	parents  []*pageGroup
 }
 
-func newPageGroup(pages []*page) *pageGroup {
+func newPageGroup(children []displayScope) *pageGroup {
 	return &pageGroup{
-		pages: pages,
+		children: children,
 	}
 }
 
+func (pg *pageGroup) addParent(parent *pageGroup) {
+	pg.parents = append(pg.parents, parent)
+}
+
 func (pg *pageGroup) hasPage(id string) bool {
-	for _, page := range pg.pages {
-		if page.id == id {
+	for _, c := range pg.children {
+		if c.hasPage(id) {
 			return true
 		}
 	}
@@ -82,6 +88,10 @@ type globalDisplayScope struct {
 
 func (s *globalDisplayScope) hasPage(id string) bool {
 	return true
+}
+
+func (s *globalDisplayScope) addParent(parent *pageGroup) {
+	panic("Cannot add parent to global display scope")
 }
 
 type PageDesc struct {
@@ -114,23 +124,23 @@ func MakePage(id string, route string, title string) PageDesc {
 }
 
 type PageGroupDesc struct {
-	id      string
-	pageids []string
+	id       string
+	children []string
 }
 
-func MakePageGroup(id string, pageids ...string) PageGroupDesc {
+func MakePageGroup(id string, children []string) PageGroupDesc {
 	return PageGroupDesc{
-		id:      id,
-		pageids: pageids,
+		id:       id,
+		children: children,
 	}
 }
 
 func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
-	grp := newPageGroup(make([]*page, len(pg.pageids)))
-	for i, pid := range pg.pageids {
-		page := pm.page(pid)
-		page.addGroup(grp)
-		grp.pages[i] = page
+	grp := newPageGroup(make([]displayScope, len(pg.children)))
+	for i, id := range pg.children {
+		ds := pm.displayScope(id)
+		ds.addParent(grp)
+		grp.children[i] = ds
 	}
 	return grp
 }
@@ -206,4 +216,8 @@ func (pc *BaseScope) Services() GlobalServices {
 // RegisterHelper registers fn as a local helper with the given name.
 func (pc *BaseScope) RegisterHelper(name string, fn interface{}) {
 	pc.helpers[name] = fn
+}
+
+func (pc *BaseScope) Url(pageId string, params ...interface{}) (url string, err error) {
+	return pc.pm.pageUrl(pageId, params)
 }

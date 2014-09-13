@@ -107,7 +107,9 @@ func TestPageManager(t *testing.T) {
 		MakePage("pg-home", "/home", "Home"),
 		MakePage("pg-child-1", "/child/:name", "Child 1"),
 		MakePage("pg-child-2", "/child/:name/:gender", "Child 2"),
-	}, []PageGroupDesc{MakePageGroup("grp-parent", "pg-child-1", "pg-child-2")})
+	}, []PageGroupDesc{
+		MakePageGroup("grp-parent", []string{"pg-child-1", "pg-child-2"}),
+	})
 
 	mess := make(chan int, 5)
 

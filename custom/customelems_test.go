@@ -26,7 +26,7 @@ type (
 )
 
 func (t *Test) ProcessContents(ctl ContentsCtl) error {
-	ctl.ContentsCtn().Find("smile").ReplaceWith(ctl.Dom().NewFragment(":D"))
+	ctl.Contents().Filter("smile").ReplaceWith(ctl.Dom().NewFragment(":D"))
 	return nil
 }
 
@@ -62,6 +62,9 @@ func TestCustomTag(t *testing.T) {
 	require.Equal(t, model.Fnum, 669.99)
 	require.Equal(t, model.Tf, true)
 
-	elem.PrepareContents(func(s dom.Selection) {})
+	err = elem.PrepareContents(func(s dom.Selection, once bool) {})
+	if err != nil {
+		panic(err)
+	}
 	require.Equal(t, re.Find("span").Text(), ":D_:D")
 }

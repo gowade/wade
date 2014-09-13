@@ -79,6 +79,9 @@ type (
 		HasClass(class string) bool
 		Text() string
 		Index() int
+		IsTextNode() bool
+		SetText(text string)
+		Add(element Selection)
 		Dom
 	}
 )

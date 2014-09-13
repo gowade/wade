@@ -212,8 +212,8 @@ func (s Selection) Next() dom.Selection {
 }
 
 func (s Selection) Exists() bool {
-	return s.JQuery.Parents("wroot").Length > 0 ||
-		s.JQuery.Parents("html").Length > 0
+	return s.JQuery.Is("html") || s.JQuery.Is("wroot") ||
+		s.JQuery.Parents("wroot").Length > 0 || s.JQuery.Parents("html").Length > 0
 }
 
 func (s Selection) Before(sel dom.Selection) {
@@ -274,4 +274,16 @@ func (s Selection) Prepend(sel dom.Selection) {
 
 func (s Selection) Index() int {
 	return s.JQuery.Underlying().Call("index").Int()
+}
+
+func (s Selection) IsTextNode() bool {
+	return s.JQuery.Get(0).Get("nodeType").Int() == 3
+}
+
+func (s Selection) SetText(text string) {
+	s.JQuery.SetText(text)
+}
+
+func (s Selection) Add(sel dom.Selection) {
+	s.JQuery.Add(sel.(Selection).JQuery)
 }

@@ -19,7 +19,6 @@ func defaultBinders() map[string]DomBinder {
 		"attr":  &AttrBinder{},
 		"on":    &EventBinder{},
 		"each":  new(EachBinder),
-		"page":  &PageBinder{},
 		"if":    new(IfBinder),
 		"ifn":   &UnlessBinder{&IfBinder{}},
 		"class": &ClassBinder{},
@@ -80,8 +79,7 @@ type AttrBinder struct{ BaseBinder }
 
 func (b *AttrBinder) Update(d DomBind) error {
 	if len(d.Args) != 1 {
-		return fmt.Errorf(`Incorrect number of args (%v)
-Correct Usage: bind-attr-<attribute>="Field".`, len(d.Args))
+		return fmt.Errorf(`Incorrect number of args (%v)`, len(d.Args))
 	}
 	d.Elem.SetAttr(d.Args[0], toString(d.Value))
 
@@ -99,8 +97,7 @@ type ClassBinder struct{ BaseBinder }
 
 func (b *ClassBinder) Update(d DomBind) error {
 	if len(d.Args) != 1 {
-		return fmt.Errorf(`Incorrect number of args (%v)
-Correct Usage: bind-class-<class>="Field".`, len(d.Args))
+		return fmt.Errorf(`Incorrect number of args (%v)`, len(d.Args))
 	}
 
 	class := d.Args[0]
@@ -205,7 +202,6 @@ func (b *EachBinder) BindInstance() DomBinder {
 }
 
 func (b *EachBinder) Bind(d DomBind) (err error) {
-	d.Elem.RemoveAttr("bind-each")
 	b.marker = d.Elem.NewFragment("<!-- wade each -->")
 	d.Elem.Before(b.marker)
 
@@ -240,33 +236,12 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
 		prev.Next().ReplaceWith(nx)
-		err = d.ProduceOutputs(nx, true, true, k.Interface(), v.Interface())
+		err = d.ProduceOutputs(nx, true, d.Args, k.Interface(), v.Interface())
 		prev = nx
 	}
 
 	return
 }
-
-// PageBinder is used for <a> elements to set its href to the real page url
-// and save necessary information for the proper page switching when the user
-// clicks on the link. It should be used with the url() helper.
-//
-// Typical usage:
-//	bind-page="url(`page-id`, arg1, arg2...)"
-type PageBinder struct{ BaseBinder }
-
-func (b *PageBinder) Update(d DomBind) error {
-	tagname, _ := d.Elem.TagName()
-	if tagname != "a" {
-		return fmt.Errorf("bind-page can only be used for links (<a> elements)")
-	}
-	uinf := d.Value.(UrlInfo)
-	d.Elem.SetAttr("href", uinf.fullUrl)
-	d.Elem.SetAttr(WadePageAttr, uinf.path)
-
-	return nil
-}
-func (b *PageBinder) BindInstance() DomBinder { return b }
 
 // IfBinder keeps or remove an element according to a boolean field value.
 //

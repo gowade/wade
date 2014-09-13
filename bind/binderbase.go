@@ -29,17 +29,16 @@ type DomBinder interface {
 }
 
 type DomBind struct {
-	Elem    dom.Selection
-	Value   interface{}
-	Args    []string
-	outputs []string
+	Elem  dom.Selection
+	Value interface{}
+	Args  []string
 
 	binding  *Binding
 	scope    *scope
 	metadata string
 }
 
-func (d DomBind) bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
+func (d DomBind) Bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
 	s := newModelScope(m)
 	s.merge(d.scope)
 
@@ -55,19 +54,17 @@ func (d DomBind) Banish(elem dom.Selection) {
 	}
 }
 
-func (d DomBind) ProduceOutputs(elem dom.Selection, optional bool, once bool, outputs ...interface{}) error {
+func (d DomBind) ProduceOutputs(elem dom.Selection, once bool, names []string, outputs ...interface{}) error {
 	m := make(map[string]interface{})
-	if len(outputs) == len(d.outputs) {
-		for i, output := range d.outputs {
+	if len(outputs) == len(names) {
+		for i, output := range names {
 			m[output] = outputs[i]
 		}
 
-		d.bind(elem, m, once, true)
+		d.Bind(elem, m, once, true)
 	} else {
-		if !optional || len(outputs) != 0 {
-			return fmt.Errorf("Wrong output specification for `%v`: there must be %v outputs instead of %v.",
-				d.metadata, len(d.outputs), len(outputs))
-		}
+		return fmt.Errorf("name list length is %v but %v outputs are specified.",
+			d.metadata, len(names), len(outputs))
 	}
 
 	return nil

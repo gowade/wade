@@ -5,7 +5,6 @@ import (
 	"path"
 
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
 )
 
@@ -20,12 +19,12 @@ func getHtmlFile(httpClient *http.Client, serverbase string, href string) (strin
 		return "", fmt.Errorf(`Failed to load HTML file "%v"`, href)
 	}
 
-	return icommon.ParseTemplate(resp.Data), nil
+	return resp.Data, nil
 }
 
-// htmlImport performs an HTML import
+// htmlImport performs an HTML include
 func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string) error {
-	imports := parent.Find("wimport").Elements()
+	imports := parent.Find("winclude").Elements()
 	if len(imports) == 0 {
 		return nil
 	}
@@ -36,7 +35,7 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 	for _, elem := range imports {
 		src, ok := elem.Attr("src")
 		if !ok {
-			return dom.ElementError(elem, `wimport element has no "src" attribute`)
+			return dom.ElementError(elem, `winclude element has no "src" attribute`)
 		}
 
 		go func(elem dom.Selection) {
@@ -50,7 +49,7 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 
 			// the go html parser will refuse to work if the content is only text, so
 			// we put a wrapper here
-			ne := parent.NewFragment("<pendingimport>" + html + "</pendingimport>")
+			ne := parent.NewFragment("<pendingincl>" + html + "</pendingincl>")
 			elem.ReplaceWith(ne)
 
 			err = htmlImport(httpClient, ne, serverbase)

@@ -40,36 +40,6 @@ type (
 	}
 )
 
-// RegisterCustomTags registers custom element tags declared inside a given html file
-// srcFile and associate them with given model prototypes. srcFile is used
-// like when using <wimport>.
-//
-// For reach <welement> inside the file, it registers a new tag with the name
-// specified by its "tagname" attribute.
-// The template content and specifications of the tag is taken from the <welement>.
-// For example, if there's a <welement> inside "public/elements.html":
-//	<welement tagname="errorlist" attributes="Errors Subject">
-//		<p>errors for <% Subject %></p>
-//		<ul>
-//			<li bind-each="Errors -> _, msg"><% msg %></li>
-//		</ul>
-//	</welement>
-// If wade.RegisterNew("public/elements.html", prototype)
-// is called, a new html tag "errorlist" will be registered.
-//
-// This new tag may be used like this
-//	<errorlist attr-subject="Username" bind="Errors: Username.Errors"></errorlist>
-// And if "Username.Errors" is {"Invalid.", "Not enough chars."}, something like this will
-// be put in place of the above:
-//	<p>errors for Username</p>
-//	<ul>
-//		<li>Invalid.</li>
-//		<li>Not enough chars.</li>
-//	</ul>
-// The prototype is a struct which specifies datatypes for the custom element's
-// attributes. If it's pointer version has a method "Init" which satisfies the
-// CustomElementInit interface, Init will be called
-// when the custom element is processed.
 func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
 	r.w.tm.RegisterTags(customTags)
 }
@@ -90,6 +60,11 @@ func (r registry) RegisterController(displayScope string, fn PageControllerFunc)
 // RegisterDisplayScopes registers the given maps of pages and page groups
 func (r registry) RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
 	r.w.pm.registerDisplayScopes(pages, pageGroups)
+}
+
+// RegisterNotFoundPage registers the page that is used for 404
+func (r registry) RegisterNotFoundPage(pageid string) {
+	r.w.pm.SetNotFoundPage(pageid)
 }
 
 func initServices(pm PageManager, rb RenderBackend) {

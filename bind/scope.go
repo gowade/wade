@@ -118,7 +118,7 @@ func (fs fieldSymbol) value() (v reflect.Value, err error) {
 
 func (fs fieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
 	if fs.eval.fieldRefl.Kind() != reflect.Func {
-		err = fmt.Errorf(`Cannot call "%v", it's not a method.`, fs.name)
+		err = fmt.Errorf(`Cannot call "%v", it's not a method or a function.`, fs.name)
 		return
 	}
 

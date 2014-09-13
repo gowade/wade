@@ -50,6 +50,7 @@ type (
 		RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
 		RegisterCustomTags(...custom.HtmlTag)
 		RegisterController(displayScope string, controller PageControllerFunc)
+		RegisterNotFoundPage(pageid string)
 		ModuleInit(...NeedsInit)
 	}
 

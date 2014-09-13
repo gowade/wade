@@ -185,14 +185,18 @@ func (pm *pageManager) prepare() {
 
 	//Handle link events
 	pm.realContainer.Listen("click", "a", func(e dom.Event) {
-		pagepath, ok := e.Target().Attr(bind.WadePageAttr)
-		if !ok { //not a wade page link, let the browser do its job
+		href, ok := e.Target().Attr("href")
+		if !ok {
+			return
+		}
+
+		if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
 			return
 		}
 
 		e.PreventDefault()
 
-		go pm.updatePage(pagepath, true)
+		go pm.updatePage(href, true)
 	})
 
 	pm.updatePage(pm.history.CurrentPath(), false)
@@ -230,7 +234,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		if pm.notFoundPage != nil {
 			pm.updatePage(pm.notFoundPage.path, false)
 		} else {
-			panic("Page not found. No 404 handler declared.")
+			panic("Page not found. No 404 page declared.")
 		}
 		return
 	}
@@ -238,7 +242,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	page := match.(*page)
 
 	if pushState {
-		pm.history.PushState(page.title, pm.Fullpath(url))
+		pm.history.PushState(page.title, pm.Fullpath(path))
 	}
 
 	params := make(map[string]interface{})
@@ -293,6 +297,10 @@ func (pm *pageManager) setTitle(title string) {
 
 // PageUrl returns the url for the page with the given parameters
 func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, err error) {
+	return pm.pageUrl(pageId, params)
+}
+
+func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, err error) {
 	err = nil
 	page := pm.page(pageId)
 
@@ -321,6 +329,8 @@ func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, 
 			i++
 		}
 	}
+
+	u = pm.Fullpath(u)
 
 	if k != len(params) || k != len(routeparams) {
 		err = fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,
@@ -387,6 +397,10 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 			}(controller)
 		}
 		<-completeChan
+	}
+
+	if len(models) == 0 {
+		models = append(models, pc)
 	}
 
 	pm.binding.BindModels(pm.realContainer, models, false)

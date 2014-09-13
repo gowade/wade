@@ -126,14 +126,16 @@ func (b *JsBackend) History() wade.History {
 
 func (b *JsBackend) Watch(modelRefl reflect.Value, field string, callback func()) {
 	obj := js.InternalObject(modelRefl.Interface()).Get("$val")
+	rcb := func(prop string, action string,
+		_ js.Object,
+		_2 js.Object) {
+		callback()
+	}
+
 	js.Global.Call("watch",
 		obj,
 		field,
-		func(prop string, action string,
-			_ js.Object,
-			_2 js.Object) {
-			callback()
-		})
+		rcb)
 }
 
 func (b *JsBackend) WebStorages() (wade.Storage, wade.Storage) {

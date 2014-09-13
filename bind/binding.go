@@ -3,6 +3,7 @@ package bind
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/phaikawl/wade/custom"
@@ -11,15 +12,19 @@ import (
 )
 
 const (
-	BindPrefix         = "bind-"
-	ReservedBindPrefix = "wade-rsvd"
+	ReservedPrefix = "data-w-"
+	BoundAttr      = ReservedPrefix + "bound"
+	BindInfoAttr   = ReservedPrefix + "binds"
+
+	AttrBindPrefix   = '@'
+	BinderBindPrefix = '#'
 )
 
 type (
 	CustomElem interface {
 		Update() error
 		Model() interface{}
-		PrepareContents(func(dom.Selection)) error
+		PrepareContents(func(dom.Selection, bool)) error
 		Element() dom.Selection
 	}
 
@@ -125,28 +130,6 @@ func reportError(err error, bstr string, elem dom.Selection) {
 	}
 }
 
-func parseDomBindstr(bstr string) (bexpr string, outputs []string, err error) {
-	parts := strings.Split(bstr, "->")
-	outputs = make([]string, 0)
-	if len(parts) == 1 {
-		bexpr = bstr
-	} else {
-		bexpr = strings.TrimSpace(parts[0])
-		outputs = strings.Split(parts[1], ",")
-		for i, ostr := range outputs {
-			outputs[i] = strings.TrimSpace(ostr)
-			for _, c := range outputs[i] {
-				if !isValidExprChar(c) {
-					err = fmt.Errorf("invalid character %q", c)
-					return
-				}
-			}
-		}
-	}
-
-	return
-}
-
 func (e drmElem) Remove() {
 	*e.rmList = append(*e.rmList, e.Selection)
 }
@@ -156,62 +139,71 @@ func (e drmElem) ReplaceWith(sel dom.Selection) {
 	e.Remove()
 }
 
-func (b *Binding) processFieldBind(bstr string, elem dom.Selection, bs *bindScope, once bool, ce CustomElem) {
-	tokens, err := tokenize(bstr)
-	if err != nil {
-		bstrPanic(err.Error(), bstr, elem)
+func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, bs *bindScope, once bool) (err error) {
+	roote, binds, watches, v, er := bs.evaluate(bstr)
+	if er != nil {
+		bstrPanic(er.Error(), bstr, elem)
 	}
 
-	fbinds, err := parseFieldBind(tokens)
-	if err != nil {
-		bstrPanic(err.Error(), bstr, elem)
-	}
-
-	for field, btoks := range fbinds {
-		watches, roote, er := parseBind(btoks)
-		if er != nil {
-			bstrPanic(er.Error(), bstr, elem)
-		}
-
-		binds, v, er := bs.evaluatePart(watches, roote)
-		if er != nil {
-			bstrPanic(er.Error(), bstr, elem)
-		}
-
-		oe, ok, err := evaluateObjField(field, reflect.ValueOf(ce.Model()))
-		if err != nil {
-			bstrPanic(err.Error(), bstr, elem)
-		}
-
-		if !ok {
-			bstrPanic(fmt.Sprintf(`No such field "%v" to bind to`, field), bstr, elem)
-		}
-
-		checkCompat := func(src reflect.Type, dst reflect.Type) {
-			if !src.AssignableTo(dst) {
-				bstrPanic(fmt.Sprintf(`Unassignable, incompatible types "%v" and "%v" of the model field and the value`,
-					src.String(), dst.String()), bstr, elem)
-			}
-		}
-
-		checkCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
-		oe.fieldRefl.Set(reflect.ValueOf(v))
+	if vstr, ok := v.(string); ok {
+		elem.SetAttr(attr, vstr)
 
 		if !once {
 			err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
-				checkCompat(nr.Type(), oe.fieldRefl.Type())
-				oe.fieldRefl.Set(nr)
-
-				err := ce.Update()
-				if err != nil {
-					panic(dom.ElementError(ce.Element(), err.Error()))
-				}
+				elem.SetAttr(attr, nr.String())
 			})
 
 			if err != nil {
 				bstrPanic(err.Error(), bstr, elem)
 			}
+		}
+	} else {
+		bstrPanic("Cannot bind native html attribute to a non-string value", bstr, elem)
+	}
+
+	return
+}
+
+func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection, bs *bindScope, once bool, ce CustomElem) {
+	roote, binds, watches, v, er := bs.evaluate(bstr)
+	if er != nil {
+		bstrPanic(er.Error(), bstr, elem)
+	}
+
+	oe, ok, err := evaluateObjField(field, reflect.ValueOf(ce.Model()))
+	if err != nil {
+		bstrPanic(err.Error(), bstr, elem)
+	}
+
+	if !ok {
+		bstrPanic(fmt.Sprintf(`No such field "%v" to bind to`, field), bstr, elem)
+	}
+
+	checkCompat := func(src, dst reflect.Type) {
+		if !src.AssignableTo(dst) {
+			bstrPanic(fmt.Sprintf(`Unassignable, incompatible types "%v" and "%v" of the model field and the value`,
+				src.String(), dst.String()), bstr, elem)
+		}
+	}
+
+	checkCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
+	oe.fieldRefl.Set(reflect.ValueOf(v))
+
+	if !once {
+		err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
+			nr := reflect.ValueOf(newResult)
+			checkCompat(nr.Type(), oe.fieldRefl.Type())
+			oe.fieldRefl.Set(nr)
+
+			err := ce.Update()
+			if err != nil {
+				panic(dom.ElementError(ce.Element(), err.Error()))
+			}
+		})
+
+		if err != nil {
+			bstrPanic(err.Error(), bstr, elem)
 		}
 	}
 }
@@ -221,9 +213,11 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 		return
 	}
 
-	if bound, _ := elem.Attr(ReservedBindPrefix + "-bound"); bound == "true" {
+	if bound, _ := elem.Attr(BoundAttr); bound == "true" {
 		return
 	}
+
+	bindinfo := ""
 
 	tag, isCustom := b.tm.GetTag(elem)
 	if isCustom {
@@ -237,19 +231,35 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 
 		customElem := tag.NewElem(elem)
 
-		if fieldBind, ok := elem.Attr("bind"); ok {
-			b.processFieldBind(fieldBind, elem, bs, once, customElem)
+		for _, hattr := range elem.Attrs() {
+			if hattr.Name[0] == AttrBindPrefix {
+				attr := hattr.Name[1:]
+				elem.RemoveAttr(hattr.Name)
+				bindinfo += fmt.Sprintf("{%v: [%v]} ", hattr.Name, hattr.Value)
+
+				field := strings.Split(attr, ".")[0]
+				if ok, fieldName := tag.HasAttr(field); ok {
+					b.processFieldBind(fieldName, hattr.Value, elem, bs, once, customElem)
+				} else {
+					b.processAttrBind(attr, hattr.Value, elem, bs, once)
+				}
+			}
 		}
 
-		err := customElem.PrepareContents(func(contentElems dom.Selection) {
+		err := customElem.PrepareContents(func(contentElems dom.Selection, once bool) {
 			b.bindWithScope(contentElems, bs.scope, once, true, scopeElem)
 		})
 
 		if err != nil {
-			dom.ElementError(elem, err.Error())
+			panic(dom.ElementError(elem, err.Error()))
 		}
 
 		b.bindWithScope(elem, b.newModelScope(customElem.Model()), once, false, elem)
+
+		if bindinfo != "" {
+			old, _ := elem.Attr(BindInfoAttr)
+			elem.SetAttr(BindInfoAttr, old+bindinfo)
+		}
 	}
 
 	for _, e := range elem.Children().Elements() {
@@ -257,31 +267,52 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 	}
 }
 
-func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bindScope, once bool) (removedElems []dom.Selection, err error) {
-	parts := strings.Split(astr, "-")
-	if len(parts) <= 1 {
-		err = fmt.Errorf(`Something's wrong, illegal "bind-".`)
-		return
+var (
+	NameRegexp = regexp.MustCompile(`\w+`)
+)
+
+func checkName(strs []string) error {
+	for _, str := range strs {
+		if !NameRegexp.MatchString(str) {
+			return fmt.Errorf("Invalid name %v", str)
+		}
+	}
+
+	return nil
+}
+
+func parseBinderLHS(astr string) (binder string, args []string, err error) {
+	lp := strings.IndexRune(astr, '(')
+	if lp != -1 {
+		if astr[len(astr)-1] != ')' {
+			err = fmt.Errorf("Invalid syntax for left hand side of binding")
+			return
+		}
+
+		binder = astr[:lp]
+		args = strings.Split(astr[lp+1:len(astr)-1], ",")
+	} else {
+		binder = astr
+		args = []string{}
+	}
+
+	err = checkName(append(args, binder))
+
+	return
+}
+
+func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *bindScope, once bool) (removedElems []dom.Selection, err error) {
+	binderName, args, err := parseBinderLHS(astr)
+	if err != nil {
+		bstrPanic(err.Error(), astr, elem)
 	}
 
 	removedElems = make([]dom.Selection, 0)
 
-	if binder, ok := b.domBinders[parts[1]]; ok {
+	if binder, ok := b.domBinders[binderName]; ok {
 		binder = binder.BindInstance()
-		args := make([]string, 0)
-		if len(parts) >= 2 {
-			for _, part := range parts[2:] {
-				args = append(args, part)
-			}
-		}
 
-		bexpr, outputs, err2 := parseDomBindstr(bstr)
-		if err2 != nil {
-			err = err2
-			return
-		}
-
-		roote, binds, watches, v, err2 := bs.evaluate(bexpr)
+		roote, binds, watches, v, err2 := bs.evaluate(bstr)
 		if err2 != nil {
 			err = err2
 			return
@@ -305,12 +336,11 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 			Elem:    drmElem{elem, &removedElems},
 			Value:   v,
 			Args:    args,
-			outputs: outputs,
 			binding: b,
 			scope:   bs.scope,
 		}
 
-		(func(args, outputs []string, bstr string, elem dom.Selection) {
+		(func(args []string, bstr string, elem dom.Selection) {
 			err = binder.Bind(domBind)
 			if err != nil {
 				return
@@ -327,17 +357,66 @@ func (b *Binding) processDomBind(astr, bstr string, elem dom.Selection, bs *bind
 
 				err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
 					udb.Value = newResult
-					reportError(binder.Update(udb), bstr, elem)
+					binder.Update(udb)
 					icommon.WrapperUnwrap(elem)
 				})
 			}
-		})(args, outputs, bstr, elem)
+		})(args, bstr, elem)
 
 	} else {
-		err = fmt.Errorf(`Dom binder "%v" does not exist.`, parts[1])
+		err = fmt.Errorf(`Dom binder "%v" does not exist.`, binderName)
 	}
 
 	return
+}
+
+var (
+	MustacheRegex = regexp.MustCompile("{{([^{}]+)}}")
+)
+
+func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope) error {
+	text := elem.Text()
+	if strings.Index(text, "{{") == -1 {
+		return nil
+	}
+
+	matches := MustacheRegex.FindAllStringSubmatch(text, -1)
+	if matches != nil {
+		splitted := MustacheRegex.Split(text, -1)
+
+		textNodes := elem.NewFragment("")
+		for i, m := range matches {
+			cr, blist, watches, v, err := bs.evaluate(m[1])
+			if err != nil {
+				return err
+			}
+
+			node := elem.NewFragment("a")
+			node.SetText(toString(v))
+
+			err = b.watchModel(blist, watches, cr, bs, func(val interface{}) {
+				node.SetText(toString(val))
+			})
+
+			if err != nil {
+				return err
+			}
+
+			bf := elem.NewFragment("a")
+			bf.SetText(splitted[i])
+			textNodes.Add(bf)
+
+			textNodes.Add(node)
+		}
+
+		bf := elem.NewFragment("a")
+		bf.SetText(splitted[len(splitted)-1])
+		textNodes.Add(bf)
+
+		elem.ReplaceWith(textNodes)
+	}
+
+	return nil
 }
 
 func (b *Binding) bindDomRec(elem dom.Selection,
@@ -345,16 +424,22 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 	once bool,
 	additionalBinds []dom.Attr) (replaced dom.Selection) {
 
+	replaced = elem
+
+	if elem.IsTextNode() {
+		err := b.processMustaches(elem, once, bs)
+		if err != nil {
+			bstrPanic(err.Error(), elem.Text(), elem.Parent())
+		}
+
+		return
+	}
+
 	if !elem.IsElement() || !elem.Exists() {
 		return
 	}
 
-	//println(dom.DebugInfo(elem))
-	//println(len(bs.scope.symTables))
-
-	//println(dom.DebugInfo(elem))
-
-	replaced = elem
+	_, isCustom := b.tm.GetTag(elem)
 
 	isWrapper := icommon.IsWrapperElem(elem)
 	var abinds []dom.Attr
@@ -369,29 +454,50 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 	attrs = append(attrs, elem.Attrs()...)
 
+	bindinfo := ""
+
 	removedElems := make([][]dom.Selection, 0)
 	// perform binding
 	for _, attr := range attrs {
-		astr, bstr := attr.Name, attr.Value
-		if strings.HasPrefix(astr, BindPrefix) && elem.Exists() {
-			if isWrapper {
-				abinds = append(abinds, dom.Attr{astr, bstr})
+		astr, bstr := attr.Name[1:], attr.Value
+
+		switch attr.Name[0] {
+		case AttrBindPrefix:
+			if isCustom {
 				continue
 			}
 
-			//println(astr, dom.DebugInfo(elem))
+			if isWrapper {
+				elem.Children().SetAttr(attr.Name, attr.Value)
+				continue
+			}
 
-			rmdElems, err := b.processDomBind(astr, bstr, elem, bs, once)
+			elem.RemoveAttr(attr.Name)
+			b.processAttrBind(astr, bstr, elem, bs, once)
+
+		case BinderBindPrefix:
+			if isWrapper {
+				abinds = append(abinds, attr)
+				continue
+			}
+
+			elem.RemoveAttr(attr.Name)
+			rmdElems, err := b.processBinderBind(astr, bstr, elem, bs, once)
 			if err != nil {
 				bstrPanic(err.Error(), bstr, elem)
 			}
 
 			removedElems = append(removedElems, rmdElems)
 
-			//prevent duplicate binding
-			elem.RemoveAttr(astr)
-			elem.SetAttr("done-"+astr, bstr)
+			if !elem.Exists() {
+				return
+			}
+
+		default:
+			continue
 		}
+
+		bindinfo += fmt.Sprintf("{%v: [%v]} ", attr.Name, attr.Value)
 	}
 
 	if isWrapper {
@@ -404,8 +510,12 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 		replaced = conts
 		return
 	} else {
-		if _, isCustom := b.tm.GetTag(elem); !isCustom {
-			for _, child := range elem.Children().Elements() {
+		if bindinfo != "" {
+			elem.SetAttr(BindInfoAttr, bindinfo)
+		}
+
+		if !isCustom {
+			for _, child := range elem.Contents().Elements() {
 				b.bindDomRec(child, bs, once, nil)
 			}
 		}
@@ -451,7 +561,7 @@ func (b *Binding) rootList(rootElems dom.Selection, bindRoot bool) []dom.Selecti
 		return rootElems.Elements()
 	}
 
-	return rootElems.Children().Elements()
+	return rootElems.Contents().Elements()
 }
 
 func (b *Binding) bindWithScope(rootElems dom.Selection, s *scope, once bool, bindRoot bool, scopeElem dom.Selection) {
@@ -459,7 +569,7 @@ func (b *Binding) bindWithScope(rootElems dom.Selection, s *scope, once bool, bi
 	elems := b.rootList(rootElems, bindRoot)
 
 	for _, e := range elems {
-		if !e.IsElement() || !e.Exists() {
+		if !e.Exists() {
 			continue
 		}
 
@@ -470,6 +580,8 @@ func (b *Binding) bindWithScope(rootElems dom.Selection, s *scope, once bool, bi
 	}
 
 	for _, re := range rootElems.Elements() {
-		re.SetAttr(ReservedBindPrefix+"-bound", "true")
+		if re.IsElement() {
+			re.SetAttr(BoundAttr, "true")
+		}
 	}
 }

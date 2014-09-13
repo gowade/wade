@@ -2,6 +2,7 @@ package wade
 
 import (
 	"testing"
+
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
@@ -10,17 +11,17 @@ import (
 
 const (
 	Src = `<div>
-<wimport src="/a"></wimport>
-<wimport src="/b"></wimport>
+<winclude src="/a"></winclude>
+<winclude src="/b"></winclude>
 <div>
-	<wimport src="/c"></wimport>
+	<winclude src="/c"></winclude>
 </div>
 </div>`
 
-	FailSrc = `<div><wimport src="/kdkfk"></wimport></div>`
-	NoSrc   = `<div><wimport></wimport></div>`
+	FailSrc = `<div><winclude src="/kdkfk"></winclude></div>`
+	NoSrc   = `<div><winclude></winclude></div>`
 
-	SrcA = `<wimport src="/d"></wimport>`
+	SrcA = `<winclude src="/d"></winclude>`
 	SrcB = `b`
 	SrcC = `c`
 	SrcD = `a`

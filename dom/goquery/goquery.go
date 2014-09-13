@@ -315,8 +315,8 @@ func (s Selection) Next() dom.Selection {
 }
 
 func (s Selection) Exists() bool {
-	return s.Selection.ParentsFiltered("wroot").Length() > 0 ||
-		s.Selection.ParentsFiltered("html").Length() > 0
+	return s.Selection.Is("html") || s.Selection.Is("wroot") ||
+		s.Selection.ParentsFiltered("wroot").Length() > 0 || s.Selection.ParentsFiltered("html").Length() > 0
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
@@ -382,4 +382,18 @@ func (s Selection) RemoveClass(class string) {
 
 func (s Selection) Filter(selector string) dom.Selection {
 	return newSelection(s.Selection.Filter(selector))
+}
+
+func (s Selection) IsTextNode() bool {
+	return s.Selection.Nodes[0].Type == html.TextNode
+}
+
+func (s Selection) SetText(text string) {
+	for _, node := range s.Nodes {
+		node.Data = text
+	}
+}
+
+func (s Selection) Add(elem dom.Selection) {
+	s.Selection.Nodes = append(s.Selection.Nodes, elem.(Selection).Nodes...)
 }

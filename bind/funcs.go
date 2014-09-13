@@ -20,20 +20,6 @@ func jsGetType(obj js.Object) string {
 }
 
 func callFunc(fn reflect.Value, args []reflect.Value) (v reflect.Value, err error) {
-	ftype := fn.Type()
-	nin := ftype.NumIn()
-	var ok bool
-	if ftype.IsVariadic() {
-		ok = len(args) >= nin-1
-	} else {
-		ok = nin == len(args)
-	}
-
-	if !ok {
-		err = fmt.Errorf(`Invalid number of arguments.`)
-		return
-	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf(r.(string))
@@ -41,7 +27,7 @@ func callFunc(fn reflect.Value, args []reflect.Value) (v reflect.Value, err erro
 	}()
 
 	rets := fn.Call(args)
-	if len(rets) == 1 {
+	if len(rets) >= 1 {
 		v = rets[0]
 		return
 	}

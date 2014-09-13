@@ -46,17 +46,18 @@ func TestEach(t *testing.T) {
 	b := NewTestBindEngine()
 	b.tm.RegisterTags([]custom.HtmlTag{
 		custom.HtmlTag{
-			Name:      "test",
-			Prototype: &ceModel{},
-			Html:      `<span bind-html="A.B"></span>`,
+			Name:       "test",
+			Prototype:  &ceModel{},
+			Attributes: []string{"A"},
+			Html:       `<span #html="A.B"></span>`,
 		},
 	})
 
 	m1 := &sliceModel{[]*okScope{&okScope{true, "a", &aStr{"a"}}, &okScope{false, "b", &aStr{"b"}}, &okScope{true, "c", &aStr{"c"}}}}
 	src := `<wroot>
 		<ul>
-			<ww bind-each="List -> key, item">
-				<li>#<span bind-html="key"></span><span bind-html="item.A"></span><test bind="A: item.B"></test></li>
+			<ww #each(key,item)="List">
+				<li>#<span #html="key"></span><span #html="item.A"></span><test @A="item.B"></test></li>
 			</ww>
 		</ul>
 	</wroot>
@@ -84,7 +85,7 @@ func TestEach(t *testing.T) {
 
 	src = `<wroot>
 		<ul>
-			<li bind-each="Map -> key, value">#<span bind-html="key"></span><span bind-html="value"></span></li>
+			<li #each(key,value)="Map">#<span #html="key"></span><span #html="value"></span></li>
 		</ul>
 	</wroot>
 	`
@@ -117,8 +118,8 @@ func TestEach(t *testing.T) {
 	m3 := &nestedModel{[]Nest{Nest{[]string{"a", "b"}}, Nest{[]string{"b"}}}}
 	src = `<wroot>
 		<ul>
-			<ww bind-each="List -> key, item">
-				<li><ww bind-each="item.List -> _, subitem"><span bind-html="subitem"></span></ww></li>
+			<ww #each(key,item)="List">
+				<li><ww #each(_,subitem)="item.List"><span #html="subitem"></span></ww></li>
 			</ww>
 		</ul>
 	</wroot>
@@ -138,7 +139,7 @@ func TestIf(t *testing.T) {
 		A:  ":D",
 	}
 	root := goquery.GetDom().NewFragment(`<wroot>
-		<div bind-if="Ok"><span bind-html="A"></span></div>
+		<div #if="Ok"><span #html="A"></span></div>
 	</wroot>`)
 	b.Bind(root, s, false)
 	require.Equal(t, root.Find("div").Length(), 0)

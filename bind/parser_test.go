@@ -13,11 +13,15 @@ type TestUser struct {
 	}
 }
 
+func (tu *TestUser) TestConcat(s string) {
+	tu.Test += s
+}
+
 func TestParser(t *testing.T) {
 	model := new(TestUser)
 	model.Data.Username = "Hai"
 	model.Data.Password = "Pk"
-	model.Test = "T"
+	model.Test = "Nt"
 
 	helpers := map[string]interface{}{
 		"addInt": func(a, b int) int {
@@ -35,12 +39,12 @@ func TestParser(t *testing.T) {
 	dhst := newHelpersSymbolTable(defaultHelpers())
 	bs := &bindScope{&scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
 	tests := map[string]interface{}{
-		"Test":                                                            "T",
+		"Test":                                                            "Nt",
 		"Data.Username":                                                   "Hai",
-		"Data.Username | toUpper(@1)":                                     "HAI",
-		"Data.Username, Data.Password | concat(@1, @2)":                   "HaiPk",
-		"Data.Username | concat(@1, 'Pk|')":                               "HaiPk|",
-		"Data.Username, Data.Password | concat(toUpper(@1), toLower(@2))": "HAIpk",
+		"Data.Username | toUpper($1)":                                     "HAI",
+		"Data.Username, Data.Password | concat($1, $2)":                   "HaiPk",
+		"Data.Username | concat($1, 'Pk|')":                               "HaiPk|",
+		"Data.Username, Data.Password | concat(toUpper($1), toLower($2))": "HAIpk",
 		"| addInt(-1, 2)":                                                 1,
 		"| addFloat(-1.0, 2.0)":                                           float32(1.0),
 		"| fooAdd('bar*|-,')":                                             "foobar*|-,",
@@ -57,6 +61,16 @@ func TestParser(t *testing.T) {
 				t.Errorf("Expected %v, got %v.", result, v)
 			}
 		}
+	}
+
+	_, _, _, v, err := bs.evaluate("Data.Username | :TestConcat($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reflect.ValueOf(v).Call([]reflect.Value{})
+	if model.Test != "NtHai" {
+		t.Errorf("Expected %v, got %v.", "NtHai", model.Test)
 	}
 
 	errtests := []string{

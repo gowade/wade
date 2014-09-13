@@ -25,27 +25,34 @@ type (
 func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err error) {
 	err = nil
 
-	realExpr, isWatchExpr, err := parseWatchExpr(e.name, watches)
-	if err != nil {
-		return
-	}
+	wrapped := false
 
-	if isWatchExpr {
+	switch e.name[0] {
+	case '$':
+		e.name, err = parseDollarExpr(e.name, watches)
+		if err != nil {
+			return
+		}
+
 		var sym scopeSymbol
-		sym, err = b.scope.lookup(realExpr)
+		sym, err = b.scope.lookup(e.name)
 		if err != nil {
 			return
 		}
 		v, err = sym.value()
 		return
-	} else {
-		litVal, isLiteral, er := parseLiteralExpr(e.name)
-		if er != nil {
-			err = er
-			return
-		}
 
-		if isLiteral {
+	case ':':
+		wrapped = true
+		e.name = e.name[1:]
+
+	default:
+		if litVal, isLiteral, er := parseLiteralExpr(e.name); isLiteral {
+			if er != nil {
+				err = er
+				return
+			}
+
 			v = reflect.ValueOf(litVal)
 			return
 		}
@@ -68,6 +75,16 @@ func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err 
 	case ValueExpr:
 		v, err = sym.value()
 	case CallExpr:
+		if wrapped {
+			v = reflect.ValueOf(func() {
+				_, er := sym.call(args)
+				if er != nil {
+					panic(er)
+				}
+			})
+
+			return
+		}
 		v, err = sym.call(args)
 	}
 

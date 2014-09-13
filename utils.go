@@ -28,11 +28,6 @@ func camelize(src string) string {
 	return string(res)
 }
 
-type UrlInfo struct {
-	path    string
-	fullUrl string
-}
-
 type GetSetable interface {
 	Get(key string, v interface{}) (ok bool)
 	Set(key string, v interface{})
