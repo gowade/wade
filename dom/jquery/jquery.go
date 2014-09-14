@@ -1,6 +1,7 @@
 package jquery
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -84,13 +85,25 @@ func (d Dom) NewFragment(html string) dom.Selection {
 	return newSelection(gJQ(html))
 }
 
+func (d Dom) NewEmptySelection() dom.Selection {
+	return newSelection(gJQ())
+}
+
 func (d Dom) NewRootFragment() dom.Selection {
 	return newSelection(gJQ(js.Global.Get(jquery.JQ).Call("parseHTML", "<wroot></wroot>")))
+}
+
+func (d Dom) NewTextNode(content string) dom.Selection {
+	return newSelection(gJQ(js.Global.Get("document").Call("createTextNode", content)))
 }
 
 func (s Selection) TagName() (string, error) {
 	if s.Length() == 0 {
 		return "", dom.ErrorNoElementSelected
+	}
+
+	if !s.IsElement() {
+		return "", dom.ErrorCantGetTagName
 	}
 
 	tn := s.JQuery.First().Prop("tagName")
@@ -281,9 +294,17 @@ func (s Selection) IsTextNode() bool {
 }
 
 func (s Selection) SetText(text string) {
-	s.JQuery.SetText(text)
+	if s.IsElement() {
+		s.JQuery.SetText(text)
+	} else {
+		if s.IsTextNode() {
+			s.JQuery.Get(0).Set("nodeValue", text)
+		}
+
+		panic(fmt.Sprintf("Cannot set text for this kind of node %v.", s.JQuery.Get(0).Get("nodeType").Int()))
+	}
 }
 
-func (s Selection) Add(sel dom.Selection) {
-	s.JQuery.Add(sel.(Selection).JQuery)
+func (s Selection) Add(sel dom.Selection) dom.Selection {
+	return newSelection(s.JQuery.Add(sel.(Selection).JQuery))
 }

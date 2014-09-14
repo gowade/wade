@@ -83,8 +83,14 @@ func TestEverything(t *testing.T) {
 	nt.Prepend(d.NewFragment("<div>aa</div>"))
 	require.Equal(t, nt.Text(), "aazzzz")
 
-	nt = d.NewFragment("<div><wcontents></wcontents>zz<wcontents></wcontents></div>")
+	nt = d.NewFragment("<div><wcontents></wcontents>zz<wcontents></wcontents>zz</div>")
 	aa := d.NewFragment("aa")
 	nt.Find("wcontents").ReplaceWith(aa)
-	require.Equal(t, nt.Html(), "aazzaa")
+	require.Equal(t, aa.Next().Text(), "zz")
+	require.Equal(t, nt.Html(), "aazzaazz")
+
+	tt := d.NewTextNode("kk")
+	require.Equal(t, tt.Text(), "kk")
+	aa.ReplaceWith(tt)
+	require.Equal(t, tt.Next().Text(), "zz")
 }

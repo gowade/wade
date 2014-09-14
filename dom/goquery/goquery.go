@@ -45,8 +45,18 @@ func (d Dom) NewDocument(source string) dom.Selection {
 	return newSelection(s.Selection.Children().First())
 }
 
+func (d Dom) NewEmptySelection() dom.Selection {
+	return d.NewFragment("")
+}
+
 func (d Dom) NewRootFragment() dom.Selection {
 	return d.NewFragment("<wroot></wroot>")
+}
+
+func (d Dom) NewTextNode(content string) dom.Selection {
+	node := d.NewFragment("a")
+	node.SetText(content)
+	return node
 }
 
 func parseHTML(source string) []*html.Node {
@@ -167,9 +177,15 @@ func (s Selection) Clone() dom.Selection {
 	nnodes := make([]*html.Node, 0)
 	i := 0
 	for _, node := range s.Nodes {
-		buf := bytes.NewBufferString("")
-		html.Render(buf, node)
-		pnodes := parseHTML(buf.String())
+		var pnodes []*html.Node
+		if node.Type == html.TextNode {
+			pnodes = s.NewTextNode(s.Text()).(Selection).Nodes
+		} else {
+			buf := bytes.NewBufferString("")
+			html.Render(buf, node)
+			pnodes = parseHTML(buf.String())
+		}
+
 		if len(pnodes) == 1 {
 			if i == 0 {
 				sel = goquery.NewDocumentFromNode(pnodes[0]).Selection
@@ -211,6 +227,22 @@ func (s Selection) Prepend(sel dom.Selection) {
 	} else {
 		s.Append(sel)
 	}
+}
+
+func (s Selection) After(sel dom.Selection) {
+	s.operate(sel, func(dst, src *html.Node) {
+		if dst.NextSibling != nil {
+			dst.Parent.InsertBefore(src, dst.NextSibling)
+		} else {
+			dst.Parent.AppendChild(src)
+		}
+	})
+}
+
+func (s Selection) Before(sel dom.Selection) {
+	s.operate(sel, func(dst, src *html.Node) {
+		dst.Parent.InsertBefore(src, dst)
+	})
 }
 
 func (s Selection) ReplaceWith(sel dom.Selection) {
@@ -295,16 +327,6 @@ func (s Selection) RemoveAttr(name string) {
 	}
 }
 
-func (s Selection) After(sel dom.Selection) {
-	s.operate(sel, func(dst, src *html.Node) {
-		if dst.NextSibling != nil {
-			dst.Parent.InsertBefore(src, dst.NextSibling)
-		} else {
-			dst.Parent.AppendChild(src)
-		}
-	})
-}
-
 func (s Selection) Next() dom.Selection {
 	nsnodes := make([]*html.Node, len(s.Nodes))
 	for i, node := range s.Nodes {
@@ -321,12 +343,6 @@ func (s Selection) Exists() bool {
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
 	//stub
-}
-
-func (s Selection) Before(sel dom.Selection) {
-	s.operate(sel, func(dst, src *html.Node) {
-		dst.Parent.InsertBefore(src, dst)
-	})
 }
 
 func (s Selection) Attrs() []dom.Attr {
@@ -394,6 +410,6 @@ func (s Selection) SetText(text string) {
 	}
 }
 
-func (s Selection) Add(elem dom.Selection) {
-	s.Selection.Nodes = append(s.Selection.Nodes, elem.(Selection).Nodes...)
+func (s Selection) Add(elem dom.Selection) dom.Selection {
+	return newSelection(s.Selection.AddSelection(elem.(Selection).Selection))
 }

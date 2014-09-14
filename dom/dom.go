@@ -14,6 +14,8 @@ type (
 	Dom interface {
 		NewFragment(html string) Selection
 		NewRootFragment() Selection
+		NewEmptySelection() Selection
+		NewTextNode(content string) Selection
 	}
 
 	Event interface {
@@ -81,7 +83,7 @@ type (
 		Index() int
 		IsTextNode() bool
 		SetText(text string)
-		Add(element Selection)
+		Add(element Selection) Selection
 		Dom
 	}
 )

@@ -271,6 +271,7 @@ func (tm *TagManager) GetTag(elem dom.Selection) (ct HtmlTag, ok bool) {
 	if elem.Length() > 1 {
 		panic("You are getting a custom tag for multiple elements, it's surely an error.")
 	}
+
 	tagname, err := elem.TagName()
 	if err != nil {
 		ok = false

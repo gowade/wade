@@ -104,7 +104,7 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *bindScope, callback func(interface{})) error {
 	for _, bi := range binds {
 		if !bi.bindObj().fieldRefl.CanAddr() {
-			return fmt.Errorf(`Cannot watch field "%v". Please make sure it's addressable. If you don't intend to watch for its changes, please use a pipe symbol ("|")`, bi.bindObj().field)
+			return fmt.Errorf(`Cannot watch field "%v". Please make sure it's addressable. If you don't intend to watch for its changes, you can use a pipe ("|")`, bi.bindObj().field)
 		}
 
 		//use watchjs to watch for changes to the model
@@ -360,6 +360,11 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 					binder.Update(udb)
 					icommon.WrapperUnwrap(elem)
 				})
+
+				if err != nil {
+					bstrPanic(err.Error(), bstr, elem)
+					return
+				}
 			}
 		})(args, bstr, elem)
 
@@ -384,34 +389,37 @@ func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope)
 	if matches != nil {
 		splitted := MustacheRegex.Split(text, -1)
 
-		textNodes := elem.NewFragment("")
+		textNodes := elem.NewEmptySelection()
 		for i, m := range matches {
 			cr, blist, watches, v, err := bs.evaluate(m[1])
 			if err != nil {
 				return err
 			}
 
-			node := elem.NewFragment("a")
-			node.SetText(toString(v))
+			node := elem.NewTextNode(toString(v))
 
-			err = b.watchModel(blist, watches, cr, bs, func(val interface{}) {
-				node.SetText(toString(val))
-			})
+			if !once {
+				err = b.watchModel(blist, watches, cr, bs, func(val interface{}) {
+					node.SetText(toString(val))
+				})
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 
-			bf := elem.NewFragment("a")
-			bf.SetText(splitted[i])
-			textNodes.Add(bf)
+			if splitted[i] != "" {
+				bf := elem.NewTextNode(splitted[i])
+				textNodes = textNodes.Add(bf)
+			}
 
-			textNodes.Add(node)
+			textNodes = textNodes.Add(node)
 		}
 
-		bf := elem.NewFragment("a")
-		bf.SetText(splitted[len(splitted)-1])
-		textNodes.Add(bf)
+		if splitted[len(splitted)-1] != "" {
+			bf := elem.NewTextNode(splitted[len(splitted)-1])
+			textNodes = textNodes.Add(bf)
+		}
 
 		elem.ReplaceWith(textNodes)
 	}
@@ -426,16 +434,7 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 	replaced = elem
 
-	if elem.IsTextNode() {
-		err := b.processMustaches(elem, once, bs)
-		if err != nil {
-			bstrPanic(err.Error(), elem.Text(), elem.Parent())
-		}
-
-		return
-	}
-
-	if !elem.IsElement() || !elem.Exists() {
+	if !elem.Exists() {
 		return
 	}
 
@@ -447,12 +446,16 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 		abinds = make([]dom.Attr, 0)
 	}
 
+	isElement := elem.IsElement()
+
 	attrs := make([]dom.Attr, 0)
 	if additionalBinds != nil {
 		attrs = append(attrs, additionalBinds...)
 	}
 
-	attrs = append(attrs, elem.Attrs()...)
+	if isElement {
+		attrs = append(attrs, elem.Attrs()...)
+	}
 
 	bindinfo := ""
 
@@ -463,7 +466,7 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 		switch attr.Name[0] {
 		case AttrBindPrefix:
-			if isCustom {
+			if isCustom || !isElement {
 				continue
 			}
 
@@ -481,7 +484,9 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 				continue
 			}
 
-			elem.RemoveAttr(attr.Name)
+			if isElement {
+				elem.RemoveAttr(attr.Name)
+			}
 			rmdElems, err := b.processBinderBind(astr, bstr, elem, bs, once)
 			if err != nil {
 				bstrPanic(err.Error(), bstr, elem)
@@ -498,6 +503,15 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 		}
 
 		bindinfo += fmt.Sprintf("{%v: [%v]} ", attr.Name, attr.Value)
+	}
+
+	if elem.IsTextNode() {
+		err := b.processMustaches(elem, once, bs)
+		if err != nil {
+			bstrPanic(err.Error(), elem.Text(), elem.Parent())
+		}
+
+		return
 	}
 
 	if isWrapper {

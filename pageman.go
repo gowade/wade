@@ -297,7 +297,9 @@ func (pm *pageManager) setTitle(title string) {
 
 // PageUrl returns the url for the page with the given parameters
 func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, err error) {
-	return pm.pageUrl(pageId, params)
+	u, err = pm.pageUrl(pageId, params)
+	u = pm.Fullpath(u)
+	return
 }
 
 func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, err error) {
@@ -329,8 +331,6 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, e
 			i++
 		}
 	}
-
-	u = pm.Fullpath(u)
 
 	if k != len(params) || k != len(routeparams) {
 		err = fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,

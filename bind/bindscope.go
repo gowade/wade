@@ -42,7 +42,7 @@ func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err 
 		v, err = sym.value()
 		return
 
-	case ':':
+	case '@':
 		wrapped = true
 		e.name = e.name[1:]
 
@@ -116,7 +116,7 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 		}
 		var ok bool
 		if blist[i], ok = sym.(bindable); !ok {
-			err = fmt.Errorf("Cannot watch unaddressable value %v.", watch.v)
+			err = fmt.Errorf("Cannot watch unaddressable value %v", watch.v)
 			return
 		}
 	}

@@ -71,9 +71,9 @@ func tokenize(spec string) (tokens []token, err error) {
 					return
 				}
 				tok += string(c)
-			case ':':
+			case '@':
 				if tok != "" {
-					err = errors.New("Invalid ':'")
+					err = errors.New("Invalid '@'")
 					return
 				}
 				tok += string(c)

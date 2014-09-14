@@ -119,7 +119,7 @@ func TestEach(t *testing.T) {
 	src = `<wroot>
 		<ul>
 			<ww #each(key,item)="List">
-				<li><ww #each(_,subitem)="item.List"><span #html="subitem"></span></ww></li>
+				<li><ww #each(_,subitem)="item.List">{{ subitem }}</ww></li>
 			</ww>
 		</ul>
 	</wroot>

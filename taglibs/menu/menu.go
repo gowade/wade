@@ -28,11 +28,12 @@ func (sm *SwitchMenu) ProcessContents(ctl custom.ContentsCtl) error {
 	}
 
 	cl := ctl.Contents()
-	if cl.Length() != 1 || !cl.First().Is("ul") {
-		return fmt.Errorf("switchmenu's contents must have exactly 1 child which is an <ul> element.")
+	ul := cl.Filter("ul")
+	if cl.Length() == 0 {
+		return fmt.Errorf("switchmenu must have 1 child which is an <ul> element.")
 	}
 
-	for _, item := range cl.First().Children().Elements() {
+	for _, item := range ul.Children().Elements() {
 		if wade.IsWrapperElem(item) {
 			item = item.Children().Filter("li").First()
 		}

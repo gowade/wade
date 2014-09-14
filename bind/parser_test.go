@@ -63,7 +63,7 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	_, _, _, v, err := bs.evaluate("Data.Username | :TestConcat($1)")
+	_, _, _, v, err := bs.evaluate("Data.Username | @TestConcat($1)")
 	if err != nil {
 		t.Fatal(err)
 	}

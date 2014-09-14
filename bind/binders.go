@@ -224,20 +224,21 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 
 	b.size = val.Len()
 
-	prev := b.marker
-
 	m, e := lb.GetLoopList(d.Value)
 	if e != nil {
 		err = e
 		return
 	}
 
+	next := b.marker.Next()
+
 	for _, item := range m {
 		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
-		prev.Next().ReplaceWith(nx)
+		tnext := next.Next()
+		next.ReplaceWith(nx)
 		err = d.ProduceOutputs(nx, true, d.Args, k.Interface(), v.Interface())
-		prev = nx
+		next = tnext
 	}
 
 	return
