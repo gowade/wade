@@ -107,7 +107,7 @@ func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist []bindable, wat
 }
 
 func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []bindable, value interface{}, err error) {
-	blist = make([]bindable, len(watches))
+	list := make([]bindable, len(watches))
 	for i, watch := range watches {
 		var sym scopeSymbol
 		sym, err = b.scope.lookup(watch.v)
@@ -115,7 +115,7 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 			return
 		}
 		var ok bool
-		if blist[i], ok = sym.(bindable); !ok {
+		if list[i], ok = sym.(bindable); !ok {
 			err = fmt.Errorf("Cannot watch unaddressable value %v", watch.v)
 			return
 		}
@@ -130,6 +130,8 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 	if v.IsValid() && v.CanInterface() {
 		value = v.Interface()
 	}
+
+	blist = list
 
 	return
 }

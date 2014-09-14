@@ -296,12 +296,10 @@ func (s Selection) IsTextNode() bool {
 func (s Selection) SetText(text string) {
 	if s.IsElement() {
 		s.JQuery.SetText(text)
+	} else if s.IsTextNode() {
+		s.JQuery.Get(0).Set("nodeValue", text)
 	} else {
-		if s.IsTextNode() {
-			s.JQuery.Get(0).Set("nodeValue", text)
-		}
-
-		panic(fmt.Sprintf("Cannot set text for this kind of node %v.", s.JQuery.Get(0).Get("nodeType").Int()))
+		js.Global.Get("console").Call("error", fmt.Sprintf("Cannot set text for this kind of node %v.", s.JQuery.Get(0).Get("nodeType").Int()))
 	}
 }
 
