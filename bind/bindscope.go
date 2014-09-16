@@ -22,7 +22,7 @@ type (
 )
 
 // evaluateRec recursively evaluates the parsed expressions and return the result value, it also
-func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err error) {
+func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl reflect.Value) (v reflect.Value, err error) {
 	err = nil
 
 	wrapped := false
@@ -60,7 +60,7 @@ func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err 
 
 	args := make([]reflect.Value, len(e.args))
 	for i, e := range e.args {
-		args[i], err = b.evaluateRec(e, watches)
+		args[i], err = b.evaluateRec(e, watches, old, repl)
 		if err != nil {
 			return
 		}
@@ -74,6 +74,9 @@ func (b *bindScope) evaluateRec(e *expr, watches []token) (v reflect.Value, err 
 	switch e.typ {
 	case ValueExpr:
 		v, err = sym.value()
+		if old != 0 && old == v.UnsafeAddr() {
+			v = repl
+		}
 	case CallExpr:
 		if wrapped {
 			v = reflect.ValueOf(func() {
@@ -114,6 +117,7 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 		if err != nil {
 			return
 		}
+
 		var ok bool
 		if list[i], ok = sym.(bindable); !ok {
 			err = fmt.Errorf("Cannot watch unaddressable value %v", watch.v)
@@ -122,7 +126,7 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 	}
 
 	var v reflect.Value
-	v, err = b.evaluateRec(calcRoot, watches)
+	v, err = b.evaluateRec(calcRoot, watches, 0, reflect.ValueOf(nil))
 	if err != nil {
 		return
 	}

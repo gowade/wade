@@ -30,12 +30,10 @@ var JsDepSymbols = []JsDep{
 		Bowerpkg:    "html5-history-api",
 	},
 	JsDep{
-		Name:        "Watch.js",
-		Url:         "https://github.com/melanke/Watch.JS",
-		CheckSymbol: "watch",
-		Bowerpkg:    "wade-watch-js",
-		Ainfo: `Wade requires a modified version, which is "wade-watch-js" for bower,` +
-			`and is at https://github.com/phaikawl/Watch.JS`,
+		Name:        "polymer observe.js",
+		Url:         "https://github.com/Polymer/observe-js",
+		CheckSymbol: "PathObserver",
+		Bowerpkg:    "observe-js",
 	},
 }
 
@@ -44,7 +42,7 @@ func jsDepCheck(depCheckImp DepChecker) {
 		if !depCheckImp.CheckJsDep(dep.CheckSymbol) {
 			panic(fmt.Sprintf(`The javascript dependency "%v" (%v) is not available. `+
 				`It is in the bower package "%v", please install and use the required javascript file. `+
-				`Additional info: "%v".`, dep.Name, dep.Url, dep.Bowerpkg))
+				`Additional info: "%v".`, dep.Name, dep.Url, dep.Bowerpkg, dep.Ainfo))
 		}
 	}
 }

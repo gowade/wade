@@ -40,13 +40,13 @@ func TestSwitchMenu(t *testing.T) {
 	require.Equal(t, lis[2].HasClass("active"), false)
 
 	scope.Choice = "b"
-	b.Watcher().Apply()
+	b.Watcher().Digest(&scope.Choice)
 	require.Equal(t, lis[0].HasClass("active"), false)
 	require.Equal(t, lis[1].HasClass("active"), true)
 	require.Equal(t, lis[2].HasClass("active"), false)
 
 	scope.Choice = "kkf"
-	b.Watcher().Apply()
+	b.Watcher().Digest(&scope.Choice)
 	require.Equal(t, lis[0].HasClass("active"), false)
 	require.Equal(t, lis[1].HasClass("active"), false)
 	require.Equal(t, lis[2].HasClass("active"), false)

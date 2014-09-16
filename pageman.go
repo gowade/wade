@@ -406,6 +406,8 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 	pm.binding.BindModels(pm.realContainer, models, false)
 
 	pm.pc = pc
+
+	pm.binding.Watcher().Checkpoint()
 }
 
 // RegisterController adds a new controller function for the specified

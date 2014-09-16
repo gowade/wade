@@ -7,6 +7,7 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
 	"github.com/phaikawl/wade"
+	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	jqdom "github.com/phaikawl/wade/dom/jquery"
 	"github.com/phaikawl/wade/libs/http"
@@ -32,6 +33,10 @@ func RenderBackend() wade.RenderBackend {
 type (
 	JsBackend struct {
 		history History
+	}
+
+	observeCloser struct {
+		osvs []js.Object
 	}
 
 	storage struct {
@@ -124,18 +129,58 @@ func (b *JsBackend) History() wade.History {
 	return b.history
 }
 
-func (b *JsBackend) Watch(modelRefl reflect.Value, field string, callback func()) {
-	obj := js.InternalObject(modelRefl.Interface()).Get("$val")
-	rcb := func(prop string, action string,
-		_ js.Object,
-		_2 js.Object) {
-		callback()
+func (c observeCloser) Close() {
+	for _, osv := range c.osvs {
+		osv.Call("close")
+	}
+}
+
+func jso(object reflect.Value) js.Object {
+	return js.InternalObject(object.Interface()).Get("$val")
+}
+
+func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.WatchCloser {
+	cbWrap := func() {
+		callback(0, reflect.ValueOf(nil))
+	}
+	var osvs []js.Object
+	switch ctl.FieldRefl.Kind() {
+	case reflect.Slice:
+		fn := func(fieldRefl reflect.Value) js.Object {
+			o1 := js.Global.Get("ArrayObserver").New(jso(fieldRefl).Get("$array"))
+			o1.Call("open", cbWrap)
+
+			return o1
+		}
+
+		o2 := js.Global.Get("PathObserver").New(jso(ctl.ModelRefl), ctl.Field)
+		fn2 := func() {
+			rf := ctl.NewFieldRefl()
+			ctl.WatchAdd(rf, observeCloser{[]js.Object{fn(rf)}}, callback)
+
+			callback(ctl.FieldRefl.UnsafeAddr(), rf)
+		}
+
+		o2.Call("open", fn2)
+
+		osvs = []js.Object{fn(ctl.FieldRefl), o2}
+
+	case reflect.Map:
+		osv := js.Global.Get("ObjectObserver").New(jso(ctl.FieldRefl))
+		osv.Call("open", cbWrap)
+		osvs = []js.Object{osv}
+
+	default:
+		osv := js.Global.Get("PathObserver").New(jso(ctl.ModelRefl), ctl.Field)
+		osv.Call("open", cbWrap)
+		osvs = []js.Object{osv}
 	}
 
-	js.Global.Call("watch",
-		obj,
-		field,
-		rcb)
+	return observeCloser{osvs}
+}
+
+func (b *JsBackend) DigestAll() {
+	js.Global.Get("Platform").Call("performMicrotaskCheckpoint")
 }
 
 func (b *JsBackend) WebStorages() (wade.Storage, wade.Storage) {

@@ -163,10 +163,12 @@ func (b *EventBinder) Bind(d DomBind) error {
 		go func() {
 			if ok0 {
 				//gopherjs:blocking
-				handler0()
+				d.binding.Watcher().Apply(handler0)
 			} else if ok1 {
 				//gopherjs:blocking
-				handler1(evt)
+				d.binding.Watcher().Apply(func() {
+					handler1(evt)
+				})
 			}
 		}()
 	})
@@ -237,7 +239,7 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 		nx := b.prototype.Clone()
 		tnext := next.Next()
 		next.ReplaceWith(nx)
-		err = d.ProduceOutputs(nx, true, d.Args, k.Interface(), v.Interface())
+		err = d.ProduceOutputs(nx, false, d.Args, k.Interface(), v.Interface())
 		next = tnext
 	}
 

@@ -104,14 +104,14 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *bindScope, callback func(interface{})) error {
 	for _, bi := range binds {
 		if !bi.bindObj().fieldRefl.CanAddr() {
-			return fmt.Errorf(`Cannot watch field "%v". Please make sure it's addressable. If you don't intend to watch for its changes, you can use a pipe ("|")`, bi.bindObj().field)
+			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().field)
 		}
 
 		//use watchjs to watch for changes to the model
 		(func(bi bindable) {
 			bo := bi.bindObj()
-			b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func() {
-				newResult, _ := bs.evaluateRec(root, watches)
+			b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue reflect.Value) {
+				newResult, _ := bs.evaluateRec(root, watches, old, repValue)
 				callback(newResult.Interface())
 			})
 		})(bi)
@@ -517,7 +517,9 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 		conts := elem.Contents()
 		elem.ReplaceWith(conts)
 		for _, child := range conts.Elements() {
-			b.bindDomRec(child, bs, once, abinds)
+			if child.IsElement() {
+				b.bindDomRec(child, bs, once, abinds)
+			}
 		}
 
 		replaced = conts

@@ -183,12 +183,8 @@ func (pc *BaseScope) FormatTitle(params ...interface{}) {
 	pc.PageInfo.Title = pc.pm.formattedTitle
 }
 
-func (pc *BaseScope) ApplyChanges(object interface{}) {
-	pc.pm.binding.Watcher().ApplyChanges(object)
-}
-
-func (pc *BaseScope) Apply() {
-	pc.pm.binding.Watcher().Apply()
+func (pc *BaseScope) Digest(object interface{}) {
+	pc.pm.binding.Watcher().Digest(object)
 }
 
 // GetParam puts the value of a parameter to a dest.

@@ -13,6 +13,7 @@ import (
 	"code.google.com/p/go.net/html"
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade"
+	"github.com/phaikawl/wade/bind"
 	gqdom "github.com/phaikawl/wade/dom/goquery"
 	wadehttp "github.com/phaikawl/wade/libs/http"
 	gohttp "github.com/phaikawl/wade/libs/http/serverside"
@@ -61,7 +62,8 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
 	wade.StartApp(conf, appFn, wade.RenderBackend{
 		JsBackend: &JsBackend{
-			history: wade.NewNoopHistory(request.URL.Path),
+			NoopJsWatcher: bind.NoopJsWatcher{},
+			history:       wade.NewNoopHistory(request.URL.Path),
 		},
 		Document:    doc,
 		HttpBackend: cacheb,
@@ -87,6 +89,7 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 
 type (
 	JsBackend struct {
+		bind.NoopJsWatcher
 		history wade.History
 	}
 
@@ -117,10 +120,6 @@ func (s storage) Set(key string, v interface{}) {
 
 func (b *JsBackend) CheckJsDep(symbol string) bool {
 	return true
-}
-
-// Watch calls Watch.js to watch the object's changes
-func (b *JsBackend) Watch(modelRefl reflect.Value, field string, callback func()) {
 }
 
 func (b *JsBackend) History() wade.History {

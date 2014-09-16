@@ -57,7 +57,7 @@ func TestEach(t *testing.T) {
 	src := `<wroot>
 		<ul>
 			<ww #each(key,item)="List">
-				<li>#<span #html="key"></span><span #html="item.A"></span><test @A="item.B"></test></li>
+				<li>#<span #html="|key"></span><span #html="item.A"></span><test @A="item.B"></test></li>
 			</ww>
 		</ul>
 	</wroot>
@@ -71,7 +71,7 @@ func TestEach(t *testing.T) {
 	require.Equal(t, lis[2].Text(), "#2cc")
 
 	m1.List = m1.List[1:]
-	b.Watcher().ApplyChanges(&m1.List)
+	b.Watcher().Digest(&m1.List)
 	lis = elem.Children().Filter("li").Elements()
 	require.Equal(t, lis[0].Text(), "#0bb")
 	require.Equal(t, lis[1].Text(), "#1cc")
@@ -85,7 +85,7 @@ func TestEach(t *testing.T) {
 
 	src = `<wroot>
 		<ul>
-			<li #each(key,value)="Map">#<span #html="key"></span><span #html="value"></span></li>
+			<li #each(key,value)="Map">#<span #html="|key"></span><span #html="|value"></span></li>
 		</ul>
 	</wroot>
 	`
@@ -109,7 +109,7 @@ func TestEach(t *testing.T) {
 
 	delete(m2.Map, "0")
 	m2.Map["1"] = "bb"
-	b.Watcher().ApplyChanges(&m2.Map)
+	b.Watcher().Digest(&m2.Map)
 	lis = elem.Children().Filter("li").Elements()
 	require.Equal(t, consists("#0a"), false)
 	require.Equal(t, consists("#1bb"), true)
@@ -119,7 +119,7 @@ func TestEach(t *testing.T) {
 	src = `<wroot>
 		<ul>
 			<ww #each(key,item)="List">
-				<li><ww #each(_,subitem)="item.List">{{ subitem }}</ww></li>
+				<li><ww #each(_,subitem)="|item.List"><span #html="|subitem"></span></ww></li>
 			</ww>
 		</ul>
 	</wroot>
@@ -144,6 +144,6 @@ func TestIf(t *testing.T) {
 	b.Bind(root, s, false)
 	require.Equal(t, root.Find("div").Length(), 0)
 	s.Ok = true
-	b.Watcher().Apply()
+	b.Watcher().Digest(&s.Ok)
 	require.Equal(t, root.Find("div span").Text(), ":D")
 }

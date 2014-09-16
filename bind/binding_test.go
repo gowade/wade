@@ -74,7 +74,7 @@ func TestBinding(t *testing.T) {
 	b.processBinderBind("html", "Name", elem, bs, false)
 	require.Equal(t, elem.Html(), "a")
 	sc.Name = "b"
-	b.watcher.ApplyChanges(&sc.Name)
+	b.watcher.Digest(&sc.Name)
 	require.Equal(t, elem.Html(), "b")
 
 	//test processFieldBind
@@ -87,7 +87,7 @@ func TestBinding(t *testing.T) {
 	require.Equal(t, model.Value, 9000)
 
 	sc.Num = 9999
-	b.watcher.ApplyChanges(&sc.Num)
+	b.watcher.Digest(&sc.Num)
 	require.Equal(t, model.Value, 9999)
 
 	//full test
@@ -122,6 +122,6 @@ func TestBinding(t *testing.T) {
 
 	require.Equal(t, root.Find("#0").Html(), "da9999n")
 	sc.Num = 6666
-	b.Watcher().Apply()
+	b.Watcher().Digest(&sc.Num)
 	require.Equal(t, root.Find("#0").Html(), "da6666n")
 }
