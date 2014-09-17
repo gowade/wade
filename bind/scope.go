@@ -93,7 +93,9 @@ func (fs funcSymbol) value() (reflect.Value, error) {
 
 func (fs funcSymbol) call(args []reflect.Value, async bool) (v reflect.Value, err error) {
 	if async {
-		go fs.fn.Call(args)
+		go func() {
+			fs.fn.Call(args)
+		}()
 		return
 	}
 

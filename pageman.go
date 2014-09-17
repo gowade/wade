@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path"
 	"strings"
-	"unicode"
 
 	urlrouter "github.com/naoina/kocha-urlrouter"
 	_ "github.com/naoina/kocha-urlrouter/regexp"
@@ -42,6 +41,7 @@ type (
 		startPageId   string
 		basePath      string
 		notFoundPage  *page
+		rcProto       string
 		container     dom.Selection
 		tcontainer    dom.Selection
 		realContainer dom.Selection
@@ -70,6 +70,8 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		}
 	}
 
+	realContainer.SetHtml("")
+
 	if realContainer.Length() == 0 {
 		panic("App container doesn't exist.")
 	}
@@ -87,7 +89,7 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		basePath:      basePath,
 		startPageId:   config.StartPage,
 		notFoundPage:  nil,
-		container:     document.NewRootFragment(),
+		rcProto:       realContainer.OuterHtml(),
 		tcontainer:    tcontainer,
 		realContainer: realContainer,
 		binding:       binding,
@@ -162,41 +164,25 @@ func (pm *pageManager) prepare() {
 	//build the router
 	pm.router.Build(pm.routes)
 
-	// preprocess wsection elements
-	for _, e := range pm.tcontainer.Find("wsection").Elements() {
-		na, _ := e.Attr("name")
-		name := strings.TrimSpace(na)
-		if name == "" {
-			panic(`Error: a <wsection> doesn't have or have empty name`)
-		}
-		for _, c := range name {
-			if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
-				panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
-			}
-		}
-		e.SetAttr("id", WadeReservedPrefix+name)
-	}
+	//// preprocess wsection elements
+	//for _, e := range pm.tcontainer.Find("wsection").Elements() {
+	//	na, _ := e.Attr("name")
+	//	name := strings.TrimSpace(na)
+	//	if name == "" {
+	//		panic(`Error: a <wsection> doesn't have or have empty name`)
+	//	}
+	//	for _, c := range name {
+	//		if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
+	//			panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
+	//		}
+	//	}
+	//	e.SetAttr("id", WadeReservedPrefix+name)
+	//}
 
 	pm.history.OnPopState(func() {
 		go func() {
 			pm.updatePage(pm.history.CurrentPath(), false)
 		}()
-	})
-
-	//Handle link events
-	pm.realContainer.Listen("click", "a", func(e dom.Event) {
-		href, ok := e.Target().Attr("href")
-		if !ok {
-			return
-		}
-
-		if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
-			return
-		}
-
-		e.PreventDefault()
-
-		go pm.updatePage(href, true)
 	})
 
 	pm.updatePage(pm.history.CurrentPath(), false)
@@ -219,6 +205,13 @@ func walk(elem dom.Selection, pm *pageManager) {
 			}
 		}
 	}
+}
+
+func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
+	hiddenRoot := document.NewRootFragment()
+	container := document.NewFragment(rcProto)
+	hiddenRoot.Append(container)
+	return container
 }
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
@@ -254,6 +247,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		pm.formattedTitle = page.title
 
 		pm.currentPage = page
+		pm.container = newHiddenContainer(pm.rcProto, pm.document)
 		pm.container.SetHtml(pm.tcontainer.Html())
 		pm.container.Find("wdefine").Remove()
 
@@ -273,14 +267,31 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 			e.Unwrap()
 		}
 
-		pm.realContainer.Hide()
-		pm.realContainer.SetHtml(pm.container.Html())
 		pm.binding.Watcher().ResetWatchers()
 		pm.bind(params)
-		icommon.WrapperUnwrap(pm.realContainer)
-		pm.realContainer.Show()
-
+		icommon.WrapperUnwrap(pm.container)
 		pm.setTitle(pm.formattedTitle)
+
+		pm.realContainer.ReplaceWith(pm.container)
+		pm.realContainer = pm.container
+
+		//Handle link events
+		pm.realContainer.Listen("click", "a", func(e dom.Event) {
+			href, ok := e.Target().Attr("href")
+			if !ok {
+				return
+			}
+
+			if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
+				return
+			}
+
+			e.PreventDefault()
+
+			go func() {
+				pm.updatePage(href, true)
+			}()
+		})
 	}
 }
 
@@ -387,7 +398,7 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		<-completeChan
 	}
 
-	pm.binding.BindModels(pm.realContainer, s.bindModels(), false)
+	pm.binding.BindModels(pm.container, s.bindModels(), false)
 
 	pm.pc = s
 

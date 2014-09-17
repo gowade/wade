@@ -165,7 +165,9 @@ func (s Selection) ReplaceWith(sel dom.Selection) {
 }
 
 func (s Selection) OuterHtml() string {
-	return gJQ("<div>").Append(s.Clone()).Html()
+	r := s.NewRootFragment()
+	r.Append(s.Clone())
+	return r.Html()
 }
 
 func (s Selection) Attr(attr string) (string, bool) {
