@@ -1,9 +1,6 @@
 package wade
 
-import (
-	"fmt"
-	"reflect"
-)
+import "fmt"
 
 type handlable struct {
 	controllers []PageControllerFunc
@@ -143,77 +140,4 @@ func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
 		grp.children[i] = ds
 	}
 	return grp
-}
-
-// BaseScope provides access to the page data and operations inside a controller func
-type BaseScope struct {
-	PageInfo *PageInfo
-	pm       *pageManager
-	p        *page
-
-	params  map[string]interface{}
-	helpers map[string]interface{}
-}
-
-type PageInfo struct {
-	Id    string
-	Route string
-	Title string
-}
-
-// Manager returns the page manager
-func (pc *BaseScope) Manager() PageManager {
-	return pc.pm
-}
-
-func (pc *BaseScope) needsToEmbedBaseScope() {
-}
-
-func (pc *BaseScope) RedirectToPage(page string, params ...interface{}) {
-	pc.pm.RedirectToPage(page, params...)
-}
-
-func (pc *BaseScope) RedirectToUrl(url string) {
-	pc.pm.RedirectToUrl(url)
-}
-
-// FormatTitle formats the page's title with the given params
-func (pc *BaseScope) FormatTitle(params ...interface{}) {
-	pc.pm.formattedTitle = fmt.Sprintf(pc.pm.currentPage.title, params...)
-	pc.PageInfo.Title = pc.pm.formattedTitle
-}
-
-func (pc *BaseScope) Digest(object interface{}) {
-	pc.pm.binding.Watcher().Digest(object)
-}
-
-// GetParam puts the value of a parameter to a dest.
-// The dest must be a pointer, typically it would be a pointer to a model's field,
-// for example
-//	pc.GetParam("postid", &pmodel.PostId)
-func (pc *BaseScope) GetParam(param string, dest interface{}) (err error) {
-	v, ok := pc.params[param]
-	if !ok {
-		err = fmt.Errorf("No such parameter %v.", param)
-		return
-	}
-
-	if reflect.TypeOf(dest).Kind() != reflect.Ptr {
-		return fmt.Errorf("The dest for saving the parameter value must be a pointer so that it could be modified.")
-	}
-	_, err = fmt.Sscan(v.(string), dest)
-	return
-}
-
-func (pc *BaseScope) Services() GlobalServices {
-	return AppServices
-}
-
-// RegisterHelper registers fn as a local helper with the given name.
-func (pc *BaseScope) RegisterHelper(name string, fn interface{}) {
-	pc.helpers[name] = fn
-}
-
-func (pc *BaseScope) Url(pageId string, params ...interface{}) (url string, err error) {
-	return pc.pm.pageUrl(pageId, params)
 }

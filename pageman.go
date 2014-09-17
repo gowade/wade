@@ -47,7 +47,7 @@ type (
 		realContainer dom.Selection
 
 		binding        bindEngine
-		pc             *BaseScope
+		pc             *Scope
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
 		formattedTitle string
@@ -345,25 +345,12 @@ func (pm *pageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *pageManager) CurrentPage() *BaseScope {
+func (pm *pageManager) CurrentPage() *Scope {
 	return pm.pc
 }
 
-func (pm *pageManager) newPageCtrl(page *page, params map[string]interface{}) *BaseScope {
-	return &BaseScope{
-		PageInfo: &PageInfo{
-			Id:    page.id,
-			Title: page.title,
-			Route: page.path,
-		},
-		pm:     pm,
-		p:      page,
-		params: params,
-	}
-}
 func (pm *pageManager) bind(params map[string]interface{}) {
-	pc := pm.newPageCtrl(pm.currentPage, params)
-	models := make([]interface{}, 0)
+	s := pm.newRootScope(pm.currentPage, params)
 	controllers := make([]PageControllerFunc, 0)
 
 	add := func(ds displayScope) {
@@ -386,10 +373,11 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		for _, controller := range controllers {
 			go func(controller PageControllerFunc) {
 				//gopherjs:blocking
-				model := controller(pc)
-				if model != nil {
-					models = append(models, model)
+				err := controller(s)
+				if err != nil {
+					panic(err)
 				}
+
 				queueChan <- true
 				if len(queueChan) == len(controllers) {
 					completeChan <- true
@@ -399,13 +387,9 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		<-completeChan
 	}
 
-	if len(models) == 0 {
-		models = append(models, pc)
-	}
+	pm.binding.BindModels(pm.realContainer, s.bindModels(), false)
 
-	pm.binding.BindModels(pm.realContainer, models, false)
-
-	pm.pc = pc
+	pm.pc = s
 
 	pm.binding.Watcher().Checkpoint()
 }

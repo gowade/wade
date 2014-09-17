@@ -21,7 +21,7 @@ type DomBinder interface {
 
 	// Watch is used in 2-way binders, it watches the html element for changes
 	// and updates the model field accordingly
-	Watch(elem dom.Selection, updateFn ModelUpdateFn) error
+	Watch(DomBind, ModelUpdateFn) error
 
 	// BindInstance is useful for binders that need to save some data for each
 	// separate element. This method returns an instance of the binder to be used.
@@ -80,6 +80,6 @@ func (b *BaseBinder) Bind(d DomBind) error {
 func (b *BaseBinder) Update(d DomBind) error {
 	return nil
 }
-func (b *BaseBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) error {
+func (b *BaseBinder) Watch(d DomBind, ufn ModelUpdateFn) error {
 	return nil
 }

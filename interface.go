@@ -11,16 +11,10 @@ var (
 )
 
 type (
-	//interface to enforce that every page model must embed *BaseScope
-	ScopeModel interface {
-		needsToEmbedBaseScope()
-	}
-
 	AppFunc func(Registration)
 
 	// PageControllerFunc is the function to be run on the load of a specific page.
-	// It returns a model to be used in bindings of the elements in the page.
-	PageControllerFunc func(*BaseScope) ScopeModel
+	PageControllerFunc func(*Scope) error
 
 	Redirecter interface {
 		RedirectToPage(page string, params ...interface{})
@@ -37,7 +31,7 @@ type (
 	PageManager interface {
 		Redirecter
 		BasePath() string
-		CurrentPage() *BaseScope
+		CurrentPage() *Scope
 		Fullpath(string) string
 		PageUrl(page string, params ...interface{}) (string, error)
 	}

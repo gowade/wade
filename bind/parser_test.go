@@ -3,6 +3,7 @@ package bind
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 type TestUser struct {
@@ -69,9 +70,12 @@ func TestParser(t *testing.T) {
 	}
 
 	reflect.ValueOf(v).Call([]reflect.Value{})
-	if model.Test != "NtHai" {
-		t.Errorf("Expected %v, got %v.", "NtHai", model.Test)
-	}
+	go func() {
+		time.Sleep(200)
+		if model.Test != "NtHai" {
+			t.Errorf("Expected %v, got %v.", "NtHai", model.Test)
+		}
+	}()
 
 	errtests := []string{
 		`fooAdd('bar'`,

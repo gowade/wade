@@ -79,7 +79,7 @@ func TestBinding(t *testing.T) {
 
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
-	ct := testct.NewElem(elem)
+	ct, _ := testct.NewElem(elem)
 	model := ct.Model().(*Model)
 	b.processFieldBind("Name", "|':Hai;'", elem, bs, false, ct)
 	b.processFieldBind("Value", "Num", elem, bs, false, ct)

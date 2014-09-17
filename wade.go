@@ -41,7 +41,10 @@ type (
 )
 
 func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
-	r.w.tm.RegisterTags(customTags)
+	err := r.w.tm.RegisterTags(customTags)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // ModuleInit calls the modules' Init method with an AppEnv

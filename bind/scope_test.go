@@ -32,7 +32,7 @@ func TestScope(t *testing.T) {
 	s1.merge(s2)
 	symbol, err = s1.lookup("testHelper")
 	require.Equal(t, err, nil)
-	v, _ = symbol.call([]reflect.Value{})
+	v, _ = symbol.call([]reflect.Value{}, false)
 	require.Equal(t, v.Bool(), true)
 
 	m := map[string]interface{}{

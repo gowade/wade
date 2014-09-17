@@ -12,7 +12,7 @@ type (
 
 	scopeSymbol interface {
 		value() (reflect.Value, error)
-		call([]reflect.Value) (reflect.Value, error)
+		call(args []reflect.Value, async bool) (reflect.Value, error)
 	}
 
 	symbolTable interface {
@@ -91,7 +91,12 @@ func (fs funcSymbol) value() (reflect.Value, error) {
 	return fs.fn, nil
 }
 
-func (fs funcSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
+func (fs funcSymbol) call(args []reflect.Value, async bool) (v reflect.Value, err error) {
+	if async {
+		go fs.fn.Call(args)
+		return
+	}
+
 	v, err = callFunc(fs.fn, args)
 	if err != nil {
 		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
@@ -116,9 +121,16 @@ func (fs fieldSymbol) value() (v reflect.Value, err error) {
 	return fs.eval.fieldRefl, nil
 }
 
-func (fs fieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
+func (fs fieldSymbol) call(args []reflect.Value, async bool) (v reflect.Value, err error) {
 	if fs.eval.fieldRefl.Kind() != reflect.Func {
 		err = fmt.Errorf(`Cannot call "%v", it's not a method or a function.`, fs.name)
+		return
+	}
+
+	if async {
+		go func() {
+			fs.eval.fieldRefl.Call(args)
+		}()
 		return
 	}
 
@@ -126,6 +138,7 @@ func (fs fieldSymbol) call(args []reflect.Value) (v reflect.Value, err error) {
 	if err != nil {
 		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
 	}
+
 	return
 }
 

@@ -29,7 +29,7 @@ type (
 	}
 
 	CustomTag interface {
-		NewElem(dom.Selection) *custom.TagManager
+		NewElem(dom.Selection) (*custom.TagManager, error)
 	}
 
 	Binding struct {
@@ -229,7 +229,10 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 			}
 		}
 
-		customElem := tag.NewElem(elem)
+		customElem, err := tag.NewElem(elem)
+		if err != nil {
+			panic(dom.ElementError(elem, fmt.Sprintf(`Cannot initialize the custom element, error in its Init(). Error: %v`, err.Error())))
+		}
 
 		for _, hattr := range elem.Attrs() {
 			if hattr.Name[0] == AttrBindPrefix {
@@ -246,7 +249,7 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 			}
 		}
 
-		err := customElem.PrepareContents(func(contentElems dom.Selection, once bool) {
+		err = customElem.PrepareContents(func(contentElems dom.Selection, once bool) {
 			b.bindWithScope(contentElems, bs.scope, once, true, scopeElem)
 		})
 
@@ -318,9 +321,17 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 			return
 		}
 
+		domBind := DomBind{
+			Elem:    drmElem{elem, &removedElems},
+			Value:   v,
+			Args:    args,
+			binding: b,
+			scope:   bs.scope,
+		}
+
 		if len(binds) == 1 {
 			fmodel := binds[0].bindObj().fieldRefl
-			err = binder.Watch(elem, func(newVal string) {
+			err = binder.Watch(domBind, func(newVal string) {
 				if !fmodel.CanSet() {
 					bstrPanic("2-way data binding on unchangable field", bstr, elem)
 				}
@@ -330,14 +341,6 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 			if err != nil {
 				return
 			}
-		}
-
-		domBind := DomBind{
-			Elem:    drmElem{elem, &removedElems},
-			Value:   v,
-			Args:    args,
-			binding: b,
-			scope:   bs.scope,
 		}
 
 		(func(args []string, bstr string, elem dom.Selection) {
@@ -368,7 +371,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 		})(args, bstr, elem)
 
 	} else {
-		err = fmt.Errorf(`Dom binder "%v" does not exist.`, binderName)
+		err = fmt.Errorf(`Dom binder "%v" does not exist`, binderName)
 	}
 
 	return

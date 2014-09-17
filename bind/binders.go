@@ -14,14 +14,14 @@ const (
 
 func defaultBinders() map[string]DomBinder {
 	return map[string]DomBinder{
-		"value": &ValueBinder{},
-		"html":  &HtmlBinder{},
-		"attr":  &AttrBinder{},
-		"on":    &EventBinder{},
-		"each":  new(EachBinder),
-		"if":    new(IfBinder),
-		"ifn":   &UnlessBinder{&IfBinder{}},
-		"class": &ClassBinder{},
+		"value":    &ValueBinder{},
+		"html":     &HtmlBinder{},
+		"on":       &EventBinder{},
+		"each":     new(EachBinder),
+		"if":       new(IfBinder),
+		"ifn":      &UnlessBinder{&IfBinder{}},
+		"class":    &ClassBinder{},
+		"disabled": &DisabledBinder{},
 	}
 }
 
@@ -40,13 +40,19 @@ func (b *ValueBinder) Update(d DomBind) (err error) {
 }
 
 // Watch watches for javascript change event on the element
-func (b *ValueBinder) Watch(elem dom.Selection, ufn ModelUpdateFn) error {
+func (b *ValueBinder) Watch(d DomBind, ufn ModelUpdateFn) error {
+	elem := d.Elem
 	tagname, _ := elem.TagName()
-	if tagname != "input" {
+	if tagname != "input" && tagname != "textarea" {
 		return fmt.Errorf("Can only watch for changes on html input, textarea and select")
 	}
 
-	elem.On("change", func(evt dom.Event) {
+	events := "change"
+	if len(d.Args) == 1 && d.Args[0] == "true" {
+		events += " keyup"
+	}
+
+	elem.On(events, func(evt dom.Event) {
 		ufn(elem.Val())
 	})
 
@@ -67,25 +73,8 @@ func (b *HtmlBinder) Update(d DomBind) error {
 	d.Elem.SetHtml(toString(d.Value))
 	return nil
 }
+
 func (b *HtmlBinder) BindInstance() DomBinder { return b }
-
-// AttrBinder is a 1-way binder that binds a specified element's attribute
-// to a model field value.
-// It takes 1 extra dash arg that is the name of the html attribute to be bound.
-//
-// Usage:
-//	bind-attr-<attribute>="Expression"
-type AttrBinder struct{ BaseBinder }
-
-func (b *AttrBinder) Update(d DomBind) error {
-	if len(d.Args) != 1 {
-		return fmt.Errorf(`Incorrect number of args (%v)`, len(d.Args))
-	}
-	d.Elem.SetAttr(d.Args[0], toString(d.Value))
-
-	return nil
-}
-func (b *AttrBinder) BindInstance() DomBinder { return b }
 
 // ClassBinder is a 1-way binder that adds/removes (toggle) a class based on
 // a boolean value.
@@ -97,7 +86,7 @@ type ClassBinder struct{ BaseBinder }
 
 func (b *ClassBinder) Update(d DomBind) error {
 	if len(d.Args) != 1 {
-		return fmt.Errorf(`Incorrect number of args (%v)`, len(d.Args))
+		return fmt.Errorf(`Incorrect number of args (%v). Need 1 argument.`, len(d.Args))
 	}
 
 	class := d.Args[0]
@@ -113,6 +102,20 @@ func (b *ClassBinder) Update(d DomBind) error {
 }
 
 func (b *ClassBinder) BindInstance() DomBinder { return b }
+
+type DisabledBinder struct{ BaseBinder }
+
+func (b *DisabledBinder) Update(d DomBind) error {
+	if len(d.Args) != 0 {
+		return fmt.Errorf(`Incorrect number of args (%v). Need 0 argument.`, len(d.Args))
+	}
+
+	enabled := d.Value.(bool)
+	d.Elem.SetProp("disabled", enabled)
+	return nil
+}
+
+func (b *DisabledBinder) BindInstance() DomBinder { return b }
 
 // EventBinder is a 1-way binder that binds a method of the model to an event
 // that occurs on the element.

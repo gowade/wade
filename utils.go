@@ -1,31 +1,27 @@
 package wade
 
 import (
-	"unicode"
+	neturl "net/url"
 
 	"github.com/phaikawl/wade/icommon"
+	"github.com/phaikawl/wade/libs/http"
 )
 
 var (
 	IsWrapperElem = icommon.IsWrapperElem
 )
 
-func camelize(src string) string {
-	res := []rune{}
-	startW := true
-	for _, c := range src {
-		if c == '-' {
-			startW = true
-			continue
-		}
-		ch := c
-		if startW {
-			ch = unicode.ToUpper(c)
-			startW = false
-		}
-		res = append(res, ch)
+func UrlQuery(url string, args map[string][]string) string {
+	qs := neturl.Values(args).Encode()
+	if qs == "" {
+		return url
 	}
-	return string(res)
+
+	return url + "?" + qs
+}
+
+func Http() *http.Client {
+	return http.DefaultClient()
 }
 
 type GetSetable interface {

@@ -2,6 +2,7 @@ package jquery
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -305,4 +306,20 @@ func (s Selection) SetText(text string) {
 
 func (s Selection) Add(sel dom.Selection) dom.Selection {
 	return newSelection(s.JQuery.Add(sel.(Selection).JQuery))
+}
+
+func (s Selection) Prop(prop string, recv interface{}) (ok bool) {
+	p := s.JQuery.Underlying().Call("prop")
+	if p.IsUndefined() {
+		ok = false
+		return
+	}
+
+	ok = true
+	reflect.ValueOf(recv).Elem().Set(reflect.ValueOf(p.Interface()))
+	return
+}
+
+func (s Selection) SetProp(prop string, value interface{}) {
+	s.JQuery.SetProp(prop, value)
 }

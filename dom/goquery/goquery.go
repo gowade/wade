@@ -2,6 +2,7 @@ package goquery
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 
 	"code.google.com/p/go.net/html"
@@ -9,6 +10,10 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/phaikawl/wade/dom"
+)
+
+const (
+	PropPrefix = "wade-rsvd-prop-"
 )
 
 var (
@@ -412,4 +417,30 @@ func (s Selection) SetText(text string) {
 
 func (s Selection) Add(elem dom.Selection) dom.Selection {
 	return newSelection(s.Selection.AddSelection(elem.(Selection).Selection))
+}
+
+func (s Selection) Prop(prop string, valueRecv interface{}) (ok bool) {
+	str, ok := s.Attr(PropPrefix + prop)
+	if ok {
+		err := json.Unmarshal([]byte(str), valueRecv)
+		if err != nil {
+			ok = false
+		}
+	}
+
+	return
+}
+
+func (s Selection) SetProp(prop string, value interface{}) {
+	bytes, _ := json.Marshal(value)
+	s.SetAttr(PropPrefix+prop, string(bytes[:]))
+	if tf, ok := value.(bool); ok {
+		if v, e := s.Attr(prop); !e || v == "reserved-prop-set" {
+			if tf == true {
+				s.SetAttr(prop, "reserved-prop-set")
+			} else {
+				s.RemoveAttr(prop)
+			}
+		}
+	}
 }

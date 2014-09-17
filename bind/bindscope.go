@@ -80,7 +80,7 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 	case CallExpr:
 		if wrapped {
 			v = reflect.ValueOf(func() {
-				_, er := sym.call(args)
+				_, er := sym.call(args, true)
 				if er != nil {
 					panic(er)
 				}
@@ -88,7 +88,7 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 
 			return
 		}
-		v, err = sym.call(args)
+		v, err = sym.call(args, false)
 	}
 
 	if err != nil {

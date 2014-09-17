@@ -40,6 +40,7 @@ type (
 	}
 
 	Selection interface {
+		Dom
 		TagName() (string, error)
 		Filter(selector string) Selection
 		Children() Selection
@@ -84,7 +85,8 @@ type (
 		IsTextNode() bool
 		SetText(text string)
 		Add(element Selection) Selection
-		Dom
+		Prop(prop string, recv interface{}) bool
+		SetProp(prop string, value interface{})
 	}
 )
 

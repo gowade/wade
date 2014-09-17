@@ -59,6 +59,7 @@ type (
 	TagPrototype interface {
 		ProcessContents(ContentsCtl) error
 		Update(ElemCtl) error
+		Init() error
 	}
 )
 
@@ -70,6 +71,7 @@ func (c contentsCtlImpl) Dom() dom.Dom {
 	return c.contents
 }
 
+func (b BaseProto) Init() error                           { return nil }
 func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
 func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
 
@@ -212,15 +214,23 @@ func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 	return cptr.Interface().(TagPrototype)
 }
 
-func (t HtmlTag) NewElem(elem dom.Selection) *CustomElem {
+func (t HtmlTag) NewElem(elem dom.Selection) (ce *CustomElem, err error) {
 	contentElem := elem.NewFragment("<wroot></wroot>")
 	contentElem.SetHtml(elem.Html())
 	elem.SetHtml(t.Html)
-	return &CustomElem{
-		model:    t.NewModel(elem),
+	model := t.NewModel(elem)
+	err = model.Init()
+	if err != nil {
+		return
+	}
+
+	ce = &CustomElem{
+		model:    model,
 		Elem:     elem,
 		Contents: contentElem,
 	}
+
+	return
 }
 
 func NewTagManager() *TagManager {
