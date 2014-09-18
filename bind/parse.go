@@ -62,21 +62,17 @@ func tokenize(spec string) (tokens []token, err error) {
 			case ' ':
 				flush()
 
-			case '(', ')', ',', '|':
+			case '(', ')', ',':
 				flush()
 				tokens = append(tokens, token{PuncToken, string(c)})
-			case '$':
+
+			case '@', '$':
 				if tok != "" {
-					err = errors.New("Invalid '$'")
+					err = fmt.Errorf("Invalid %q", c)
 					return
 				}
 				tok += string(c)
-			case '@':
-				if tok != "" {
-					err = errors.New("Invalid '@'")
-					return
-				}
-				tok += string(c)
+
 			case '-':
 				if tok != "" || i >= len(spec)-1 || !unicode.IsDigit(rune(spec[i+1])) {
 					err = errors.New("Invalid '-'")
@@ -116,64 +112,18 @@ func tokenize(spec string) (tokens []token, err error) {
 
 // parse parses the bind target string, populate information into a tree of Expr pointers.
 // Each helper call has a list arguments, each argument may be another helper call or an object expression.
-func parse(spec string) (watches []token, calcTree *expr, err error) {
+func parse(spec string) (calcTree *expr, err error) {
 	tokens, err := tokenize(spec)
 	if err != nil {
 		return
 	}
 
-	watches, calcTree, err = parseBind(tokens)
+	calcTree, err = parseStr(tokens)
 
 	return
 }
 
-func parseBind(tokens []token) (watches []token, root *expr, err error) {
-	watches = make([]token, 0)
-	sepPos := -1
-	for i, tok := range tokens {
-		if tok.kind == ExprToken {
-			if i > 0 && tokens[i-1].v != "," {
-				err = fmt.Errorf("Invalid syntax in watch list")
-			}
-
-			watches = append(watches, tok)
-		}
-
-		if tok.kind == PuncToken && tok.v == "|" {
-			sepPos = i
-			break
-		}
-	}
-
-	for _, tok := range tokens {
-		if tok.v == "|" {
-			break
-		}
-
-		if tok.kind != ExprToken && tok.v != "," {
-			err = fmt.Errorf("Invalid character '%v' in watch list. Note that if you want to call function, use literal in bind string or any kind of calculation, "+
-				"please put them behind '|'", tok.v)
-			return
-		}
-
-		if tok.kind == ExprToken {
-			if tok.v[0] != '_' && !unicode.IsLetter(rune(tok.v[0])) {
-				err = fmt.Errorf(`Invalid character "%c" in watch list. Note that if you want to call function, use literal in bind string or any kind of calculation, `+
-					`please put them behind '|'`, tok.v[0])
-				return
-			}
-		}
-	}
-
-	if sepPos == -1 {
-		root, err = parseCalcStr(tokens[0:1])
-	} else {
-		root, err = parseCalcStr(tokens[sepPos+1:])
-	}
-	return
-}
-
-func parseCalcStr(tokens []token) (root *expr, err error) {
+func parseStr(tokens []token) (root *expr, err error) {
 	invalid := func() {
 		err = errors.New("Invalid syntax")
 	}
@@ -236,6 +186,11 @@ func parseCalcStr(tokens []token) (root *expr, err error) {
 			}
 			stack[len(stack)-1].args = append(stack[len(stack)-1].args, e)
 		}
+	}
+
+	if len(stack) > 0 {
+		err = fmt.Errorf("Unexpected end of bind string")
+		return
 	}
 
 	return

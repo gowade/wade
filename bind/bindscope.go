@@ -21,26 +21,17 @@ type (
 	}
 )
 
-// evaluateRec recursively evaluates the parsed expressions and return the result value, it also
-func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl reflect.Value) (v reflect.Value, err error) {
+func (b *bindScope) evaluateRec(e *expr, old uintptr, repl reflect.Value) (v reflect.Value, blist []bindable, err error) {
 	err = nil
+	blist = make([]bindable, 0)
 
 	wrapped := false
+	watch := false
 
 	switch e.name[0] {
 	case '$':
-		e.name, err = parseDollarExpr(e.name, watches)
-		if err != nil {
-			return
-		}
-
-		var sym scopeSymbol
-		sym, err = b.scope.lookup(e.name)
-		if err != nil {
-			return
-		}
-		v, err = sym.value()
-		return
+		e.name = e.name[1:]
+		watch = true
 
 	case '@':
 		wrapped = true
@@ -60,10 +51,13 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 
 	args := make([]reflect.Value, len(e.args))
 	for i, e := range e.args {
-		args[i], err = b.evaluateRec(e, watches, old, repl)
+		var blc []bindable
+		args[i], blc, err = b.evaluateRec(e, old, repl)
 		if err != nil {
 			return
 		}
+
+		blist = append(blist, blc...)
 	}
 
 	sym, err := b.scope.lookup(e.name)
@@ -77,6 +71,11 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 		if old != 0 && old == v.UnsafeAddr() {
 			v = repl
 		}
+
+		if watch {
+			blist = append(blist, sym.(bindable))
+		}
+
 	case CallExpr:
 		if wrapped {
 			v = reflect.ValueOf(func() {
@@ -88,7 +87,13 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 
 			return
 		}
+
 		v, err = sym.call(args, false)
+
+		if watch {
+			err = fmt.Errorf("Watching a function call is not supported")
+			return
+		}
 	}
 
 	if err != nil {
@@ -99,34 +104,19 @@ func (b *bindScope) evaluateRec(e *expr, watches []token, old uintptr, repl refl
 }
 
 // evaluate evaluates the bind string, returns the needed information for binding
-func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist []bindable, watches []token, value interface{}, err error) {
-	watches, calcRoot, err = parse(bstr)
+func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist []bindable, value interface{}, err error) {
+	calcRoot, err = parse(bstr)
 	if err != nil {
 		return
 	}
 
-	blist, value, err = b.evaluatePart(watches, calcRoot)
+	blist, value, err = b.evaluatePart(calcRoot)
 	return
 }
 
-func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []bindable, value interface{}, err error) {
-	list := make([]bindable, len(watches))
-	for i, watch := range watches {
-		var sym scopeSymbol
-		sym, err = b.scope.lookup(watch.v)
-		if err != nil {
-			return
-		}
-
-		var ok bool
-		if list[i], ok = sym.(bindable); !ok {
-			err = fmt.Errorf("Cannot watch unaddressable value %v", watch.v)
-			return
-		}
-	}
-
+func (b *bindScope) evaluatePart(calcRoot *expr) (blist []bindable, value interface{}, err error) {
 	var v reflect.Value
-	v, err = b.evaluateRec(calcRoot, watches, 0, reflect.ValueOf(nil))
+	v, blist, err = b.evaluateRec(calcRoot, 0, reflect.ValueOf(nil))
 	if err != nil {
 		return
 	}
@@ -134,8 +124,6 @@ func (b *bindScope) evaluatePart(watches []token, calcRoot *expr) (blist []binda
 	if v.IsValid() && v.CanInterface() {
 		value = v.Interface()
 	}
-
-	blist = list
 
 	return
 }

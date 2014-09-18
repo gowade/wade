@@ -42,9 +42,9 @@ func TestBinding(t *testing.T) {
 		Attributes: []string{"Name", "Value", "Test"},
 		Html: `
 			<div><wcontents></wcontents></div>
-			<span #html="Name"></span>
-			<p #html="Value"></p>
-			<div #html="Test.A.B"></div>
+			<span #html="$Name"></span>
+			<p #html="$Value"></p>
+			<div #html="$Test.A.B"></div>
 			<div><wcontents></wcontents></div>
 			`,
 		Prototype: &Model{},
@@ -71,7 +71,7 @@ func TestBinding(t *testing.T) {
 	//test processDomBind
 	elem := goquery.GetDom().NewFragment("<div></div>")
 
-	b.processBinderBind("html", "Name", elem, bs, false)
+	b.processBinderBind("html", "$Name", elem, bs, false)
 	require.Equal(t, elem.Html(), "a")
 	sc.Name = "b"
 	b.watcher.Digest(&sc.Name)
@@ -81,8 +81,8 @@ func TestBinding(t *testing.T) {
 	elem = goquery.GetDom().NewFragment("<test></test>")
 	ct, _ := testct.NewElem(elem)
 	model := ct.Model().(*Model)
-	b.processFieldBind("Name", "|':Hai;'", elem, bs, false, ct)
-	b.processFieldBind("Value", "Num", elem, bs, false, ct)
+	b.processFieldBind("Name", "':Hai;'", elem, bs, false, ct)
+	b.processFieldBind("Value", "$Num", elem, bs, false, ct)
 	require.Equal(t, model.Name, ":Hai;")
 	require.Equal(t, model.Value, 9000)
 
@@ -93,10 +93,10 @@ func TestBinding(t *testing.T) {
 	//full test
 	src := `
 		<wroot>
-			<ww @title="Name" #class(awesome)="|true">
-				<div id="0">da{{ Num }}n</div>
-				<test @Value="Num" @Name="|'abc'" @Test="Test" id="1">{{ Name }}<!-- --></test>
-				<div id="2">{{ Test.A.B }}</div>
+			<ww @title="$Name" #class(awesome)="true">
+				<div id="0">da{{ $Num }}n</div>
+				<test @Value="$Num" @Name="'abc'" @Test="$Test" id="1">{{ $Name }}<!-- --></test>
+				<div id="2">{{ $Test.A.B }}</div>
 			</ww>
 		</wroot>
 	`

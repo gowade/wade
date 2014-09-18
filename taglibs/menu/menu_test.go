@@ -23,7 +23,7 @@ func TestSwitchMenu(t *testing.T) {
 
 	root := goquery.GetDom().NewFragment(`
 	<wroot>
-		<switchmenu @Current="Choice">
+		<switchmenu @Current="$Choice">
 			<ul>
 				<li case="a"></li>
 				<li case="b"></li>

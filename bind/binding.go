@@ -101,7 +101,7 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
-func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *bindScope, callback func(interface{})) error {
+func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callback func(interface{})) error {
 	for _, bi := range binds {
 		if !bi.bindObj().fieldRefl.CanAddr() {
 			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().field)
@@ -111,7 +111,7 @@ func (b *Binding) watchModel(binds []bindable, watches []token, root *expr, bs *
 		(func(bi bindable) {
 			bo := bi.bindObj()
 			b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue reflect.Value) {
-				newResult, _ := bs.evaluateRec(root, watches, old, repValue)
+				newResult, _, _ := bs.evaluateRec(root, old, repValue)
 				callback(newResult.Interface())
 			})
 		})(bi)
@@ -140,7 +140,7 @@ func (e drmElem) ReplaceWith(sel dom.Selection) {
 }
 
 func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, bs *bindScope, once bool) (err error) {
-	roote, binds, watches, v, er := bs.evaluate(bstr)
+	roote, binds, v, er := bs.evaluate(bstr)
 	if er != nil {
 		bstrPanic(er.Error(), bstr, elem)
 	}
@@ -149,7 +149,7 @@ func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, 
 		elem.SetAttr(attr, vstr)
 
 		if !once {
-			err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
+			err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
 				elem.SetAttr(attr, nr.String())
 			})
@@ -166,7 +166,7 @@ func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, 
 }
 
 func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection, bs *bindScope, once bool, ce CustomElem) {
-	roote, binds, watches, v, er := bs.evaluate(bstr)
+	roote, binds, v, er := bs.evaluate(bstr)
 	if er != nil {
 		bstrPanic(er.Error(), bstr, elem)
 	}
@@ -191,7 +191,7 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 	oe.fieldRefl.Set(reflect.ValueOf(v))
 
 	if !once {
-		err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
+		err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
 			nr := reflect.ValueOf(newResult)
 			checkCompat(nr.Type(), oe.fieldRefl.Type())
 			oe.fieldRefl.Set(nr)
@@ -315,7 +315,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 	if binder, ok := b.domBinders[binderName]; ok {
 		binder = binder.BindInstance()
 
-		roote, binds, watches, v, err2 := bs.evaluate(bstr)
+		roote, binds, v, err2 := bs.evaluate(bstr)
 		if err2 != nil {
 			err = err2
 			return
@@ -358,7 +358,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 				udb := domBind
 				udb.Elem = elem
 
-				err = b.watchModel(binds, watches, roote, bs, func(newResult interface{}) {
+				err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					udb.Value = newResult
 					binder.Update(udb)
 				})
@@ -393,7 +393,7 @@ func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope)
 
 		textNodes := elem.NewEmptySelection()
 		for i, m := range matches {
-			cr, blist, watches, v, err := bs.evaluate(m[1])
+			cr, blist, v, err := bs.evaluate(m[1])
 			if err != nil {
 				return err
 			}
@@ -401,7 +401,7 @@ func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope)
 			node := elem.NewTextNode(toString(v))
 
 			if !once {
-				err = b.watchModel(blist, watches, cr, bs, func(val interface{}) {
+				err = b.watchModel(blist, cr, bs, func(val interface{}) {
 					node.SetText(toString(val))
 				})
 

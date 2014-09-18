@@ -40,19 +40,19 @@ func TestParser(t *testing.T) {
 	dhst := newHelpersSymbolTable(defaultHelpers())
 	bs := &bindScope{&scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
 	tests := map[string]interface{}{
-		"Test":                                                            "Nt",
-		"Data.Username":                                                   "Hai",
-		"Data.Username | toUpper($1)":                                     "HAI",
-		"Data.Username, Data.Password | concat($1, $2)":                   "HaiPk",
-		"Data.Username | concat($1, 'Pk|')":                               "HaiPk|",
-		"Data.Username, Data.Password | concat(toUpper($1), toLower($2))": "HAIpk",
-		"| addInt(-1, 2)":                                                 1,
-		"| addFloat(-1.0, 2.0)":                                           float32(1.0),
-		"| fooAdd('bar*|-,')":                                             "foobar*|-,",
+		"$Test":                                                    "Nt",
+		"$Data.Username":                                           "Hai",
+		"toUpper($Data.Username)":                                  "HAI",
+		"concat($Data.Username, $Data.Password)":                   "HaiPk",
+		"concat($Data.Username, 'Pk|')":                            "HaiPk|",
+		"concat(toUpper($Data.Username), toLower($Data.Password))": "HAIpk",
+		"addInt(-1, 2)":                                            1,
+		"addFloat(-1.0, 2.0)":                                      float32(1.0),
+		"fooAdd('bar*|-,')":                                        "foobar*|-,",
 	}
 
 	for bstr, result := range tests {
-		_, _, _, v, err := bs.evaluate(bstr)
+		_, _, v, err := bs.evaluate(bstr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func TestParser(t *testing.T) {
 		}
 	}
 
-	_, _, _, v, err := bs.evaluate("Data.Username | @TestConcat($1)")
+	_, _, v, err := bs.evaluate("@TestConcat($Data.Username)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,17 +79,16 @@ func TestParser(t *testing.T) {
 
 	errtests := []string{
 		`fooAdd('bar'`,
-		`fooAdd('bar')`,
 		`kdf*`,
-		`| toUpper(Data.Username.)`,
-		`| addInt(1, 1a)`,
-		`| fooAdd(''')`,
-		`| addInt(1, '*,')`,
+		`toUpper(Data.Username.)`,
+		`addInt(1, 1a)`,
+		`fooAdd(''')`,
+		`addInt(1, '*,')`,
 	}
 	for _, et := range errtests {
-		_, _, _, _, err := bs.evaluate(et)
+		_, _, _, err := bs.evaluate(et)
 		if err == nil {
-			t.Errorf("Expected an error, no error is returned.")
+			t.Errorf("Bind string `%v`, Expected an error, no error is returned.", et)
 		} else {
 			//t.Logf("Log: got parse error: %s\n", err)
 		}
