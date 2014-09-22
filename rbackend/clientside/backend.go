@@ -143,6 +143,7 @@ func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.W
 	cbWrap := func() {
 		callback(0, reflect.ValueOf(nil))
 	}
+
 	var osvs []js.Object
 	switch ctl.FieldRefl.Kind() {
 	case reflect.Slice:

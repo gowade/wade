@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -75,6 +76,16 @@ func (r *Response) DecodeTo(dest interface{}) error {
 
 	if r.Failed() {
 		panic(fmt.Sprintf("Response failed with status %v, cannot decode.", r.Status))
+	}
+
+	p := reflect.ValueOf(dest)
+	if p.Kind() == reflect.Ptr && !p.IsNil() {
+		p = p.Elem()
+	}
+
+	switch p.Kind() {
+	case reflect.Slice:
+		p.SetLen(0)
 	}
 
 	err := json.Unmarshal([]byte(r.Data), dest)
