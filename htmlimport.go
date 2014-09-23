@@ -13,13 +13,15 @@ func (wd *wade) getHtml(httpClient *http.Client, href string) (string, error) {
 	return getHtmlFile(httpClient, wd.serverBase, href)
 }
 
-func getHtmlFile(httpClient *http.Client, serverbase string, href string) (string, error) {
+func getHtmlFile(httpClient *http.Client, serverbase string, href string) (data string, err error) {
 	resp, err := httpClient.GET(path.Join(serverbase, href))
-	if err != nil || resp.Failed() {
-		return "", fmt.Errorf(`Failed to load HTML file "%v"`, href)
+	if err != nil {
+		err = fmt.Errorf(`Failed to load HTML file "%v". Error: "%v".`, href, err.Error())
+		return
 	}
 
-	return resp.Data, nil
+	data = resp.Data
+	return
 }
 
 // htmlImport performs an HTML include

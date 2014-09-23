@@ -244,6 +244,20 @@ func (c *Client) GET(url string) (resp *Response, err error) {
 	return
 }
 
+func (c *Client) GetJson(dst interface{}, url string) (err error) {
+	resp, err := c.Do(c.NewRequest("GET", url))
+	if err != nil {
+		return
+	}
+
+	if resp.Failed() {
+		return fmt.Errorf(resp.Status)
+	}
+
+	err = resp.DecodeTo(dst)
+	return
+}
+
 func (c *Client) POST(url string, data interface{}) (resp *Response, err error) {
 	r := c.NewRequest("POST", url)
 	r.SetData(data)
