@@ -130,9 +130,7 @@ func (fs fieldSymbol) call(args []reflect.Value, async bool) (v reflect.Value, e
 	}
 
 	if async {
-		go func() {
-			fs.eval.fieldRefl.Call(args)
-		}()
+		fs.eval.fieldRefl.Call(args)
 		return
 	}
 

@@ -70,8 +70,6 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		}
 	}
 
-	realContainer.SetHtml("")
-
 	if realContainer.Length() == 0 {
 		panic("App container doesn't exist.")
 	}
@@ -81,6 +79,9 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		basePath = "/"
 	}
 
+	cl := realContainer.Clone()
+	cl.SetHtml("")
+
 	pm := &pageManager{
 		document:      document,
 		routes:        make([]urlrouter.Record, 0),
@@ -89,7 +90,7 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		basePath:      basePath,
 		startPageId:   config.StartPage,
 		notFoundPage:  nil,
-		rcProto:       realContainer.OuterHtml(),
+		rcProto:       cl.OuterHtml(),
 		tcontainer:    tcontainer,
 		realContainer: realContainer,
 		binding:       binding,
@@ -253,19 +254,19 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 
 		walk(pm.container, pm)
 
-		for _, wrep := range pm.container.Find("wrep").Elements() {
-			wrep.Remove()
-			target, ok := wrep.Attr("target")
-			if !ok {
-				dom.ElementError(wrep, "No target specified for the wrep.")
-			}
-			pm.container.Find("#" + WadeReservedPrefix + target).
-				SetHtml(wrep.Html())
-		}
+		//for _, wrep := range pm.container.Find("wrep").Elements() {
+		//	wrep.Remove()
+		//	target, ok := wrep.Attr("target")
+		//	if !ok {
+		//		dom.ElementError(wrep, "No target specified for the wrep.")
+		//	}
+		//	pm.container.Find("#" + WadeReservedPrefix + target).
+		//		SetHtml(wrep.Html())
+		//}
 
-		for _, e := range pm.container.Find("wsection").Elements() {
-			e.Unwrap()
-		}
+		//for _, e := range pm.container.Find("wsection").Elements() {
+		//	e.Unwrap()
+		//}
 
 		pm.binding.Watcher().ResetWatchers()
 		pm.bind(params)
