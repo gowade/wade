@@ -93,7 +93,7 @@ func TestPageManager(t *testing.T) {
 
 	b := &NoopBindEngine{}
 	pm := newPageManager(NewNoopHistory("/"),
-		AppConfig{StartPage: "pg-home", BasePath: "/web"},
+		AppConfig{BasePath: "/web"},
 		doc,
 		template,
 		b)
@@ -101,7 +101,7 @@ func TestPageManager(t *testing.T) {
 	container := doc.Find("body").First()
 
 	pm.registerDisplayScopes([]PageDesc{
-		MakePage("pg-home", "/home", "Home"),
+		MakePage("pg-home", "/", "Home"),
 		MakePage("pg-child-1", "/child/:name", "Child 1"),
 		MakePage("pg-child-2", "/child/:name/:gender", "Child 2"),
 	}, []PageGroupDesc{

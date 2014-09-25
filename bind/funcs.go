@@ -20,12 +20,6 @@ func jsGetType(obj js.Object) string {
 }
 
 func callFunc(fn reflect.Value, args []reflect.Value) (v reflect.Value, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf(r.(string))
-		}
-	}()
-
 	rets := fn.Call(args)
 	if len(rets) >= 1 {
 		v = rets[0]

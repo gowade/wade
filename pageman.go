@@ -38,7 +38,6 @@ type (
 		routes        []urlrouter.Record
 		router        urlrouter.URLRouter
 		currentPage   *page
-		startPageId   string
 		basePath      string
 		notFoundPage  *page
 		rcProto       string
@@ -88,7 +87,6 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		router:        urlrouter.NewURLRouter("regexp"),
 		currentPage:   nil,
 		basePath:      basePath,
-		startPageId:   config.StartPage,
 		notFoundPage:  nil,
 		rcProto:       cl.OuterHtml(),
 		tcontainer:    tcontainer,
@@ -126,13 +124,6 @@ func (pm *pageManager) page(id string) *page {
 	}
 
 	panic(fmt.Sprintf(`No such page "%v"`, id))
-}
-
-func (pm *pageManager) displayScope(id string) displayScope {
-	if ds, ok := pm.displayScopes[id]; ok {
-		return ds
-	}
-	panic(fmt.Sprintf(`No such page or page group "%v"`, id))
 }
 
 func (pm *pageManager) SetNotFoundPage(pageId string) {
@@ -217,11 +208,6 @@ func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
 	path := pm.cutPath(url)
-	if path == "" || path == "/" {
-		startPage := pm.page(pm.startPageId)
-		path = startPage.path
-		pm.history.ReplaceState(startPage.title, pm.Fullpath(path))
-	}
 
 	match, routeparams := pm.router.Lookup(path)
 	if match == nil {
@@ -244,56 +230,54 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		params[param.Name] = param.Value
 	}
 
-	if pm.currentPage != page {
-		pm.formattedTitle = page.title
+	pm.formattedTitle = page.title
 
-		pm.currentPage = page
-		pm.container = newHiddenContainer(pm.rcProto, pm.document)
-		pm.container.SetHtml(pm.tcontainer.Html())
-		pm.container.Find("wdefine").Remove()
+	pm.currentPage = page
+	pm.container = newHiddenContainer(pm.rcProto, pm.document)
+	pm.container.SetHtml(pm.tcontainer.Html())
+	pm.container.Find("wdefine").Remove()
 
-		walk(pm.container, pm)
+	walk(pm.container, pm)
 
-		//for _, wrep := range pm.container.Find("wrep").Elements() {
-		//	wrep.Remove()
-		//	target, ok := wrep.Attr("target")
-		//	if !ok {
-		//		dom.ElementError(wrep, "No target specified for the wrep.")
-		//	}
-		//	pm.container.Find("#" + WadeReservedPrefix + target).
-		//		SetHtml(wrep.Html())
-		//}
+	//for _, wrep := range pm.container.Find("wrep").Elements() {
+	//	wrep.Remove()
+	//	target, ok := wrep.Attr("target")
+	//	if !ok {
+	//		dom.ElementError(wrep, "No target specified for the wrep.")
+	//	}
+	//	pm.container.Find("#" + WadeReservedPrefix + target).
+	//		SetHtml(wrep.Html())
+	//}
 
-		//for _, e := range pm.container.Find("wsection").Elements() {
-		//	e.Unwrap()
-		//}
+	//for _, e := range pm.container.Find("wsection").Elements() {
+	//	e.Unwrap()
+	//}
 
-		pm.binding.Watcher().ResetWatchers()
-		pm.bind(params)
-		icommon.WrapperUnwrap(pm.container)
-		pm.setTitle(pm.formattedTitle)
+	pm.binding.Watcher().ResetWatchers()
+	pm.bind(params)
+	icommon.WrapperUnwrap(pm.container)
+	pm.setTitle(pm.formattedTitle)
 
-		pm.realContainer.ReplaceWith(pm.container)
-		pm.realContainer = pm.container
+	pm.realContainer.ReplaceWith(pm.container)
+	pm.realContainer = pm.container
 
-		//Handle link events
-		pm.realContainer.Listen("click", "a", func(e dom.Event) {
-			href, ok := e.Target().Attr("href")
-			if !ok {
-				return
-			}
+	//Handle link events
+	pm.realContainer.Listen("click", "a", func(e dom.Event) {
+		href, ok := e.Target().Attr("href")
+		if !ok {
+			return
+		}
 
-			if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
-				return
-			}
+		if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
+			return
+		}
 
-			e.PreventDefault()
+		e.PreventDefault()
 
-			go func() {
-				pm.updatePage(href, true)
-			}()
-		})
-	}
+		go func() {
+			pm.updatePage(href, true)
+		}()
+	})
 }
 
 func (pm *pageManager) setTitle(title string) {
@@ -318,12 +302,6 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, e
 	err = nil
 	page := pm.page(pageId)
 
-	n := len(params)
-	if n == 0 {
-		u = page.path
-		return
-	}
-
 	k, i := 0, 0
 	route := page.path
 	routeparams := urlrouter.ParamNames(route)
@@ -346,7 +324,7 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, e
 
 	if k != len(params) || k != len(routeparams) {
 		err = fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,
-			pageId, len(params), len(routeparams))
+			pageId, len(routeparams), len(params))
 		return
 	}
 
@@ -409,7 +387,11 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 // RegisterController adds a new controller function for the specified
 // page / page group.
 func (pm *pageManager) registerController(displayScope string, fn PageControllerFunc) {
-	ds := pm.displayScope(displayScope)
+	ds, ok := pm.displayScopes[displayScope]
+	if !ok {
+		panic(fmt.Errorf(`Registering controller for "%v", there's no such page or page group.`, displayScope))
+	}
+
 	ds.addController(fn)
 }
 

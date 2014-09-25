@@ -135,7 +135,10 @@ func MakePageGroup(id string, children []string) PageGroupDesc {
 func (pg PageGroupDesc) Register(pm *pageManager) displayScope {
 	grp := newPageGroup(make([]displayScope, len(pg.children)))
 	for i, id := range pg.children {
-		ds := pm.displayScope(id)
+		ds, ok := pm.displayScopes[id]
+		if !ok {
+			panic(fmt.Errorf(`Wrong children for page group "%v", there's no page or page group named "%v".`, pg.id, id))
+		}
 		ds.addParent(grp)
 		grp.children[i] = ds
 	}
