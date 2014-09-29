@@ -49,7 +49,6 @@ type (
 	}
 
 	AppConfig struct {
-		StartPage  string
 		BasePath   string
 		Container  dom.Selection
 		ServerBase string
