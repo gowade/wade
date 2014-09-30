@@ -361,7 +361,10 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 				err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					udb.OldValue = udb.Value
 					udb.Value = newResult
-					binder.Update(udb)
+					er := binder.Update(udb)
+					if err != nil {
+						panic(er)
+					}
 				})
 
 				if err != nil {

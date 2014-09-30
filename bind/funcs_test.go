@@ -40,16 +40,16 @@ func (r *repr) Add(idx int, value reflect.Value) {
 
 func TestSliceChange(t *testing.T) {
 	a := []int{1, 2, 3, 4, 6}
-	b := []int{1, 5, 2, 4}
-	added, removed := SliceDiff(reflect.ValueOf(a), reflect.ValueOf(b))
-
-	require.Equal(t, len(added), 1)
-	require.Equal(t, added[0].val.Int(), 5)
-	require.Equal(t, len(removed), 2)
-	require.Equal(t, removed[0].val.Int(), 3)
-	require.Equal(t, removed[1].val.Int(), 6)
+	b := []int{1, 2, 3, 4}
 
 	r := &repr{a}
+	performChange(r, reflect.ValueOf(a), reflect.ValueOf(b))
+	require.Equal(t, reflect.DeepEqual(r.slice, b), true)
+
+	a = []int{1, 2, 3, 4}
+	b = []int{1, 2, 3, 5, 4}
+
+	r = &repr{a}
 	performChange(r, reflect.ValueOf(a), reflect.ValueOf(b))
 	require.Equal(t, reflect.DeepEqual(r.slice, b), true)
 }

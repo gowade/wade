@@ -56,7 +56,7 @@ func TestEach(t *testing.T) {
 	m1 := &sliceModel{[]*okScope{&okScope{true, "a", &aStr{"a"}}, &okScope{false, "b", &aStr{"b"}}, &okScope{true, "c", &aStr{"c"}}}}
 	src := `<wroot>
 		<ul>
-			<ww #each(key,item,fast)="$List">
+			<ww #each(key,item,Mode_S)="$List">
 				<li>#<span #html="key"></span><span #html="$item.A"></span><test @A="$item.B"></test></li>
 			</ww>
 		</ul>
@@ -70,11 +70,19 @@ func TestEach(t *testing.T) {
 	require.Equal(t, lis[1].Text(), "#1bb")
 	require.Equal(t, lis[2].Text(), "#2cc")
 
-	m1.List = append(m1.List[1:], m1.List[0])
+	ol := m1.List
+	m1.List = m1.List[1:]
 	b.Watcher().Digest(&m1.List)
 	lis = elem.Children().Filter("li").Elements()
 	require.Equal(t, lis[0].Text(), "#1bb")
 	require.Equal(t, lis[1].Text(), "#2cc")
+
+	m1.List = ol
+	b.Watcher().Digest(&m1.List)
+	lis = elem.Children().Filter("li").Elements()
+	require.Equal(t, lis[0].Text(), "#0aa")
+	require.Equal(t, lis[1].Text(), "#1bb")
+	require.Equal(t, lis[2].Text(), "#2cc")
 
 	// Test with map
 	m2 := &mapModel{map[string]string{

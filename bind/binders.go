@@ -244,16 +244,18 @@ type listChanger struct {
 }
 
 func (lc *listChanger) Add(i int, value reflect.Value) {
-	children := lc.binder.marker.Parent().Children().Elements()
+	children := lc.binder.marker.Parent().Contents().Elements()
 	newe := lc.binder.prototype.Clone()
 	midx := lc.binder.marker.Index()
-	for mi := 0; ; mi++ {
+	for mi := 0; midx+1+mi < len(children); mi++ {
 		if children[midx+1+mi].IsElement() {
-			children[midx+1+mi].After(newe)
+			children[midx+1+mi+i].Before(newe)
 			lc.d.ProduceOutputs(newe, false, lc.d.Args[:2], i, value.Interface())
-			break
+			return
 		}
 	}
+	lc.binder.marker.After(newe)
+	lc.d.ProduceOutputs(newe, false, lc.d.Args[:2], i, value.Interface())
 }
 
 func (lc *listChanger) Remove(i int) {
@@ -271,7 +273,7 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 	if reflect.TypeOf(d.Value).Kind() != reflect.Slice || d.OldValue == nil || len(d.Args) <= 2 {
 		return b.FullUpdate(d)
 	} else {
-		if d.Args[2] == "fast" {
+		if d.Args[2] == "mode_s" {
 			performChange(&listChanger{b, &d}, reflect.ValueOf(d.OldValue), reflect.ValueOf(d.Value))
 		} else {
 			return fmt.Errorf("Invalid value for argument 3 to the each binder.")

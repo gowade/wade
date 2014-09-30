@@ -444,3 +444,18 @@ func (s Selection) SetProp(prop string, value interface{}) {
 		}
 	}
 }
+
+func (s Selection) ElemIndex() (n int) {
+	if !s.IsElement() {
+		return s.Index()
+	}
+
+	prev := s.Selection.PrevAll()
+	prev.Each(func(_ int, e *goquery.Selection) {
+		if e.Nodes[0].Type == html.ElementNode {
+			n++
+		}
+	})
+
+	return
+}

@@ -82,6 +82,7 @@ type (
 		HasClass(class string) bool
 		Text() string
 		Index() int
+		ElemIndex() int
 		IsTextNode() bool
 		SetText(text string)
 		Add(element Selection) Selection
@@ -99,12 +100,12 @@ func DebugInfo(sel Selection) string {
 	if id, ok := sel.Attr("id"); ok {
 		str += "#" + id
 	}
-	str += fmt.Sprintf(":%v", sel.Index()) + " ("
+	str += fmt.Sprintf(":%v", sel.ElemIndex()) + " ("
 	parents := sel.Parents().Elements()
 	for j := len(parents) - 1; j >= 0; j-- {
 		t, err := parents[j].TagName()
 		if err == nil {
-			str += t + fmt.Sprintf(":%v", parents[j].Index()) + "/"
+			str += t + fmt.Sprintf(":%v", parents[j].ElemIndex()) + "/"
 		}
 	}
 	str += ")"

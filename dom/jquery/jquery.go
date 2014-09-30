@@ -288,7 +288,7 @@ func (s Selection) Prepend(sel dom.Selection) {
 	s.JQuery.Prepend(sel.(Selection).JQuery)
 }
 
-func (s Selection) Index() int {
+func (s Selection) ElemIndex() int {
 	return s.JQuery.Underlying().Call("index").Int()
 }
 
@@ -324,4 +324,14 @@ func (s Selection) Prop(prop string, recv interface{}) (ok bool) {
 
 func (s Selection) SetProp(prop string, value interface{}) {
 	s.JQuery.SetProp(prop, value)
+}
+
+func (s Selection) Index() (n int) {
+	e := s.JQuery.Get(0)
+	for {
+		if e = e.Get("previousSibling"); e.IsNull() {
+			return
+		}
+		n++
+	}
 }

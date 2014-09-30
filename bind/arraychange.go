@@ -1,15 +1,6 @@
 package bind
 
-import (
-	"reflect"
-	"sort"
-)
-
-type ByRefl []*SliceChange
-
-func (a ByRefl) Len() int           { return len(a) }
-func (a ByRefl) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByRefl) Less(i, j int) bool { comp, _ := compareRefl(a[i].val, a[j].val); return comp == -1 }
+import "reflect"
 
 func compareRefl(ap, bp reflect.Value) (comp int, ok bool) {
 	ok = true
@@ -127,74 +118,30 @@ func compareRefl(ap, bp reflect.Value) (comp int, ok bool) {
 	return
 }
 
-type SliceChange struct {
-	val reflect.Value
-	idx int
-}
-
-func SliceDiff(oa, na reflect.Value) (added, removed []*SliceChange) {
-	added = make([]*SliceChange, 0)
-	removed = make([]*SliceChange, 0)
-
-	if oa.Type() != na.Type() {
-		panic("Calling slice diff on values of different types")
-	}
-
-	os := make([]*SliceChange, oa.Len())
-	ns := make([]*SliceChange, na.Len())
-	for i := 0; i < len(os); i++ {
-		os[i] = &SliceChange{oa.Index(i), i}
-	}
-
-	for i := 0; i < len(ns); i++ {
-		ns[i] = &SliceChange{na.Index(i), i}
-	}
-
-	sort.Sort(ByRefl(os))
-	sort.Sort(ByRefl(ns))
-
-	io, in := 0, 0
-	for {
-		if io >= oa.Len() || in >= na.Len() {
-			break
-		}
-
-		switch comp, _ := compareRefl(os[io].val, ns[in].val); comp {
-		case 0:
-			io++
-			in++
-		case -1:
-			removed = append(removed, os[io])
-			io++
-		case 1:
-			added = append(added, ns[in])
-			in++
-		}
-	}
-
-	if io < oa.Len() {
-		removed = append(removed, os[io:]...)
-	}
-
-	if in < na.Len() {
-		added = append(added, ns[in:]...)
-	}
-
-	return
-}
-
 type sliceRepr interface {
 	Add(index int, value reflect.Value)
 	Remove(index int)
 }
 
 func performChange(repr sliceRepr, oa, na reflect.Value) {
-	added, removed := SliceDiff(oa, na)
-	for i, r := range removed {
-		repr.Remove(r.idx - i)
-	}
+	if oa.Len() < na.Len() {
+		for i := 0; i < oa.Len(); i++ {
+			nv := na.Index(i)
+			if comp, _ := compareRefl(oa.Index(i), nv); comp != 0 {
+				repr.Add(i, nv)
+				return
+			}
+		}
 
-	for _, ad := range added {
-		repr.Add(ad.idx, ad.val)
+		repr.Add(na.Len()-1, na.Index(na.Len()-1))
+	} else if oa.Len() > na.Len() {
+		for i := 0; i < na.Len(); i++ {
+			if comp, _ := compareRefl(oa.Index(i), na.Index(i)); comp != 0 {
+				repr.Remove(i)
+				return
+			}
+		}
+
+		repr.Remove(oa.Len() - 1)
 	}
 }
