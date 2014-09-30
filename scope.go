@@ -3,12 +3,14 @@ package wade
 import (
 	"fmt"
 	"reflect"
-
+	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
 
 // Scope provides access to the page data and operations inside a controller func
 type (
+	ObserveCallback func(oldVal, newVal interface{}, document dom.Dom)
+
 	Scope struct {
 		PageInfo *PageInfo
 		pm       *pageManager
@@ -63,6 +65,12 @@ func (pc *Scope) FormatTitle(params ...interface{}) {
 
 func (pc *Scope) Digest(object interface{}) {
 	pc.pm.binding.Watcher().Digest(object)
+}
+
+func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallback) {
+	pc.pm.binding.Watcher().Observe(model, field, func(oldVal, newVal interface{}) {
+		callback(oldVal, newVal, pc.pm.document)
+	})
 }
 
 // GetParam puts the value of a parameter to a dest.

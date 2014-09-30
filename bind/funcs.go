@@ -42,14 +42,15 @@ func evaluateObjField(query string, model reflect.Value) (oe *objEval, ok bool, 
 	vals[0] = o
 
 	for i, field := range flist {
-		var found bool
-		o, found, err = getReflectField(o, field)
+		o, ok, err = getReflectField(o, field)
 		if err != nil {
 			return
 		}
-		if !found {
+
+		if !ok {
 			return
 		}
+
 		vals[i+1] = o
 	}
 

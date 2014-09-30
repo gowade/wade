@@ -12,6 +12,8 @@ type (
 
 	WatchCallback func(uintptr, reflect.Value)
 
+	ObserveCallback func(oldVal, newVal interface{})
+
 	JsWatcher interface {
 		Watch(watchCtl WatchCtl, callback WatchCallback) WatchCloser
 		DigestAll()
@@ -91,11 +93,33 @@ func (b *Watcher) Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field 
 	return
 }
 
+func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallback) (ok bool) {
+	oe, ok, err := evaluateObjField(field, reflect.ValueOf(model))
+	if err != nil {
+		panic(err)
+	}
+
+	if !ok {
+		return
+	}
+
+	old := oe.fieldRefl.Interface()
+
+	b.Watch(oe.fieldRefl, oe.modelRefl, oe.field, func(_ uintptr, _ reflect.Value) {
+		noe, _, _ := evaluateObjField(field, reflect.ValueOf(model))
+		callback(old, noe.fieldRefl.Interface())
+		old = noe.fieldRefl.Interface()
+	})
+
+	return
+}
+
 func (b *Watcher) Digest(ptr interface{}) {
 	p := reflect.ValueOf(ptr)
 	if p.Kind() != reflect.Ptr {
 		panic("Argument to ApplyChanges must be a pointer.")
 	}
+
 	if p.IsNil() {
 		panic("Call of ApplyChanges with nil pointer.")
 	}

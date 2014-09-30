@@ -124,4 +124,19 @@ func TestBinding(t *testing.T) {
 	sc.Num = 6666
 	b.Watcher().Digest(&sc.Num)
 	require.Equal(t, root.Find("#0").Html(), "da6666n")
+
+	ok := b.Watcher().Observe(sc.Test, "A", func(ov, nv interface{}) {
+		require.Equal(t, ov.(A).B, true)
+		require.Equal(t, nv.(A).B, false)
+		root.Find("#2").AddClass("obs")
+	})
+	if !ok {
+		t.FailNow()
+	}
+
+	sc.Test.A = A{false}
+
+	b.Watcher().Digest(&sc.Test.A)
+
+	require.Equal(t, root.Find("#2").HasClass("obs"), true)
 }
