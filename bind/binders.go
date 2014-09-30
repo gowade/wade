@@ -182,24 +182,12 @@ func (b *EventBinder) BindInstance() DomBinder { return b }
 
 // EachBinder is a 1-way binder that repeats an element according to a map
 // or slice. It outputs a key and a value bound to each item.
-// It takes no extra dash arg. The extra output after "->" are the names that
-// receives the key and value, those names can be used inside the elment's
-// content. Each key and value pair is bound separately to each element.
-//
-// Usage:
-//	bind-each="Expression"
-// Or
-//	bind-each="Expression -> outputKey, outputValue"
-// Example:
-//	<div bind-each="Errors -> type, msg">
-//		<p>Error type: <% type %></p>
-//		<p>Message: <% msg %></p>
-//	</div>
 type EachBinder struct {
 	*BaseBinder
 	marker    dom.Selection
 	prototype dom.Selection
 	size      int
+	lc        *listChanger
 }
 
 func (b *EachBinder) BindInstance() DomBinder {
@@ -213,10 +201,11 @@ func (b *EachBinder) Bind(d DomBind) (err error) {
 	b.prototype = d.Elem.Clone()
 	d.Banish(d.Elem)
 
-	return
+	return b.FullUpdate(d)
 }
 
-func (b *EachBinder) Update(d DomBind) (err error) {
+func (b *EachBinder) FullUpdate(d DomBind) (err error) {
+	//populate the list
 	val := reflect.ValueOf(d.Value)
 
 	for i := val.Len(); i < b.size; i++ {
@@ -242,8 +231,51 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 		nx := b.prototype.Clone()
 		tnext := next.Next()
 		next.ReplaceWith(nx)
-		err = d.ProduceOutputs(nx, false, d.Args, k.Interface(), v.Interface())
+		err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
 		next = tnext
+	}
+
+	return
+}
+
+type listChanger struct {
+	binder *EachBinder
+	d      *DomBind
+}
+
+func (lc *listChanger) Add(i int, value reflect.Value) {
+	children := lc.binder.marker.Parent().Children().Elements()
+	newe := lc.binder.prototype.Clone()
+	midx := lc.binder.marker.Index()
+	for mi := 0; ; mi++ {
+		if children[midx+1+mi].IsElement() {
+			children[midx+1+mi].After(newe)
+			lc.d.ProduceOutputs(newe, false, lc.d.Args[:2], i, value.Interface())
+			break
+		}
+	}
+}
+
+func (lc *listChanger) Remove(i int) {
+	children := lc.binder.marker.Parent().Contents().Elements()
+	midx := lc.binder.marker.Index()
+	for i := 0; ; i++ {
+		if children[midx+1+i].IsElement() {
+			children[midx+1+i].Remove()
+			break
+		}
+	}
+}
+
+func (b *EachBinder) Update(d DomBind) (err error) {
+	if reflect.TypeOf(d.Value).Kind() != reflect.Slice || d.OldValue == nil || len(d.Args) <= 2 {
+		return b.FullUpdate(d)
+	} else {
+		if d.Args[2] == "fast" {
+			performChange(&listChanger{b, &d}, reflect.ValueOf(d.OldValue), reflect.ValueOf(d.Value))
+		} else {
+			return fmt.Errorf("Invalid value for argument 3 to the each binder.")
+		}
 	}
 
 	return

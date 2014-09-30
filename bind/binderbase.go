@@ -29,13 +29,13 @@ type DomBinder interface {
 }
 
 type DomBind struct {
-	Elem  dom.Selection
-	Value interface{}
-	Args  []string
+	Elem     dom.Selection
+	OldValue interface{}
+	Value    interface{}
+	Args     []string
 
-	binding  *Binding
-	scope    *scope
-	metadata string
+	binding *Binding
+	scope   *scope
 }
 
 func (d DomBind) Bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
@@ -63,8 +63,7 @@ func (d DomBind) ProduceOutputs(elem dom.Selection, once bool, names []string, o
 
 		d.Bind(elem, m, once, true)
 	} else {
-		return fmt.Errorf("name list length is %v but %v outputs are specified.",
-			d.metadata, len(names), len(outputs))
+		return fmt.Errorf("name list length is %v but %v outputs are specified.", len(names), len(outputs))
 	}
 
 	return nil

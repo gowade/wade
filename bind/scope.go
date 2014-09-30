@@ -99,6 +99,15 @@ func (fs funcSymbol) call(args []reflect.Value, async bool) (v reflect.Value, er
 		return
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			str, ok := r.(string)
+			err = fmt.Errorf(str)
+			if !ok {
+				err = r.(error)
+			}
+		}
+	}()
 	v, err = callFunc(fs.fn, args)
 	if err != nil {
 		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())

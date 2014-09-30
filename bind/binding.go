@@ -359,6 +359,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 				udb.Elem = elem
 
 				err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
+					udb.OldValue = udb.Value
 					udb.Value = newResult
 					binder.Update(udb)
 				})
