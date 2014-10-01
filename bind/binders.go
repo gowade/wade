@@ -3,7 +3,9 @@ package bind
 import (
 	"fmt"
 	"reflect"
+	"time"
 
+	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade/dom"
 	lb "github.com/phaikawl/wade/libs/binder"
 )
@@ -201,7 +203,7 @@ func (b *EachBinder) Bind(d DomBind) (err error) {
 	b.prototype = d.Elem.Clone()
 	d.Banish(d.Elem)
 
-	return b.FullUpdate(d)
+	return
 }
 
 func (b *EachBinder) FullUpdate(d DomBind) (err error) {
@@ -224,17 +226,25 @@ func (b *EachBinder) FullUpdate(d DomBind) (err error) {
 		return
 	}
 
+	Sto := js.Global.Get("setTimeout")
+
 	next := b.marker.Next()
 
-	for _, item := range m {
+	for i, item := range m {
 		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
 		tnext := next.Next()
 		next.ReplaceWith(nx)
-		err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
+		if !Sto.IsUndefined() {
+			err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
+			if i%10 == 0 {
+				time.Sleep(0 * time.Millisecond)
+			}
+		} else {
+			err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
+		}
 		next = tnext
 	}
-
 	return
 }
 
@@ -271,7 +281,10 @@ func (lc *listChanger) Remove(i int) {
 
 func (b *EachBinder) Update(d DomBind) (err error) {
 	if reflect.TypeOf(d.Value).Kind() != reflect.Slice || d.OldValue == nil || len(d.Args) <= 2 {
-		return b.FullUpdate(d)
+		then := time.Now()
+		b.FullUpdate(d)
+		println(time.Now().Sub(then).Seconds())
+		return
 	} else {
 		if d.Args[2] == "mode_s" {
 			performChange(&listChanger{b, &d}, reflect.ValueOf(d.OldValue), reflect.ValueOf(d.Value))

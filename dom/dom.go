@@ -131,11 +131,11 @@ func GetElemCounterpart(elem Selection, container Selection) Selection {
 	}
 
 	for ; i >= 0; i-- {
-		tree = append(tree, parents[i].Index())
+		tree = append(tree, parents[i].ElemIndex())
 	}
 
 	if elem.Index() != -1 {
-		tree = append(tree, elem.Index())
+		tree = append(tree, elem.ElemIndex())
 	}
 
 	e := container

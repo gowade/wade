@@ -343,12 +343,14 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 			}
 		}
 
+		//gopherjs:blocking
 		(func(args []string, bstr string, elem dom.Selection) {
 			err = binder.Bind(domBind)
 			if err != nil {
 				return
 			}
 
+			//gopherjs:blocking
 			err = binder.Update(domBind)
 			if err != nil {
 				return
@@ -361,10 +363,13 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 				err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
 					udb.OldValue = udb.Value
 					udb.Value = newResult
-					er := binder.Update(udb)
-					if err != nil {
-						panic(er)
-					}
+					go func() {
+						//gopherjs:blocking
+						er := binder.Update(udb)
+						if err != nil {
+							panic(er)
+						}
+					}()
 				})
 
 				if err != nil {

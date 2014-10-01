@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gopherjs/gopherjs/js"
 	urlrouter "github.com/naoina/kocha-urlrouter"
 	_ "github.com/naoina/kocha-urlrouter/regexp"
 	"github.com/phaikawl/wade/bind"
@@ -206,8 +207,30 @@ func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
 	return container
 }
 
-func scrollPreserveRec(oldElem, newCtn dom.Selection) {
+type scrollItem struct {
+	elem dom.Selection
+	pos  int
+}
 
+type scrollPreserver struct {
+	scrolls []scrollItem
+}
+
+func (sp *scrollPreserver) getScrollsRec(oldElem dom.Selection) {
+	if pos := oldElem.Underlying().Call("scrollTop").Int(); pos != 0 {
+		sp.scrolls = append(sp.scrolls, scrollItem{oldElem, pos})
+	}
+
+	for _, c := range oldElem.Children().Elements() {
+		sp.getScrollsRec(c)
+	}
+}
+
+func (sp *scrollPreserver) applyScrolls(newCtn dom.Selection) {
+	for _, item := range sp.scrolls {
+		ne := dom.GetElemCounterpart(item.elem, newCtn)
+		ne.Underlying().Call("scrollTop", item.pos)
+	}
 }
 
 func (pm *pageManager) updatePage(url string, pushState bool) {
@@ -262,8 +285,18 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	icommon.WrapperUnwrap(pm.container)
 	pm.setTitle(pm.formattedTitle)
 
-	scrollPreserveRec(pm.realContainer, pm.container)
-	pm.realContainer.ReplaceWith(pm.container)
+	if js.Global != nil && !js.Global.Get("window").IsUndefined() {
+		jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
+		scrollpos := jqwindow.Call("scrollTop")
+		sp := &scrollPreserver{[]scrollItem{}}
+		sp.getScrollsRec(pm.realContainer)
+		pm.realContainer.ReplaceWith(pm.container)
+		sp.applyScrolls(pm.container)
+
+		jqwindow.Call("scrollTop", scrollpos)
+	} else {
+		pm.realContainer.ReplaceWith(pm.container)
+	}
 	pm.realContainer = pm.container
 
 	//Handle link events
@@ -382,6 +415,7 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 		<-completeChan
 	}
 
+	//gopherjs:blocking
 	pm.binding.BindModels(pm.container, s.bindModels(), false)
 
 	pm.pc = s

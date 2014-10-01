@@ -146,6 +146,7 @@ func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection, bool)) (
 			}
 
 			wc.ReplaceWith(c)
+			//gopherjs:blocking
 			contentBindFn(c, false)
 
 			err = ce.model.ProcessContents(contentsCtlImpl{c})

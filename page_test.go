@@ -3,12 +3,11 @@ package wade
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/icommon"
+	"github.com/stretchr/testify/require"
 )
 
 type (
