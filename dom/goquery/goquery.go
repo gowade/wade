@@ -8,6 +8,7 @@ import (
 	"code.google.com/p/go.net/html"
 	"code.google.com/p/go.net/html/atom"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/gopherjs/gopherjs/js"
 
 	"github.com/phaikawl/wade/dom"
 )
@@ -347,7 +348,7 @@ func (s Selection) Exists() bool {
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
-	//stub
+	s.AddClass("w-incomplete")
 }
 
 func (s Selection) Attrs() []dom.Attr {
@@ -458,4 +459,8 @@ func (s Selection) ElemIndex() (n int) {
 	})
 
 	return
+}
+
+func (s Selection) Underlying() js.Object {
+	return nil
 }

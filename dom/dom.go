@@ -3,6 +3,8 @@ package dom
 import (
 	"errors"
 	"fmt"
+
+	"github.com/gopherjs/gopherjs/js"
 )
 
 var (
@@ -88,6 +90,7 @@ type (
 		Add(element Selection) Selection
 		Prop(prop string, recv interface{}) bool
 		SetProp(prop string, value interface{})
+		Underlying() js.Object
 	}
 )
 
@@ -116,4 +119,29 @@ func DebugInfo(sel Selection) string {
 // ElementError returns an error with DebugInfo on the element
 func ElementError(sel Selection, errstr string) error {
 	return fmt.Errorf("Error on element {%v}: %v.", DebugInfo(sel), errstr)
+}
+
+func GetElemCounterpart(elem Selection, container Selection) Selection {
+	container.Parents().Length()
+	parents := elem.Parents().Elements()
+	tree := make([]int, 0)
+	i := len(parents) - 2
+	if elem.Exists() {
+		i -= container.Parents().Length()
+	}
+
+	for ; i >= 0; i-- {
+		tree = append(tree, parents[i].Index())
+	}
+
+	if elem.Index() != -1 {
+		tree = append(tree, elem.Index())
+	}
+
+	e := container
+	for _, t := range tree {
+		e = e.Children().Elements()[t]
+	}
+
+	return e
 }

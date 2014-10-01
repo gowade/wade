@@ -206,6 +206,10 @@ func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
 	return container
 }
 
+func scrollPreserveRec(oldElem, newCtn dom.Selection) {
+
+}
+
 func (pm *pageManager) updatePage(url string, pushState bool) {
 	path := pm.cutPath(url)
 
@@ -258,6 +262,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	icommon.WrapperUnwrap(pm.container)
 	pm.setTitle(pm.formattedTitle)
 
+	scrollPreserveRec(pm.realContainer, pm.container)
 	pm.realContainer.ReplaceWith(pm.container)
 	pm.realContainer = pm.container
 

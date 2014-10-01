@@ -335,3 +335,7 @@ func (s Selection) Index() (n int) {
 		n++
 	}
 }
+
+func (s Selection) Underlying() js.Object {
+	return s.JQuery.Underlying()
+}
