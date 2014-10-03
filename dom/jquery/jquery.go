@@ -3,7 +3,6 @@ package jquery
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
@@ -98,21 +97,19 @@ func (d Dom) NewTextNode(content string) dom.Selection {
 	return newSelection(gJQ(js.Global.Get("document").Call("createTextNode", content)))
 }
 
-func (s Selection) TagName() (string, error) {
+func (s Selection) TagName() (tn string, err error) {
 	if s.Length() == 0 {
-		return "", dom.ErrorNoElementSelected
+		err = dom.ErrorNoElementSelected
+		return
 	}
 
 	if !s.IsElement() {
-		return "", dom.ErrorCantGetTagName
+		err = dom.ErrorCantGetTagName
+		return
 	}
 
-	tn := s.JQuery.First().Prop("tagName")
-	if tag, ok := tn.(string); ok {
-		return strings.ToLower(tag), nil
-	}
-
-	return "", dom.ErrorCantGetTagName
+	tn = s.JQuery.Underlying().Call("prop", "tagName").Call("toLowerCase").Str()
+	return
 }
 
 func (s Selection) Children() dom.Selection {
@@ -141,11 +138,27 @@ func (s Selection) Length() int {
 
 func (s Selection) Elements() []dom.Selection {
 	list := make([]dom.Selection, s.Length())
-	s.JQuery.Each(func(i int, elem jquery.JQuery) {
-		list[i] = newSelection(elem)
-	})
+	u := s.JQuery.Underlying()
+	for i := 0; i < s.JQuery.Length; i++ {
+		list[i] = newSelection(gJQ(u.Index(i)))
+	}
 
 	return list
+}
+
+func (s Selection) Each(fn dom.EachFn) {
+	u := s.JQuery.Underlying()
+	for i := 0; i < s.JQuery.Length; i++ {
+		fn(i, newSelection(gJQ(u.Index(i))))
+	}
+}
+
+func (s Selection) BEach(fn dom.EachFn) {
+	u := s.JQuery.Underlying()
+	for i := 0; i < s.JQuery.Length; i++ {
+		//gopherjs:blocking
+		fn(i, newSelection(gJQ(u.Index(i))))
+	}
 }
 
 func (s Selection) Append(c dom.Selection) {
@@ -228,8 +241,7 @@ func (s Selection) Next() dom.Selection {
 }
 
 func (s Selection) Exists() bool {
-	return s.JQuery.Is("html") || s.JQuery.Is("wroot") ||
-		s.JQuery.Parents("wroot").Length > 0 || s.JQuery.Parents("html").Length > 0
+	return s.JQuery.Closest("wroot").Length > 0 || s.JQuery.Closest("html").Length > 0
 }
 
 func (s Selection) Before(sel dom.Selection) {

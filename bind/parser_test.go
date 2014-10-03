@@ -34,6 +34,9 @@ func TestParser(t *testing.T) {
 		"fooAdd": func(str string) string {
 			return "foo" + str
 		},
+		"model": func() *TestUser {
+			return model
+		},
 	}
 
 	hst := newHelpersSymbolTable(helpers)
@@ -49,6 +52,7 @@ func TestParser(t *testing.T) {
 		"addInt(-1, 2)":                                            1,
 		"addFloat(-1.0, 2.0)":                                      float32(1.0),
 		"fooAdd('bar*|-,')":                                        "foobar*|-,",
+		"concat($model().Test, 'a')":                               "Nta",
 	}
 
 	for bstr, result := range tests {

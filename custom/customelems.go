@@ -25,7 +25,7 @@ type (
 	}
 
 	TagManager struct {
-		custags map[string]HtmlTag
+		custags map[string]*HtmlTag
 	}
 
 	CustomElem struct {
@@ -236,7 +236,7 @@ func (t HtmlTag) NewElem(elem dom.Selection) (ce *CustomElem, err error) {
 
 func NewTagManager() *TagManager {
 	return &TagManager{
-		custags: make(map[string]HtmlTag),
+		custags: make(map[string]*HtmlTag),
 	}
 }
 
@@ -271,18 +271,14 @@ func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
 			continue
 		}
 
-		tm.custags[strings.ToLower(ct.Name)] = ct
+		tm.custags[strings.ToLower(ct.Name)] = &ct
 	}
 
 	return ret
 }
 
 // GetHtmlTag checks if the element's tag is of a registered custom tag
-func (tm *TagManager) GetTag(elem dom.Selection) (ct HtmlTag, ok bool) {
-	if elem.Length() > 1 {
-		panic("You are getting a custom tag for multiple elements, it's surely an error.")
-	}
-
+func (tm *TagManager) GetTag(elem dom.Selection) (ct *HtmlTag, ok bool) {
 	tagname, err := elem.TagName()
 	if err != nil {
 		ok = false

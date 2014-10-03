@@ -101,26 +101,29 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
-func (b *Binding) watchModel(binds []bindable, root *expr, bs *bindScope, callback func(interface{})) error {
-	for _, bi := range binds {
+func (b *Binding) watchModel(binds *barray, root *expr, bs *bindScope, callback func(interface{})) error {
+	for _, bi := range binds.slice {
 		if !bi.bindObj().fieldRefl.CanAddr() {
 			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().field)
 		}
 
 		//use watchjs to watch for changes to the model
-		(func(bi bindable) {
-			bo := bi.bindObj()
-			b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue reflect.Value) {
-				newResult, _, _ := bs.evaluateRec(root, old, repValue)
-				callback(newResult.Interface())
-			})
-		})(bi)
+		bo := bi.bindObj()
+		b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue interface{}) {
+			newResult, _ := bs.evaluateRec(root, binds, old, repValue)
+			//gopherjs:blocking
+			callback(newResult)
+		})
 	}
 
 	return nil
 }
 
 func bstrPanic(mess, bindstring string, elem dom.Selection) {
+	if !elem.Exists() {
+		return
+	}
+
 	panic(dom.ElementError(elem, fmt.Sprintf(mess+`. While processing bind string "%v"`, bindstring)))
 }
 
@@ -208,8 +211,8 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 	}
 }
 
-func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once bool, scopeElem dom.Selection) {
-	if !elem.IsElement() || !elem.Exists() {
+func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.HtmlTag, bs *bindScope, once bool, scopeElem dom.Selection) {
+	if !elem.Exists() {
 		return
 	}
 
@@ -218,55 +221,47 @@ func (b *Binding) bindCustomElemsRec(elem dom.Selection, bs *bindScope, once boo
 	}
 
 	bindinfo := ""
-
-	tag, isCustom := b.tm.GetTag(elem)
-	if isCustom {
-		if scopeElem != nil {
-			if setag, _ := scopeElem.TagName(); tag.Name == setag {
-				panic(dom.ElementError(elem,
-					fmt.Sprintf(`Infinite loop detected. Usage of custom tag "%v" inside its own definition.`, tag.Name),
-				))
-			}
-		}
-
-		customElem, err := tag.NewElem(elem)
-		if err != nil {
-			panic(dom.ElementError(elem, fmt.Sprintf(`Cannot initialize the custom element, error in its Init(). Error: %v`, err.Error())))
-		}
-
-		for _, hattr := range elem.Attrs() {
-			if hattr.Name[0] == AttrBindPrefix {
-				attr := hattr.Name[1:]
-				elem.RemoveAttr(hattr.Name)
-				bindinfo += fmt.Sprintf("{%v: [%v]} ", hattr.Name, hattr.Value)
-
-				field := strings.Split(attr, ".")[0]
-				if ok, fieldName := tag.HasAttr(field); ok {
-					b.processFieldBind(fieldName, hattr.Value, elem, bs, once, customElem)
-				} else {
-					b.processAttrBind(attr, hattr.Value, elem, bs, once)
-				}
-			}
-		}
-
-		err = customElem.PrepareContents(func(contentElems dom.Selection, once bool) {
-			b.bindWithScope(contentElems, bs.scope, once, true, scopeElem)
-		})
-
-		if err != nil {
-			panic(dom.ElementError(elem, err.Error()))
-		}
-
-		b.bindWithScope(elem, b.newModelScope(customElem.Model()), once, false, elem)
-
-		if bindinfo != "" {
-			old, _ := elem.Attr(BindInfoAttr)
-			elem.SetAttr(BindInfoAttr, old+bindinfo)
+	if scopeElem != nil {
+		if setag, _ := scopeElem.TagName(); tag.Name == setag {
+			panic(dom.ElementError(elem,
+				fmt.Sprintf(`Infinite loop detected. Usage of custom tag "%v" inside its own definition.`, tag.Name),
+			))
 		}
 	}
 
-	for _, e := range elem.Children().Elements() {
-		b.bindCustomElemsRec(e, bs, once, scopeElem)
+	customElem, err := tag.NewElem(elem)
+	if err != nil {
+		panic(dom.ElementError(elem, fmt.Sprintf(`Cannot initialize the custom element, error in its Init(). Error: %v`, err.Error())))
+	}
+
+	for _, hattr := range elem.Attrs() {
+		if hattr.Name[0] == AttrBindPrefix {
+			attr := hattr.Name[1:]
+			elem.RemoveAttr(hattr.Name)
+			bindinfo += fmt.Sprintf("{%v: [%v]} ", hattr.Name, hattr.Value)
+
+			field := strings.Split(attr, ".")[0]
+			if ok, fieldName := tag.HasAttr(field); ok {
+				b.processFieldBind(fieldName, hattr.Value, elem, bs, once, customElem)
+			} else {
+				b.processAttrBind(attr, hattr.Value, elem, bs, once)
+			}
+		}
+	}
+
+	err = customElem.PrepareContents(func(contentElems dom.Selection, once bool) {
+		b.bindWithScope(contentElems, bs.scope, once, true, scopeElem)
+	})
+
+	if err != nil {
+		panic(dom.ElementError(elem, err.Error()))
+	}
+
+	b.bindWithScope(elem, b.newModelScope(customElem.Model()), once, false, elem)
+
+	if bindinfo != "" {
+		old, _ := elem.Attr(BindInfoAttr)
+		elem.SetAttr(BindInfoAttr, old+bindinfo)
 	}
 }
 
@@ -329,8 +324,8 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 			scope:   bs.scope,
 		}
 
-		if len(binds) == 1 {
-			fmodel := binds[0].bindObj().fieldRefl
+		if binds.size == 1 {
+			fmodel := binds.slice[0].bindObj().fieldRefl
 			err = binder.Watch(domBind, func(newVal string) {
 				if !fmodel.CanSet() {
 					bstrPanic("2-way data binding on unchangable field", bstr, elem)
@@ -344,40 +339,36 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 		}
 
 		//gopherjs:blocking
-		(func(args []string, bstr string, elem dom.Selection) {
-			err = binder.Bind(domBind)
-			if err != nil {
-				return
-			}
+		err = binder.Bind(domBind)
+		if err != nil {
+			return
+		}
 
-			//gopherjs:blocking
-			err = binder.Update(domBind)
-			if err != nil {
-				return
-			}
+		//gopherjs:blocking
+		err = binder.Update(domBind)
+		if err != nil {
+			return
+		}
 
-			if !once {
-				udb := domBind
-				udb.Elem = elem
+		if !once {
+			udb := domBind
+			udb.Elem = elem
 
-				err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
-					udb.OldValue = udb.Value
-					udb.Value = newResult
-					go func() {
-						//gopherjs:blocking
-						er := binder.Update(udb)
-						if err != nil {
-							panic(er)
-						}
-					}()
-				})
-
+			err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
+				udb.OldValue = udb.Value
+				udb.Value = newResult
+				//gopherjs:blocking
+				er := binder.Update(udb)
 				if err != nil {
-					bstrPanic(err.Error(), bstr, elem)
-					return
+					panic(er)
 				}
+			})
+
+			if err != nil {
+				bstrPanic(err.Error(), bstr, elem)
+				return
 			}
-		})(args, bstr, elem)
+		}
 
 	} else {
 		err = fmt.Errorf(`Dom binder "%v" does not exist`, binderName)
@@ -441,15 +432,14 @@ func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope)
 func (b *Binding) bindDomRec(elem dom.Selection,
 	bs *bindScope,
 	once bool,
-	additionalBinds []dom.Attr) (replaced dom.Selection) {
+	additionalBinds []dom.Attr,
+	scopeElem dom.Selection) (replaced dom.Selection) {
 
 	replaced = elem
 
-	if !elem.Exists() {
+	/*if !elem.Exists() {
 		return
-	}
-
-	_, isCustom := b.tm.GetTag(elem)
+	}*/
 
 	isWrapper := icommon.IsWrapperElem(elem)
 	var abinds []dom.Attr
@@ -458,6 +448,12 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 	}
 
 	isElement := elem.IsElement()
+
+	var tag *custom.HtmlTag
+	isCustom := false
+	if isElement {
+		tag, isCustom = b.tm.GetTag(elem)
+	}
 
 	attrs := make([]dom.Attr, 0)
 	if additionalBinds != nil {
@@ -505,9 +501,9 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 			removedElems = append(removedElems, rmdElems)
 
-			if !elem.Exists() {
+			/*if !elem.Exists() {
 				return
-			}
+			}*/
 
 		default:
 			continue
@@ -528,11 +524,13 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 	if isWrapper {
 		conts := elem.Contents()
 		elem.ReplaceWith(conts)
-		for _, child := range conts.Elements() {
+
+		//gopherjs:blocking
+		conts.BEach(func(_ int, child dom.Selection) {
 			if child.IsElement() {
-				b.bindDomRec(child, bs, once, abinds)
+				b.bindDomRec(child, bs, once, abinds, scopeElem)
 			}
-		}
+		})
 
 		replaced = conts
 		return
@@ -542,9 +540,12 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 		}
 
 		if !isCustom {
-			for _, child := range elem.Contents().Elements() {
-				b.bindDomRec(child, bs, once, nil)
-			}
+			//gopherjs:blocking
+			elem.Contents().BEach(func(_ int, child dom.Selection) {
+				b.bindDomRec(child, bs, once, nil, scopeElem)
+			})
+		} else {
+			b.bindCustomElem(elem, tag, bs, once, scopeElem)
 		}
 	}
 
@@ -596,14 +597,7 @@ func (b *Binding) bindWithScope(rootElems dom.Selection, s *scope, once bool, bi
 	elems := b.rootList(rootElems, bindRoot)
 
 	for _, e := range elems {
-		if !e.Exists() {
-			continue
-		}
-
-		replacedElems := b.bindDomRec(e, bs, once, nil)
-		for _, re := range replacedElems.Elements() {
-			b.bindCustomElemsRec(re, bs, once, scopeElem)
-		}
+		b.bindDomRec(e, bs, once, nil, scopeElem)
 	}
 
 	for _, re := range rootElems.Elements() {

@@ -225,17 +225,15 @@ func (b *EachBinder) FullUpdate(d DomBind) (err error) {
 		err = e
 		return
 	}
-
-	Sto := js.Global.Get("setTimeout")
-
 	next := b.marker.Next()
 
+	//js.Global.Get("console").Call("profile", "list")
 	for i, item := range m {
 		k, v := item.Key, item.Value
 		nx := b.prototype.Clone()
 		tnext := next.Next()
 		next.ReplaceWith(nx)
-		if !Sto.IsUndefined() {
+		if js.Global != nil && !js.Global.Get("window").IsUndefined() {
 			err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
 			if i%10 == 0 {
 				time.Sleep(0 * time.Millisecond)
@@ -245,6 +243,8 @@ func (b *EachBinder) FullUpdate(d DomBind) (err error) {
 		}
 		next = tnext
 	}
+	//js.Global.Get("console").Call("profileEnd")
+
 	return
 }
 
@@ -281,9 +281,12 @@ func (lc *listChanger) Remove(i int) {
 
 func (b *EachBinder) Update(d DomBind) (err error) {
 	if reflect.TypeOf(d.Value).Kind() != reflect.Slice || d.OldValue == nil || len(d.Args) <= 2 {
-		then := time.Now()
-		b.FullUpdate(d)
-		println(time.Now().Sub(then).Seconds())
+		//then := time.Now()
+		n := 1
+		for i := 0; i < n; i++ {
+			b.FullUpdate(d)
+		}
+		//println(time.Now().Sub(then).Seconds() / float64(n))
 		return
 	} else {
 		if d.Args[2] == "mode_s" {

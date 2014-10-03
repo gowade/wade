@@ -461,6 +461,16 @@ func (s Selection) ElemIndex() (n int) {
 	return
 }
 
+func (s Selection) Each(fn dom.EachFn) {
+	s.Selection.Each(func(i int, e *goquery.Selection) {
+		fn(i, newSelection(e))
+	})
+}
+
+func (s Selection) BEach(fn dom.EachFn) {
+	s.Each(fn)
+}
+
 func (s Selection) Underlying() js.Object {
 	return nil
 }

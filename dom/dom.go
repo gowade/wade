@@ -35,6 +35,7 @@ type (
 	}
 
 	EventHandler func(Event)
+	EachFn       func(i int, elem Selection)
 
 	Attr struct {
 		Name  string
@@ -91,6 +92,8 @@ type (
 		Prop(prop string, recv interface{}) bool
 		SetProp(prop string, value interface{})
 		Underlying() js.Object
+		Each(EachFn)
+		BEach(EachFn)
 	}
 )
 

@@ -19,11 +19,20 @@ type (
 	bindScope struct {
 		scope *scope
 	}
+
+	barray struct {
+		slice []bindable
+		size  int
+	}
 )
 
-func (b *bindScope) evaluateRec(e *expr, old uintptr, repl reflect.Value) (v reflect.Value, blist []bindable, err error) {
+func (a *barray) add(value bindable) {
+	a.slice[a.size] = value
+	a.size++
+}
+
+func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interface{}) (v interface{}, err error) {
 	err = nil
-	blist = make([]bindable, 0)
 
 	wrapped := false
 	watch := false
@@ -44,51 +53,68 @@ func (b *bindScope) evaluateRec(e *expr, old uintptr, repl reflect.Value) (v ref
 				return
 			}
 
-			v = reflect.ValueOf(litVal)
+			v = litVal
 			return
 		}
 	}
 
-	args := make([]reflect.Value, len(e.args))
-	for i, e := range e.args {
-		var blc []bindable
-		args[i], blc, err = b.evaluateRec(e, old, repl)
+	var sym scopeSymbol
+	if e.preque != nil {
+		var preVal interface{}
+		preVal, err = b.evaluateRec(e.preque, blist, old, repl)
 		if err != nil {
 			return
 		}
 
-		blist = append(blist, blc...)
+		sym, err = newModelScope(preVal).lookup(e.name[1:])
+	} else {
+		sym, err = b.scope.lookup(e.name)
 	}
 
-	sym, err := b.scope.lookup(e.name)
 	if err != nil {
 		return
 	}
 
+	var rv reflect.Value
 	switch e.typ {
 	case ValueExpr:
-		v, err = sym.value()
-		if old != 0 && old == v.UnsafeAddr() {
+		rv, err = sym.value()
+		if old != 0 && old == rv.UnsafeAddr() {
 			v = repl
+		} else {
+			v = rv.Interface()
 		}
 
 		if watch {
-			blist = append(blist, sym.(bindable))
+			blist.add(sym.(bindable))
 		}
 
 	case CallExpr:
+		args := make([]reflect.Value, len(e.args))
+		for i, e := range e.args {
+			var av interface{}
+			av, err = b.evaluateRec(e, blist, old, repl)
+			args[i] = reflect.ValueOf(av)
+			if err != nil {
+				return
+			}
+		}
+
 		if wrapped {
-			v = reflect.ValueOf(func() {
+			v = func() {
 				_, er := sym.call(args, true)
 				if er != nil {
 					panic(er)
 				}
-			})
+			}
 
 			return
 		}
 
-		v, err = sym.call(args, false)
+		rv, err = sym.call(args, false)
+		if rv.IsValid() && rv.CanInterface() {
+			v = rv.Interface()
+		}
 
 		if watch {
 			err = fmt.Errorf("Watching a function call is not supported")
@@ -104,25 +130,22 @@ func (b *bindScope) evaluateRec(e *expr, old uintptr, repl reflect.Value) (v ref
 }
 
 // evaluate evaluates the bind string, returns the needed information for binding
-func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist []bindable, value interface{}, err error) {
-	calcRoot, err = parse(bstr)
+func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist *barray, value interface{}, err error) {
+	var nwatches int
+	calcRoot, nwatches, err = parse(bstr)
 	if err != nil {
 		return
 	}
 
-	blist, value, err = b.evaluatePart(calcRoot)
+	blist, value, err = b.evaluatePart(calcRoot, nwatches)
 	return
 }
 
-func (b *bindScope) evaluatePart(calcRoot *expr) (blist []bindable, value interface{}, err error) {
-	var v reflect.Value
-	v, blist, err = b.evaluateRec(calcRoot, 0, reflect.ValueOf(nil))
+func (b *bindScope) evaluatePart(calcRoot *expr, nwatches int) (blist *barray, value interface{}, err error) {
+	blist = &barray{make([]bindable, nwatches), 0}
+	value, err = b.evaluateRec(calcRoot, blist, 0, nil)
 	if err != nil {
 		return
-	}
-
-	if v.IsValid() && v.CanInterface() {
-		value = v.Interface()
 	}
 
 	return

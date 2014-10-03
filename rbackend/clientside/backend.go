@@ -141,7 +141,7 @@ func jso(object reflect.Value) js.Object {
 
 func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.WatchCloser {
 	cbWrap := func() {
-		callback(0, reflect.ValueOf(nil))
+		go callback(0, nil)
 	}
 
 	var osvs []js.Object
@@ -159,7 +159,7 @@ func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.W
 			rf := ctl.NewFieldRefl()
 			ctl.WatchAdd(rf, observeCloser{[]js.Object{fn(rf)}}, callback)
 
-			callback(ctl.FieldRefl.UnsafeAddr(), rf)
+			go callback(ctl.FieldRefl.UnsafeAddr(), rf.Interface())
 		}
 
 		o2.Call("open", fn2)

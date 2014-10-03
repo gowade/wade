@@ -10,7 +10,7 @@ import (
 type (
 	JsWatchCb func(string, string, js.Object, js.Object)
 
-	WatchCallback func(uintptr, reflect.Value)
+	WatchCallback func(uintptr, interface{})
 
 	ObserveCallback func(oldVal, newVal interface{})
 
@@ -105,7 +105,7 @@ func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallb
 
 	old := oe.fieldRefl.Interface()
 
-	b.Watch(oe.fieldRefl, oe.modelRefl, oe.field, func(_ uintptr, _ reflect.Value) {
+	b.Watch(oe.fieldRefl, oe.modelRefl, oe.field, func(_ uintptr, _ interface{}) {
 		noe, _, _ := evaluateObjField(field, reflect.ValueOf(model))
 		callback(old, noe.fieldRefl.Interface())
 		old = noe.fieldRefl.Interface()

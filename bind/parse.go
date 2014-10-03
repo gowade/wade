@@ -32,9 +32,10 @@ type token struct {
 }
 
 type expr struct {
-	name string
-	typ  ExprType
-	args []*expr
+	name   string
+	typ    ExprType
+	args   []*expr
+	preque *expr
 }
 
 func isValidExprChar(c rune) bool {
@@ -43,7 +44,7 @@ func isValidExprChar(c rune) bool {
 
 // tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
 // it a little bit easier to parse
-func tokenize(spec string) (tokens []token, err error) {
+func tokenize(spec string) (tokens []token, nwatches int, err error) {
 	tokens = make([]token, 0)
 	err = nil
 	var tok string
@@ -67,6 +68,10 @@ func tokenize(spec string) (tokens []token, err error) {
 				tokens = append(tokens, token{PuncToken, string(c)})
 
 			case '@', '$':
+				if c == '$' {
+					nwatches++
+				}
+
 				if tok != "" {
 					err = fmt.Errorf("Invalid %q", c)
 					return
@@ -112,8 +117,8 @@ func tokenize(spec string) (tokens []token, err error) {
 
 // parse parses the bind target string, populate information into a tree of Expr pointers.
 // Each helper call has a list arguments, each argument may be another helper call or an object expression.
-func parse(spec string) (calcTree *expr, err error) {
-	tokens, err := tokenize(spec)
+func parse(spec string) (calcTree *expr, nwatches int, err error) {
+	tokens, nwatches, err := tokenize(spec)
 	if err != nil {
 		return
 	}
@@ -159,12 +164,14 @@ func parseStr(tokens []token) (root *expr, err error) {
 			parent = exprOf[i-1]
 			parent.typ = CallExpr
 			stack = append(stack, parent)
+			exprOf[i] = parent
 
 		case ")":
 			if parent == nil {
 				invalid()
 				return
 			}
+			exprOf[i] = exprOf[i-1]
 			stack = stack[:len(stack)-1]
 
 		case ",":
@@ -179,12 +186,35 @@ func parseStr(tokens []token) (root *expr, err error) {
 				typ:  ValueExpr,
 				args: make([]*expr, 0),
 			}
+
 			exprOf[i] = e
-			if len(stack) == 0 {
-				invalid()
-				return
+
+			if e.name[0] == '.' {
+				if i < 1 {
+					invalid()
+					return
+				}
+
+				e.preque = exprOf[i-1]
+				if e.preque.name[0] == '$' {
+					e.preque.name = e.preque.name[1:]
+					e.name = "$" + e.name
+				}
+
+				if len(stack) > 0 {
+					parent := stack[len(stack)-1]
+					parent.args[len(parent.args)-1] = e
+				} else {
+					root = e
+				}
+			} else {
+				if len(stack) == 0 {
+					invalid()
+					return
+				}
+
+				stack[len(stack)-1].args = append(stack[len(stack)-1].args, e)
 			}
-			stack[len(stack)-1].args = append(stack[len(stack)-1].args, e)
 		}
 	}
 
