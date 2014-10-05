@@ -157,21 +157,6 @@ func (pm *pageManager) prepare() {
 	//build the router
 	pm.router.Build(pm.routes)
 
-	//// preprocess wsection elements
-	//for _, e := range pm.tcontainer.Find("wsection").Elements() {
-	//	na, _ := e.Attr("name")
-	//	name := strings.TrimSpace(na)
-	//	if name == "" {
-	//		panic(`Error: a <wsection> doesn't have or have empty name`)
-	//	}
-	//	for _, c := range name {
-	//		if !unicode.IsDigit(c) && !unicode.IsLetter(c) && c != '-' {
-	//			panic(fmt.Sprintf("Invalid character '%q' in wsection name.", c))
-	//		}
-	//	}
-	//	e.SetAttr("id", WadeReservedPrefix+name)
-	//}
-
 	pm.history.OnPopState(func() {
 		go func() {
 			pm.updatePage(pm.history.CurrentPath(), false)
@@ -209,27 +194,30 @@ func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
 
 type scrollItem struct {
 	elem dom.Selection
-	pos  int
+	posx int
+	posy int
 }
 
 type scrollPreserver struct {
 	scrolls []scrollItem
 }
 
-func (sp *scrollPreserver) getScrollsRec(oldElem dom.Selection) {
-	if pos := oldElem.Underlying().Call("scrollTop").Int(); pos != 0 {
-		sp.scrolls = append(sp.scrolls, scrollItem{oldElem, pos})
-	}
-
-	for _, c := range oldElem.Children().Elements() {
-		sp.getScrollsRec(c)
+func (sp *scrollPreserver) getScroll(oldElem dom.Selection) {
+	if posy, posx := oldElem.Underlying().Call("scrollTop").Int(),
+		oldElem.Underlying().Call("scrollLeft").Int(); posx != 0 || posy != 0 {
+		sp.scrolls = append(sp.scrolls, scrollItem{oldElem, posx, posy})
 	}
 }
 
 func (sp *scrollPreserver) applyScrolls(newCtn dom.Selection) {
 	for _, item := range sp.scrolls {
 		ne := dom.GetElemCounterpart(item.elem, newCtn)
-		ne.Underlying().Call("scrollTop", item.pos)
+		if item.posy != 0 {
+			ne.Underlying().Call("scrollTop", item.posy)
+		}
+		if item.posx != 0 {
+			ne.Underlying().Call("scrollLeft", item.posx)
+		}
 	}
 }
 
@@ -289,7 +277,9 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
 		scrollpos := jqwindow.Call("scrollTop")
 		sp := &scrollPreserver{[]scrollItem{}}
-		sp.getScrollsRec(pm.realContainer)
+		for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
+			sp.getScroll(c)
+		}
 		pm.realContainer.ReplaceWith(pm.container)
 		sp.applyScrolls(pm.container)
 

@@ -32,6 +32,7 @@ func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	if strings.HasPrefix(r.Url, b.cachePrefix) {
 		b.cache[wadehttp.RequestIdent(r)] = wadehttp.HttpRecord{r.Response, err}
 	}
+
 	return
 }
 
@@ -68,6 +69,7 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 		Document:    doc,
 		HttpBackend: cacheb,
 	})
+
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
 		head = doc.NewFragment("<head></head>")
@@ -78,10 +80,9 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	if err != nil {
 		return
 	}
+
 	src.SetHtml(string(cbytes[:]))
 	head.Append(src)
-
-	wade.AppServices.PageManager.RedirectToUrl(request.URL.Path)
 
 	err = html.Render(w, doc.(gqdom.Selection).Nodes[0])
 	return

@@ -40,6 +40,7 @@ func (b ServerBackend) Do(r *wadehttp.Request) error {
 
 	dbytes, _ := ioutil.ReadAll(resp.Body)
 	data := string(dbytes)
+
 	r.Response = &wadehttp.Response{
 		RawData:    data,
 		Data:       data,
