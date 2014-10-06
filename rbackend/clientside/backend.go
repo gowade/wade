@@ -45,7 +45,7 @@ type (
 
 	cachedHttpBackend struct {
 		http.Backend
-		cache map[string]concreteRecord
+		cache map[string]*requestList
 	}
 
 	headers struct {
@@ -61,10 +61,21 @@ type (
 		Response *concreteResponse
 		http.HttpRecord
 	}
+
+	requestList struct {
+		Records []concreteRecord
+		index   int
+	}
 )
 
+func (r *requestList) Pop() (re concreteRecord) {
+	re = r.Records[r.index]
+	r.index++
+	return
+}
+
 func newCachedHttpBackend(backend http.Backend, doc dom.Selection) *cachedHttpBackend {
-	b := &cachedHttpBackend{backend, make(map[string]concreteRecord)}
+	b := &cachedHttpBackend{backend, make(map[string]*requestList)}
 	sn := doc.Find("script[type='text/wadehttp']")
 	if sn.Length() > 0 {
 		cc := sn.Text()
@@ -80,7 +91,8 @@ func newCachedHttpBackend(backend http.Backend, doc dom.Selection) *cachedHttpBa
 }
 
 func (c *cachedHttpBackend) Do(r *http.Request) (err error) {
-	if record, ok := c.cache[http.RequestIdent(r)]; ok {
+	if list, ok := c.cache[http.RequestIdent(r)]; ok && list.index < len(list.Records) {
+		record := list.Pop()
 		err = record.Error
 		r.Response = &record.Response.Response
 	} else {

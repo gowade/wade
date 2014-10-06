@@ -21,15 +21,24 @@ import (
 type (
 	serverCacheHttpBackend struct {
 		gohttp.ServerBackend
-		cache       map[string]wadehttp.HttpRecord
+		cache       map[string]*requestList
 		cachePrefix string
+	}
+
+	requestList struct {
+		Records []wadehttp.HttpRecord
 	}
 )
 
 func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	err = b.ServerBackend.Do(r)
 	if strings.HasPrefix(r.Url, b.cachePrefix) {
-		b.cache[wadehttp.RequestIdent(r)] = wadehttp.HttpRecord{r.Response, err}
+		rid := wadehttp.RequestIdent(r)
+		if _, ok := b.cache[rid]; !ok {
+			b.cache[rid] = &requestList{make([]wadehttp.HttpRecord, 0)}
+		}
+
+		b.cache[rid].Records = append(b.cache[rid].Records, wadehttp.HttpRecord{r.Response, err})
 	}
 
 	return
@@ -51,7 +60,7 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 
 	cacheb := &serverCacheHttpBackend{
 		ServerBackend: gohttp.ServerBackend{server, request},
-		cache:         make(map[string]wadehttp.HttpRecord),
+		cache:         make(map[string]*requestList),
 		cachePrefix:   cachePrefix,
 	}
 
