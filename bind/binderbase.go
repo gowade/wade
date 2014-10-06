@@ -19,7 +19,7 @@ type DomBinder interface {
 	// the bind is being processed
 	Bind(DomBind) error
 
-	// Watch is used in 2-way binders, it watches the html element for changes
+	// Watch is used in 2-way binders, here we perform listening the html element for changes
 	// and updates the model field accordingly
 	Watch(DomBind, ModelUpdateFn) error
 
@@ -38,6 +38,10 @@ type DomBind struct {
 	scope   *scope
 }
 
+// Bind performs a bind.
+// Arguments: elem is the element to perform on; m is the map of values; once is whether
+// bind only once (no watching) or watch for changes; bindRoot is whether we bind the root element
+// or not
 func (d DomBind) Bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
 	s := newModelScope(m)
 	s.merge(d.scope)
@@ -45,7 +49,7 @@ func (d DomBind) Bind(elem dom.Selection, m map[string]interface{}, once bool, b
 	d.binding.bindWithScope(elem, s, once, bindRoot, d.Elem)
 }
 
-// Performs real removal of the element, no binding for it and its descendants will be performed
+// Banish performs real removal of the element, no binding for it and its descendants will be performed
 func (d DomBind) Banish(elem dom.Selection) {
 	if e, ok := elem.(drmElem); ok {
 		e.Selection.Remove()
@@ -54,6 +58,9 @@ func (d DomBind) Banish(elem dom.Selection) {
 	}
 }
 
+// ProduceOutputs is a convenient method which performs call Bind on the element,
+// producing values with name specified in names
+// and values specified in outputs accordingly
 func (d DomBind) ProduceOutputs(elem dom.Selection, once bool, names []string, outputs ...interface{}) error {
 	m := make(map[string]interface{})
 	if len(outputs) == len(names) {
@@ -69,8 +76,8 @@ func (d DomBind) ProduceOutputs(elem dom.Selection, once bool, names []string, o
 	return nil
 }
 
-// BaseBinder provides the base so that binders will not have to provide empty
-// implement for the methods
+// BaseBinder provides a base to be embedded so that we will not have to write empty
+// implementation for the unneeded methods
 type BaseBinder struct{}
 
 func (b *BaseBinder) Bind(d DomBind) error {

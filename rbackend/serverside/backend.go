@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"code.google.com/p/go.net/html"
-	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/bind"
 	gqdom "github.com/phaikawl/wade/dom/goquery"
@@ -34,10 +33,6 @@ func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	}
 
 	return
-}
-
-func init() {
-	js.Global = wade.NewStubJsValue(nil)
 }
 
 func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io.Reader, server http.Handler, request *http.Request, cachePrefix string) (err error) {

@@ -10,8 +10,8 @@ import (
 	lb "github.com/phaikawl/wade/libs/binder"
 )
 
-const (
-	WadePageAttr = "data-wade-page"
+var (
+	ClientSide = js.Global != nil && !js.Global.Get("window").IsUndefined()
 )
 
 func defaultBinders() map[string]DomBinder {
@@ -27,12 +27,14 @@ func defaultBinders() map[string]DomBinder {
 	}
 }
 
-// ValueBinder is a 2-way binder that binds an element's value attribute.
-// It takes no extra dash args.
-// Meant to be used for <input>.
+// ValueBinder is a 2-way binder that binds an element's value attribute to a value.
+// Meant to be used for <input> and <textarea>.
+//
+// It has an optional argument, catchKeyup which if true, the binder also performs
+// value update on keyup. Defaults to false.
 //
 // Usage:
-//	bind-value="Expression"
+//	#value([optional]catchKeyup)="Expression"
 type ValueBinder struct{ *BaseBinder }
 
 // Update sets the element's value attribute to a new value
@@ -41,7 +43,8 @@ func (b *ValueBinder) Update(d DomBind) (err error) {
 	return
 }
 
-// Watch watches for javascript change event on the element
+// Watch watches for javascript change event on the element.
+//
 func (b *ValueBinder) Watch(d DomBind, ufn ModelUpdateFn) error {
 	elem := d.Elem
 	tagname, _ := elem.TagName()
@@ -62,15 +65,12 @@ func (b *ValueBinder) Watch(d DomBind, ufn ModelUpdateFn) error {
 }
 func (b *ValueBinder) BindInstance() DomBinder { return b }
 
-// HtmlBinder is a 1-way binder that binds an element's html content to
-// the value of a model field.
-// It takes no extra dash args.
+// HtmlBinder is a 1-way binder that binds an element's html content to a value.
 //
 // Usage:
-//	bind-html="Expression"
+//	#html="Expression"
 type HtmlBinder struct{ BaseBinder }
 
-// Update sets the element's html content to a new value
 func (b *HtmlBinder) Update(d DomBind) error {
 	d.Elem.SetHtml(toString(d.Value))
 	return nil
@@ -80,10 +80,11 @@ func (b *HtmlBinder) BindInstance() DomBinder { return b }
 
 // ClassBinder is a 1-way binder that adds/removes (toggle) a class based on
 // a boolean value.
-// It takes 1 extra dash arg that is the name of the class to be bound.
+//
+// It takes 1 required argument className which is the class name.
 //
 // Usage:
-//	bind-class-<class>="Expression"
+//	#class([required]className)="Expression"
 type ClassBinder struct{ BaseBinder }
 
 func (b *ClassBinder) Update(d DomBind) error {
@@ -105,6 +106,11 @@ func (b *ClassBinder) Update(d DomBind) error {
 
 func (b *ClassBinder) BindInstance() DomBinder { return b }
 
+// DisabledBinder is a 1-way binder that sets the element's disabled property
+// according to a boolean Expression
+//
+// Usage:
+//  #disabled="Expression"
 type DisabledBinder struct{ BaseBinder }
 
 func (b *DisabledBinder) Update(d DomBind) error {
@@ -119,13 +125,24 @@ func (b *DisabledBinder) Update(d DomBind) error {
 
 func (b *DisabledBinder) BindInstance() DomBinder { return b }
 
-// EventBinder is a 1-way binder that binds a method of the model to an event
-// that occurs on the element.
-// It takes 1 extra dash arg that is the event name, for example "click",
-// "change",...
+// EventBinder is a 1-way binder that binds an element's event to a function or method.
+//
+// It takes 1 argument that is the event name.
 //
 // Usage:
-//	bind-on-<eventName>="HandlerMethod"
+//	#on([required]eventName)="Expression"
+//
+//
+// The Expression is evaluated like any other expressions, if you call a function,
+// the value that gets bound is the return value, not the function call.
+// You can use Wade.Go's '@' syntax to conveniently wrap a function call.
+//
+// Example: we have a function func Fn(super bool) int. You want to call Fn with super=true on click event.
+// You would do it like this:
+//  #on(click)="@Fn(true)"
+// Note that
+//  #on(click)="Fn(true)"
+// is invalid because the bind value here is an int returned by Fn, an error will be raised.
 type EventBinder struct{ BaseBinder }
 
 func heuristicPreventDefault(evtname string, elem dom.Selection) bool {
@@ -182,8 +199,15 @@ func (b *EventBinder) Bind(d DomBind) error {
 }
 func (b *EventBinder) BindInstance() DomBinder { return b }
 
-// EachBinder is a 1-way binder that repeats an element according to a map
-// or slice. It outputs a key and a value bound to each item.
+// EachBinder is a 1-way binder that repeats an element according to a slice.
+//
+// It takes 2 arguments: the name to bind the index to, and the name to bind the value to.
+// Usage:
+//  #each=([required]indexBindName, [required]valueBindName)
+//
+// Example:
+//  #each(i,product)="$Products"
+//  #each(_,product)="$Products"
 type EachBinder struct {
 	*BaseBinder
 	marker    dom.Selection
@@ -233,13 +257,12 @@ func (b *EachBinder) FullUpdate(d DomBind) (err error) {
 		nx := b.prototype.Clone()
 		tnext := next.Next()
 		next.ReplaceWith(nx)
-		if js.Global != nil && !js.Global.Get("window").IsUndefined() {
-			err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
+
+		err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
+		if ClientSide {
 			if i%10 == 0 {
 				time.Sleep(0 * time.Millisecond)
 			}
-		} else {
-			err = d.ProduceOutputs(nx, false, d.Args[:2], k.Interface(), v.Interface())
 		}
 		next = tnext
 	}
@@ -299,10 +322,10 @@ func (b *EachBinder) Update(d DomBind) (err error) {
 	return
 }
 
-// IfBinder keeps or remove an element according to a boolean field value.
+// IfBinder keeps or remove an element according to a boolean value.
 //
 // Usage:
-//	bind-if="BooleanExpression"
+//	#if="BooleanExpression"
 type IfBinder struct {
 	*BaseBinder
 	placeholder dom.Selection
@@ -331,7 +354,7 @@ func (b *IfBinder) BindInstance() DomBinder { return new(IfBinder) }
 // UnlessBinder is the reverse of IfBinder.
 //
 // Usage:
-//	bind-ifn="BooleanExpression"
+//	#ifn="BooleanExpression"
 type UnlessBinder struct {
 	*IfBinder
 }

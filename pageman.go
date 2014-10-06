@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	WadeReservedPrefix = "wade-rsvd-"
-	WadeExcludeAttr    = WadeReservedPrefix + "exclude"
-
 	GlobalDisplayScope = "__global__"
 )
 
@@ -132,7 +129,7 @@ func (pm *pageManager) SetNotFoundPage(pageId string) {
 }
 
 // Url returns the full path
-func (pm *pageManager) Fullpath(pa string) string {
+func (pm *pageManager) FullPath(pa string) string {
 	return path.Join(pm.basePath, pa)
 }
 
@@ -237,7 +234,7 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	page := match.(*page)
 
 	if pushState {
-		pm.history.PushState(page.title, pm.Fullpath(path))
+		pm.history.PushState(page.title, pm.FullPath(path))
 	}
 
 	params := make(map[string]interface{})
@@ -253,20 +250,6 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	pm.container.Find("wdefine").Remove()
 
 	walk(pm.container, pm)
-
-	//for _, wrep := range pm.container.Find("wrep").Elements() {
-	//	wrep.Remove()
-	//	target, ok := wrep.Attr("target")
-	//	if !ok {
-	//		dom.ElementError(wrep, "No target specified for the wrep.")
-	//	}
-	//	pm.container.Find("#" + WadeReservedPrefix + target).
-	//		SetHtml(wrep.Html())
-	//}
-
-	//for _, e := range pm.container.Find("wsection").Elements() {
-	//	e.Unwrap()
-	//}
 
 	pm.binding.Watcher().ResetWatchers()
 	pm.bind(params)
@@ -322,7 +305,7 @@ func (pm *pageManager) setTitle(title string) {
 // PageUrl returns the url for the page with the given parameters
 func (pm *pageManager) PageUrl(pageId string, params ...interface{}) (u string, err error) {
 	u, err = pm.pageUrl(pageId, params)
-	u = pm.Fullpath(u)
+	u = pm.FullPath(u)
 	return
 }
 

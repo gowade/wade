@@ -1,6 +1,7 @@
 package wade
 
 import (
+	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/custom"
 	"github.com/phaikawl/wade/dom"
@@ -10,6 +11,16 @@ import (
 var (
 	WadeDevMode = true
 )
+
+func init() {
+	if js.Global == nil {
+		js.Global = NewStubJsValue(nil)
+		ClientSide = false
+		return
+	}
+
+	ClientSide = !js.Global.Get("window").IsUndefined()
+}
 
 type (
 	RenderBackend struct {
@@ -47,25 +58,18 @@ func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
 	}
 }
 
-// ModuleInit calls the modules' Init method with an AppEnv
-func (r registry) ModuleInit(modules ...NeedsInit) {
-	for _, module := range modules {
-		module.Init(AppServices)
-	}
-}
-
 // RegisterController adds a new controller function for the specified
 // page / page group.
 func (r registry) RegisterController(displayScope string, fn PageControllerFunc) {
 	r.w.pm.registerController(displayScope, fn)
 }
 
-// RegisterDisplayScopes registers the given maps of pages and page groups
+// RegisterDisplayScopes registers the pages and page groups
 func (r registry) RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
 	r.w.pm.registerDisplayScopes(pages, pageGroups)
 }
 
-// RegisterNotFoundPage registers the page that is used for 404
+// RegisterNotFoundPage registers the page that is used when no page matches the url
 func (r registry) RegisterNotFoundPage(pageid string) {
 	r.w.pm.SetNotFoundPage(pageid)
 }
@@ -76,8 +80,7 @@ func initServices(pm PageManager, rb RenderBackend) {
 	AppServices.PageManager = pm
 }
 
-// loadHtml loads html from script[type='text/wadin'], performs html imports
-// and sets the resulting contents back to the script element
+// loadHtml loads html from script[type='text/wadin'], performs html imports on it
 func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string) (dom.Selection, error) {
 	templateContainer := document.NewRootFragment()
 	temp := document.Find("script[type='text/wadin']").First()
@@ -92,6 +95,8 @@ func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string
 //
 // "appFn" is the main function for your app.
 func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
+	AppConf = config
+
 	jsDepCheck(rb.JsBackend)
 	http.SetDefaultClient(http.NewClient(rb.HttpBackend))
 	document := rb.Document

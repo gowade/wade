@@ -3,6 +3,7 @@ package wade
 import (
 	"fmt"
 	"reflect"
+
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
@@ -49,24 +50,29 @@ func (pc *Scope) Manager() PageManager {
 	return pc.pm
 }
 
-func (pc *Scope) RedirectToPage(page string, params ...interface{}) {
-	pc.pm.RedirectToPage(page, params...)
+// RedirectToPage redirects to the given page with the given namedParams values
+func (pc *Scope) RedirectToPage(page string, namedParams ...interface{}) {
+	pc.pm.RedirectToPage(page, namedParams...)
 }
 
 func (pc *Scope) RedirectToUrl(url string) {
 	pc.pm.RedirectToUrl(url)
 }
 
-// FormatTitle formats the page's title with the given params
+// FormatTitle formats the page's title with the given param values
 func (pc *Scope) FormatTitle(params ...interface{}) {
 	pc.pm.formattedTitle = fmt.Sprintf(pc.pm.currentPage.title, params...)
 	pc.PageInfo.Title = pc.pm.formattedTitle
 }
 
+// Digest manually triggers the observers for the given object.
+// It must be a pointer, normally a pointer to a struct field.
 func (pc *Scope) Digest(object interface{}) {
 	pc.pm.binding.Watcher().Digest(object)
 }
 
+// Observe manually registers an observer for the given model, watching the given field
+// and call the given callback when the the field changes
 func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallback) {
 	pc.pm.binding.Watcher().Observe(model, field, func(oldVal, newVal interface{}) {
 		callback(oldVal, newVal, pc.pm.document)
@@ -91,18 +97,23 @@ func (pc *Scope) GetParam(param string, dest interface{}) (err error) {
 	return
 }
 
+// Services returns the global services
 func (pc *Scope) Services() GlobalServices {
 	return AppServices
 }
 
+// Url returns the url for the given page pageId, with the given namedParams values
 func (pc *Scope) Url(pageId string, namedParams ...interface{}) (url string, err error) {
 	return pc.pm.PageUrl(pageId, namedParams...)
 }
 
+// AddValue adds a value to the scope and assigns it a given name
 func (pc *Scope) AddValue(name string, value interface{}) {
 	pc.valMap[name] = value
 }
 
+// AddModel adds a model to the scope, all exported struct fields of the model
+// become valid symbols
 func (pc *Scope) AddModel(model interface{}) {
 	pc.models = append(pc.models, model)
 }
@@ -113,6 +124,7 @@ func (pc *Scope) bindModels() []interface{} {
 	})
 }
 
+// Http is a convenient method which returns the default http client
 func (pc *Scope) Http() *http.Client {
 	return pc.Services().Http
 }

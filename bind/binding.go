@@ -68,7 +68,8 @@ func (b *Binding) Watcher() *Watcher {
 	return b.watcher
 }
 
-func (b *Binding) RegisterDomBinder(name string, binder DomBinder) {
+//RegisterBinder registers a binder
+func (b *Binding) RegisterBinder(name string, binder DomBinder) {
 	if _, exists := b.domBinders[name]; exists {
 		panic(fmt.Sprintf(`A binder with that name "%v" already exists.`, name))
 	}
@@ -80,8 +81,8 @@ func (b *Binding) TagManager() *custom.TagManager {
 	return b.tm
 }
 
-// RegisterHelper registers a function as a global helper with the given name.
-//
+// RegisterHelper registers a function as a helper with the given name.
+// Helpers are global.
 func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	typ := reflect.TypeOf(fn)
 	if typ.Kind() != reflect.Func {

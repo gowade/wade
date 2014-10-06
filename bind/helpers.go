@@ -9,7 +9,7 @@ import (
 type PageManager interface {
 	CurrentPageId() string
 	PageUrl(string, ...interface{}) (string, error)
-	Fullpath(string) string
+	FullPath(string) string
 }
 
 type UrlInfo struct {
@@ -17,6 +17,7 @@ type UrlInfo struct {
 	fullUrl string
 }
 
+// This function is internal, not intended or outside use
 func RegisterInternalHelpers(pm PageManager, b *Binding) {
 	b.RegisterHelper("url", func(pageid string, params ...interface{}) string {
 		url, err := pm.PageUrl(pageid, params...)
