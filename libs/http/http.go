@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	gourl "net/url"
 	"reflect"
 	"strings"
 )
@@ -36,6 +37,19 @@ func Do(request *Request) (resp *Response, err error) {
 }
 
 type (
+	HttpHeader map[string][]string
+
+	Request struct {
+		data            interface{}
+		Headers         HttpHeader
+		Method          string
+		URL             *gourl.URL
+		Response        *Response
+		ResponseType    string
+		Timeout         int
+		WithCredentials bool
+	}
+
 	Backend interface {
 		Do(*Request) error
 	}
@@ -58,10 +72,17 @@ type (
 		Response *Response
 		Error    error
 	}
+
+	Client struct {
+		backend   Backend
+		reqInts   []RequestInterceptor
+		respInts  []ResponseInterceptor
+		blockChan chan bool
+	}
 )
 
 func RequestIdent(r *Request) string {
-	return r.Method + "::" + r.Url
+	return r.Method + "::" + r.URL.String()
 }
 
 func (r *Response) Failed() bool {
@@ -99,8 +120,6 @@ func (r *Response) Bool() (b bool) {
 	r.DecodeTo(&b)
 	return
 }
-
-type HttpHeader map[string][]string
 
 // Add adds the key, value pair to the header.
 // It appends to any existing values associated with key.
@@ -146,23 +165,15 @@ func (h HttpHeader) String() (s string) {
 	return
 }
 
-type Request struct {
-	data            interface{}
-	Headers         HttpHeader
-	Method          string
-	Url             string
-	Response        *Response
-	ResponseType    string
-	Timeout         int
-	WithCredentials bool
-}
-
-func NewRequest(method string, rurl string) *Request {
-	return &Request{
+func NewRequest(method string, rurl string) (r *Request, err error) {
+	url, err := gourl.Parse(rurl)
+	r = &Request{
 		Method:  method,
 		Headers: make(map[string][]string),
-		Url:     rurl,
+		URL:     url,
 	}
+
+	return
 }
 
 func (r *Request) SetRawData(data interface{}) {
@@ -188,13 +199,6 @@ func (r *Request) RawData() interface{} {
 	return r.data
 }
 
-type Client struct {
-	backend   Backend
-	reqInts   []RequestInterceptor
-	respInts  []ResponseInterceptor
-	blockChan chan bool
-}
-
 // Do does an asynchronous http request, yet the API is blocking, just like Go's http
 func (c *Client) Do(r *Request) (resp *Response, err error) {
 	resp, err = c.DoPure(r)
@@ -203,10 +207,21 @@ func (c *Client) Do(r *Request) (resp *Response, err error) {
 	return
 }
 
+type ConnectionError struct {
+	Err error
+}
+
+func (c ConnectionError) Error() string {
+	return c.Err.Error()
+}
+
 // DoPure performs a request without applying interceptors
 func (c *Client) DoPure(r *Request) (resp *Response, err error) {
 	//gopherjs:blocking
 	err = c.backend.Do(r)
+	if err != nil {
+		err = ConnectionError{err}
+	}
 	resp = r.Response
 	return
 }
@@ -231,21 +246,32 @@ func (c *Client) AddResponseInterceptor(hi ResponseInterceptor) {
 	c.respInts = append(c.respInts, hi)
 }
 
-func (c *Client) NewRequest(method string, url string) *Request {
-	r := NewRequest(method, url)
+func (c *Client) NewRequest(method string, url string) (r *Request, err error) {
+	r, err = NewRequest(method, url)
 	for _, intrFn := range c.reqInts {
 		intrFn(r)
 	}
-	return r
+
+	return
 }
 
 func (c *Client) GET(url string) (resp *Response, err error) {
-	resp, err = c.Do(c.NewRequest("GET", url))
+	req, err := c.NewRequest("GET", url)
+	if err != nil {
+		return
+	}
+
+	resp, err = c.Do(req)
 	return
 }
 
 func (c *Client) GetJson(dst interface{}, url string) (err error) {
-	resp, err := c.Do(c.NewRequest("GET", url))
+	req, err := c.NewRequest("GET", url)
+	if err != nil {
+		return
+	}
+
+	resp, err := c.Do(req)
 	if err != nil {
 		return
 	}
@@ -259,7 +285,11 @@ func (c *Client) GetJson(dst interface{}, url string) (err error) {
 }
 
 func (c *Client) POST(url string, data interface{}) (resp *Response, err error) {
-	r := c.NewRequest("POST", url)
+	r, err := c.NewRequest("POST", url)
+	if err != nil {
+		return
+	}
+
 	r.SetData(data)
 	resp, err = c.Do(r)
 	return

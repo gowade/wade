@@ -4,7 +4,6 @@ import (
 	neturl "net/url"
 
 	"github.com/phaikawl/wade/icommon"
-	"github.com/phaikawl/wade/libs/http"
 )
 
 var (
@@ -20,11 +19,6 @@ func UrlQuery(url string, args map[string][]string) string {
 	}
 
 	return url + "?" + qs
-}
-
-// Http returns the default http client
-func Http() *http.Client {
-	return http.DefaultClient()
 }
 
 type GetSetable interface {

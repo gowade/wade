@@ -7,25 +7,23 @@ import (
 )
 
 var (
-	AppServices GlobalServices
-	AppConf     AppConfig
-	ClientSide  bool
+	ClientSide bool
 )
 
 type (
 	// AppFunc is the main application func
-	AppFunc func(Registration)
+	AppFunc func(*Application)
 
 	// PageControllerFunc is the function to be run on the load of a page or page scope
 	PageControllerFunc func(*Scope) error
 
 	Redirecter interface {
-		RedirectToPage(page string, params ...interface{})
-		RedirectToUrl(string)
+		GoToPage(page string, params ...interface{}) (found bool)
+		GoToUrl(string) (found bool)
 	}
 
-	//GlobalServices is the struct to contain global services
-	GlobalServices struct {
+	//AppServices is the struct to contain basic services
+	AppServices struct {
 		Http           *http.Client
 		PageManager    PageManager
 		LocalStorage   Storage
@@ -44,10 +42,10 @@ type (
 	// Registration is used in the appFunc before the app is actually started.
 	// Register things like pages, custom tags...
 	Registration interface {
-		RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
-		RegisterCustomTags(...custom.HtmlTag)
-		RegisterController(displayScope string, controller PageControllerFunc)
-		RegisterNotFoundPage(pageid string)
+		DisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc)
+		CustomTags(...custom.HtmlTag)
+		Controller(displayScope string, controller PageControllerFunc)
+		NotFoundPage(pageid string)
 	}
 
 	// AppConfig is app configurations, used at the start

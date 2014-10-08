@@ -55,7 +55,7 @@ func TestCustomTag(t *testing.T) {
 	tag, ok = tm.GetTag(re)
 	require.Equal(t, ok, true)
 
-	elem, _ := tag.NewElem(re)
+	elem, _ := tag.NewElem(re, nil)
 	model := elem.Model().(*Test)
 	require.Equal(t, model.Str, "Awesome!")
 	require.Equal(t, model.Num, 69)

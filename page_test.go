@@ -91,8 +91,7 @@ func TestPageManager(t *testing.T) {
 	`)
 
 	b := &NoopBindEngine{}
-	pm := newPageManager(NewNoopHistory("/"),
-		AppConfig{BasePath: "/web"},
+	pm := newPageManager(&Application{Config: AppConfig{BasePath: "/web"}}, NewNoopHistory("/"),
 		doc,
 		template,
 		b)
@@ -151,13 +150,13 @@ func TestPageManager(t *testing.T) {
 		return
 	})
 
-	pm.updatePage("/child/vuong", false)
+	pm.updateUrl("/child/vuong", false, false)
 	require.Equal(t, b.models[0].(Struct1).A, 0)
 	require.Equal(t, b.models[1].(Struct1).A, 2)
 	require.Equal(t, b.models[2].(Struct2).B, 3)
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild1")
 
-	pm.updatePage("/child/vuong/nam", false)
+	pm.updateUrl("/child/vuong/nam", false, false)
 	require.Equal(t, b.models[0].(Struct1).A, 0)
 	require.Equal(t, b.models[1].(Struct1).A, 2)
 	require.Equal(t, b.models[2].(Struct3).C, 4)

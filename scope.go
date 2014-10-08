@@ -2,7 +2,7 @@ package wade
 
 import (
 	"fmt"
-	"reflect"
+	gourl "net/url"
 
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
@@ -13,12 +13,13 @@ type (
 	ObserveCallback func(oldVal, newVal interface{}, document dom.Dom)
 
 	Scope struct {
-		PageInfo *PageInfo
-		pm       *pageManager
-		p        *page
+		App         *Application
+		PageInfo    *PageInfo
+		NamedParams *http.NamedParams
+		URL         *gourl.URL
 
-		params map[string]interface{}
-
+		pm     *pageManager
+		p      *page
 		valMap map[string]interface{}
 		models []interface{}
 	}
@@ -30,18 +31,20 @@ type (
 	}
 )
 
-func (pm *pageManager) newRootScope(page *page, params map[string]interface{}) *Scope {
+func (pm *pageManager) newRootScope(page *page, params *http.NamedParams, url *gourl.URL) *Scope {
 	return &Scope{
 		PageInfo: &PageInfo{
 			Id:    page.id,
 			Title: page.title,
 			Route: page.path,
 		},
-		pm:     pm,
-		p:      page,
-		params: params,
-		valMap: make(map[string]interface{}),
-		models: make([]interface{}, 0),
+		App:         pm.app,
+		NamedParams: params,
+		URL:         url,
+		pm:          pm,
+		p:           page,
+		valMap:      make(map[string]interface{}),
+		models:      make([]interface{}, 0),
 	}
 }
 
@@ -50,13 +53,13 @@ func (pc *Scope) Manager() PageManager {
 	return pc.pm
 }
 
-// RedirectToPage redirects to the given page with the given namedParams values
-func (pc *Scope) RedirectToPage(page string, namedParams ...interface{}) {
-	pc.pm.RedirectToPage(page, namedParams...)
+// NavigatePage navigates to the given page with the given namedParams values
+func (pc *Scope) GoToPage(page string, namedParams ...interface{}) {
+	pc.pm.GoToPage(page, namedParams...)
 }
 
-func (pc *Scope) RedirectToUrl(url string) {
-	pc.pm.RedirectToUrl(url)
+func (pc *Scope) GoToUrl(url string) {
+	pc.pm.GoToUrl(url)
 }
 
 // FormatTitle formats the page's title with the given param values
@@ -79,31 +82,13 @@ func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallba
 	})
 }
 
-// GetParam puts the value of a parameter to a dest.
-// The dest must be a pointer, typically it would be a pointer to a model's field,
-// for example
-//	pc.GetParam("postid", &pmodel.PostId)
-func (pc *Scope) GetParam(param string, dest interface{}) (err error) {
-	v, ok := pc.params[param]
-	if !ok {
-		err = fmt.Errorf("No such parameter %v.", param)
-		return
-	}
-
-	if reflect.TypeOf(dest).Kind() != reflect.Ptr {
-		return fmt.Errorf("The dest for saving the parameter value must be a pointer so that it could be modified.")
-	}
-	_, err = fmt.Sscan(v.(string), dest)
-	return
-}
-
 // Services returns the global services
-func (pc *Scope) Services() GlobalServices {
-	return AppServices
+func (pc *Scope) Services() *AppServices {
+	return pc.App.Services
 }
 
 // Url returns the url for the given page pageId, with the given namedParams values
-func (pc *Scope) Url(pageId string, namedParams ...interface{}) (url string, err error) {
+func (pc *Scope) GetUrl(pageId string, namedParams ...interface{}) (url string, err error) {
 	return pc.pm.PageUrl(pageId, namedParams...)
 }
 

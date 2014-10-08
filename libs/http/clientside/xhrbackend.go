@@ -23,7 +23,7 @@ func (rh XhrResponseHeaders) Get(key string) string {
 }
 
 func (b XhrBackend) Do(r *http.Request) (err error) {
-	req := xhr.NewRequest(r.Method, r.Url)
+	req := xhr.NewRequest(r.Method, r.URL.String())
 	req.ResponseType = r.ResponseType
 	req.Timeout = r.Timeout
 	req.WithCredentials = r.WithCredentials

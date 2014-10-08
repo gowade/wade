@@ -2,6 +2,7 @@ package wade
 
 import (
 	"fmt"
+	gourl "net/url"
 	"path"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/icommon"
+	"github.com/phaikawl/wade/libs/http"
 )
 
 const (
@@ -32,6 +34,7 @@ type (
 	}
 
 	pageManager struct {
+		app           *Application
 		document      dom.Selection
 		routes        []urlrouter.Record
 		router        urlrouter.URLRouter
@@ -52,10 +55,10 @@ type (
 	}
 )
 
-func newPageManager(history History, config AppConfig, document dom.Selection,
+func newPageManager(app *Application, history History, document dom.Selection,
 	tcontainer dom.Selection, binding bindEngine) *pageManager {
 
-	realContainer := config.Container
+	realContainer := app.Config.Container
 	if realContainer == nil {
 		body := document.Find("body")
 		realContainer = body.Find(".wade-app-container")
@@ -71,7 +74,7 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 		panic("App container doesn't exist.")
 	}
 
-	basePath := config.BasePath
+	basePath := app.Config.BasePath
 	if basePath == "" {
 		basePath = "/"
 	}
@@ -80,6 +83,7 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 	cl.SetHtml("")
 
 	pm := &pageManager{
+		app:           app,
 		document:      document,
 		routes:        make([]urlrouter.Record, 0),
 		router:        urlrouter.NewURLRouter("regexp"),
@@ -99,19 +103,16 @@ func newPageManager(history History, config AppConfig, document dom.Selection,
 	return pm
 }
 
-func (pm *pageManager) addRoute(p *page) {
-	pm.routes = append(pm.routes, urlrouter.NewRecord(p.path, p))
-}
-
 func (pm *pageManager) CurrentPageId() string {
 	return pm.currentPage.id
 }
 
-func (pm *pageManager) cutPath(path string) string {
-	if strings.HasPrefix(path, pm.basePath) {
-		path = path[len(pm.basePath):]
+func (pm *pageManager) cutPath(spath string) string {
+	if strings.HasPrefix(spath, pm.basePath) {
+		spath = spath[len(pm.basePath):]
+		spath = path.Join("/", spath)
 	}
-	return path
+	return spath
 }
 
 func (pm *pageManager) page(id string) *page {
@@ -133,21 +134,25 @@ func (pm *pageManager) FullPath(pa string) string {
 	return path.Join(pm.basePath, pa)
 }
 
-func (pm *pageManager) RedirectToPage(page string, params ...interface{}) {
+func (pm *pageManager) GoToPage(page string, params ...interface{}) (found bool) {
 	url, err := pm.PageUrl(page, params...)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	pm.updatePage(url, true)
+	_, found = pm.updateUrl(url, true, false)
+	return
 }
 
-func (pm *pageManager) RedirectToUrl(url string) {
+func (pm *pageManager) GoToUrl(url string) (found bool) {
 	if strings.HasPrefix(url, pm.BasePath()) {
-		pm.updatePage(url, true)
+		_, found = pm.updateUrl(url, true, false)
 	} else {
+		found = true
 		pm.history.RedirectTo(url)
 	}
+
+	return
 }
 
 func (pm *pageManager) prepare() {
@@ -156,11 +161,15 @@ func (pm *pageManager) prepare() {
 
 	pm.history.OnPopState(func() {
 		go func() {
-			pm.updatePage(pm.history.CurrentPath(), false)
+			pm.updateUrl(pm.history.CurrentPath(), false, false)
 		}()
 	})
 
-	pm.updatePage(pm.history.CurrentPath(), false)
+	err, _ := pm.updateUrl(pm.history.CurrentPath(), false, true)
+	if err != nil {
+		pm.app.ErrChanPut(err)
+	}
+	return
 }
 
 func walk(elem dom.Selection, pm *pageManager) {
@@ -218,29 +227,41 @@ func (sp *scrollPreserver) applyScrolls(newCtn dom.Selection) {
 	}
 }
 
-func (pm *pageManager) updatePage(url string, pushState bool) {
-	path := pm.cutPath(url)
+func (pm *pageManager) addRoute(p *page) {
+	if p.path != "" {
+		pm.routes = append(pm.routes, urlrouter.NewRecord(p.path, p))
+	}
+}
 
-	match, routeparams := pm.router.Lookup(path)
+func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (err error, found bool) {
+	u, err := gourl.Parse(pm.cutPath(url))
+	if err != nil {
+		return
+	}
+
+	match, routeparams := pm.router.Lookup(u.Path)
 	if match == nil {
 		if pm.notFoundPage != nil {
-			pm.updatePage(pm.notFoundPage.path, false)
+			pm.updatePage(pm.notFoundPage, u, []urlrouter.Param{}, false, false)
 		} else {
-			panic("Page not found. No 404 page declared.")
+			err = fmt.Errorf("Page not found. No 404 page declared.")
 		}
 		return
 	}
 
+	found = true
 	page := match.(*page)
 
+	pm.updatePage(page, u, routeparams, pushState, firstLoad)
+	return
+}
+
+func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrouter.Param, pushState bool, firstLoad bool) {
 	if pushState {
-		pm.history.PushState(page.title, pm.FullPath(path))
+		pm.history.PushState(page.title, pm.FullPath(u.Path))
 	}
 
-	params := make(map[string]interface{})
-	for _, param := range routeparams {
-		params[param.Name] = param.Value
-	}
+	namedParams := http.NewNamedParams(routeparams)
 
 	pm.formattedTitle = page.title
 
@@ -252,21 +273,25 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 	walk(pm.container, pm)
 
 	pm.binding.Watcher().ResetWatchers()
-	pm.bind(params)
+	pm.bind(namedParams, u)
 	icommon.WrapperUnwrap(pm.container)
 	pm.setTitle(pm.formattedTitle)
 
-	if js.Global != nil && !js.Global.Get("window").IsUndefined() {
+	if ClientSide {
 		jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
-		scrollpos := jqwindow.Call("scrollTop")
-		sp := &scrollPreserver{[]scrollItem{}}
-		for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
-			sp.getScroll(c)
+		if firstLoad {
+			scrollpos := jqwindow.Call("scrollTop")
+			sp := &scrollPreserver{[]scrollItem{}}
+			for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
+				sp.getScroll(c)
+			}
+			pm.realContainer.ReplaceWith(pm.container)
+			sp.applyScrolls(pm.container)
+			jqwindow.Call("scrollTop", scrollpos)
+		} else {
+			pm.realContainer.ReplaceWith(pm.container)
+			jqwindow.Call("scrollTop", 0)
 		}
-		pm.realContainer.ReplaceWith(pm.container)
-		sp.applyScrolls(pm.container)
-
-		jqwindow.Call("scrollTop", scrollpos)
 	} else {
 		pm.realContainer.ReplaceWith(pm.container)
 	}
@@ -286,9 +311,11 @@ func (pm *pageManager) updatePage(url string, pushState bool) {
 		e.PreventDefault()
 
 		go func() {
-			pm.updatePage(href, true)
+			pm.updateUrl(href, true, false)
 		}()
 	})
+
+	return
 }
 
 func (pm *pageManager) setTitle(title string) {
@@ -350,8 +377,8 @@ func (pm *pageManager) CurrentPage() *Scope {
 	return pm.pc
 }
 
-func (pm *pageManager) bind(params map[string]interface{}) {
-	s := pm.newRootScope(pm.currentPage, params)
+func (pm *pageManager) bind(namedParams *http.NamedParams, url *gourl.URL) {
+	s := pm.newRootScope(pm.currentPage, namedParams, url)
 	controllers := make([]PageControllerFunc, 0)
 
 	add := func(ds displayScope) {
@@ -376,7 +403,7 @@ func (pm *pageManager) bind(params map[string]interface{}) {
 				//gopherjs:blocking
 				err := controller(s)
 				if err != nil {
-					panic(err)
+					pm.app.ErrChanPut(err)
 				}
 
 				queueChan <- true

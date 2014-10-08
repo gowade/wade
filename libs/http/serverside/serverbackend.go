@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 
 	wadehttp "github.com/phaikawl/wade/libs/http"
 )
@@ -32,7 +31,7 @@ func (b ServerBackend) Do(r *wadehttp.Request) error {
 	b.ClientReq.Write(buf)
 	req, _ := http.ReadRequest(bufio.NewReader(buf))
 	req.Method = r.Method
-	req.URL, _ = url.Parse(r.Url)
+	req.URL = r.URL
 	req.Body = ioutil.NopCloser(bytes.NewBufferString(r.Data()))
 
 	resp := httptest.NewRecorder()

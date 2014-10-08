@@ -6,6 +6,7 @@ import (
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
+	hm "github.com/phaikawl/wade/test/httpmock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,11 +29,11 @@ const (
 )
 
 func TestHtmlImport(t *testing.T) {
-	mb := http.NewMockBackend(map[string]http.TestResponse{
-		"/a": http.FakeOK(SrcA),
-		"/b": http.FakeOK(SrcB),
-		"/c": http.FakeOK(SrcC),
-		"/d": http.FakeOK(SrcD),
+	mb := hm.NewMock(map[string]hm.Responder{
+		"/a": hm.NewListResponder([]hm.Responder{hm.NewOKResponse(SrcA), hm.NewOKResponse(SrcB)}),
+		"/b": hm.NewOKResponse(SrcB),
+		"/c": hm.NewOKResponse(SrcC),
+		"/d": hm.NewOKResponse(SrcD),
 	})
 
 	client := http.NewClient(mb)
@@ -41,6 +42,9 @@ func TestHtmlImport(t *testing.T) {
 	err := htmlImport(client, root, "/")
 	require.Equal(t, err, nil)
 	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `ab<div>c</div>`)
+	root = goquery.GetDom().NewFragment(Src)
+	htmlImport(client, root, "/")
+	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `bb<div>c</div>`)
 
 	root = root.NewFragment(FailSrc)
 	err = htmlImport(client, root, "/")

@@ -21,6 +21,11 @@ const (
 )
 
 type (
+	Application interface {
+		ErrChanPut(error)
+		CustomElemInit(prototype custom.TagPrototype)
+	}
+
 	CustomElem interface {
 		Update() error
 		Model() interface{}
@@ -28,11 +33,8 @@ type (
 		Element() dom.Selection
 	}
 
-	CustomTag interface {
-		NewElem(dom.Selection) (*custom.TagManager, error)
-	}
-
 	Binding struct {
+		app        Application
 		tm         *custom.TagManager
 		domBinders map[string]DomBinder
 		helpers    helpersSymbolTable
@@ -46,14 +48,32 @@ type (
 		dom.Selection
 		rmList *[]dom.Selection
 	}
+
+	BindingError struct {
+		Err error
+	}
 )
 
-func NewTestBindEngine() *Binding {
-	return NewBindEngine(custom.NewTagManager(), NoopJsWatcher{})
+func (be BindingError) Error() string {
+	return be.Err.Error()
 }
 
-func NewBindEngine(tm *custom.TagManager, jsWatcher JsWatcher) *Binding {
+type DummyApp struct {
+}
+
+func (da DummyApp) ErrChanPut(err error) {
+}
+
+func (da DummyApp) CustomElemInit(proto custom.TagPrototype) {
+}
+
+func NewTestBindEngine() *Binding {
+	return NewBindEngine(DummyApp{}, custom.NewTagManager(), NoopJsWatcher{})
+}
+
+func NewBindEngine(app Application, tm *custom.TagManager, jsWatcher JsWatcher) *Binding {
 	b := &Binding{
+		app:        app,
 		tm:         tm,
 		watcher:    NewWatcher(jsWatcher),
 		domBinders: defaultBinders(),
@@ -202,7 +222,7 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 
 			err := ce.Update()
 			if err != nil {
-				panic(dom.ElementError(ce.Element(), err.Error()))
+				b.app.ErrChanPut(BindingError{dom.ElementError(ce.Element(), err.Error())})
 			}
 		})
 
@@ -230,7 +250,7 @@ func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.HtmlTag, bs *bi
 		}
 	}
 
-	customElem, err := tag.NewElem(elem)
+	customElem, err := tag.NewElem(elem, b.app)
 	if err != nil {
 		panic(dom.ElementError(elem, fmt.Sprintf(`Cannot initialize the custom element, error in its Init(). Error: %v`, err.Error())))
 	}
@@ -360,8 +380,8 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 				udb.Value = newResult
 				//gopherjs:blocking
 				er := binder.Update(udb)
-				if err != nil {
-					panic(er)
+				if er != nil {
+					b.app.ErrChanPut(BindingError{er})
 				}
 			})
 

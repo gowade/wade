@@ -1,4 +1,4 @@
-package jsbackend
+package serverside
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ type (
 
 func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	err = b.ServerBackend.Do(r)
-	if strings.HasPrefix(r.Url, b.cachePrefix) {
+	if strings.HasPrefix(r.URL.String(), b.cachePrefix) {
 		rid := wadehttp.RequestIdent(r)
 		if _, ok := b.cache[rid]; !ok {
 			b.cache[rid] = &requestList{make([]wadehttp.HttpRecord, 0)}
@@ -65,14 +65,20 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	}
 
 	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
-	wade.StartApp(conf, appFn, wade.RenderBackend{
+	app, err := wade.NewApp(conf, appFn, wade.RenderBackend{
 		JsBackend: &JsBackend{
 			NoopJsWatcher: bind.NoopJsWatcher{},
-			history:       wade.NewNoopHistory(request.URL.Path),
+			JsHistory:     wade.NewNoopHistory(request.URL.Path),
 		},
 		Document:    doc,
 		HttpBackend: cacheb,
 	})
+
+	if err != nil {
+		return
+	}
+
+	app.Start()
 
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
@@ -95,7 +101,7 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 type (
 	JsBackend struct {
 		bind.NoopJsWatcher
-		history wade.History
+		JsHistory wade.History
 	}
 
 	storage struct {
@@ -128,7 +134,7 @@ func (b *JsBackend) CheckJsDep(symbol string) bool {
 }
 
 func (b *JsBackend) History() wade.History {
-	return b.history
+	return b.JsHistory
 }
 
 func (b *JsBackend) WebStorages() (wade.Storage, wade.Storage) {

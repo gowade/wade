@@ -34,8 +34,6 @@ type (
 		Contents dom.Selection
 	}
 
-	BaseProto struct{}
-
 	Empty struct{}
 
 	Ctl interface {
@@ -61,7 +59,17 @@ type (
 		Update(ElemCtl) error
 		Init() error
 	}
+
+	ElemIniter interface {
+		CustomElemInit(proto TagPrototype)
+	}
+
+	BaseProto struct{}
 )
+
+func (b BaseProto) Init() error                           { return nil }
+func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
+func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
 
 func (c contentsCtlImpl) Contents() dom.Selection {
 	return c.contents
@@ -70,10 +78,6 @@ func (c contentsCtlImpl) Contents() dom.Selection {
 func (c contentsCtlImpl) Dom() dom.Dom {
 	return c.contents
 }
-
-func (b BaseProto) Init() error                           { return nil }
-func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
-func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
 
 func (c *CustomElem) Model() interface{} {
 	return c.model
@@ -215,11 +219,16 @@ func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 	return cptr.Interface().(TagPrototype)
 }
 
-func (t HtmlTag) NewElem(elem dom.Selection) (ce *CustomElem, err error) {
+func (t HtmlTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomElem, err error) {
 	contentElem := elem.NewFragment("<wroot></wroot>")
 	contentElem.SetHtml(elem.Html())
 	elem.SetHtml(t.Html)
 	model := t.NewModel(elem)
+
+	if initer != nil {
+		initer.CustomElemInit(model)
+	}
+
 	err = model.Init()
 	if err != nil {
 		return

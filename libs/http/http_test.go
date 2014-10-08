@@ -3,7 +3,8 @@ package http
 import "testing"
 
 func TestHeader(t *testing.T) {
-	h := NewRequest("GET", "/test").Headers
+	req, _ := NewRequest("GET", "/test")
+	h := req.Headers
 	k := []string{"a", "b"}
 	v := []string{"v1", "v2"}
 	h.Add(k[0], v[0])
@@ -31,18 +32,19 @@ func TestHeader(t *testing.T) {
 func TestInterceptor(t *testing.T) {
 	v := false
 	tk, tv := "yes", "here"
-	http := NewClient(&StubBackend{TestResponse{200, ""}})
+	http := NewClient(&stubBackend{testResponse{200, ""}})
 	http.AddRequestInterceptor(func(r *Request) {
 		r.Headers.Add(tk, tv)
 		v = true
 	})
-	req := http.NewRequest("GET", "/")
+
+	req, _ := http.NewRequest("GET", "/")
 	if !v || req.Headers.Get(tk) != tv {
 		t.Fatalf("interceptor has not been called.")
 	}
 
 	//Test the http API with something like authentication handling
-	sb := &StubBackend{TestResponse{401, ""}}
+	sb := &stubBackend{testResponse{401, ""}}
 	client := NewClient(sb)
 
 	var pendingRequest *Request

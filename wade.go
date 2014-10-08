@@ -1,6 +1,8 @@
 package wade
 
 import (
+	"reflect"
+
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/custom"
@@ -49,9 +51,81 @@ type (
 		bind.JsWatcher
 		WebStorages() (Storage, Storage)
 	}
+
+	Application struct {
+		Register    Registration
+		Config      AppConfig
+		Services    *AppServices
+		wade        *wade
+		main        AppFunc
+		errChan     chan error
+		baseCEProto *BaseProto
+	}
+
+	//Base custom element prototype
+	BaseProto struct {
+		App *Application
+	}
 )
 
-func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
+func (b BaseProto) Init() error                                  { return nil }
+func (b BaseProto) ProcessContents(ctl custom.ContentsCtl) error { return nil }
+func (b BaseProto) Update(ctl custom.ElemCtl) error              { return nil }
+
+func (app *Application) initServices(pm PageManager, rb RenderBackend, httpClient *http.Client) {
+	app.Services.Http = httpClient
+	app.Services.LocalStorage, app.Services.SessionStorage = rb.JsBackend.WebStorages()
+	app.Services.PageManager = pm
+}
+
+func (app *Application) CurrentPage() *Scope {
+	return app.Services.PageManager.CurrentPage()
+}
+
+func (app *Application) Start() (err error) {
+	app.wade.start()
+
+	select {
+	case err = <-app.errChan:
+		return err
+	default:
+	}
+
+	return
+}
+
+func (app *Application) ErrChanPut(err error) {
+	select {
+	case app.errChan <- err:
+	default:
+		panic(err)
+	}
+}
+
+func (app *Application) Http() *http.Client {
+	return app.Services.Http
+}
+
+func (app *Application) CustomElemInit(proto custom.TagPrototype) {
+	v := reflect.ValueOf(proto)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	bp := v.FieldByName("BaseProto")
+
+	if bp.IsValid() {
+		ap := reflect.ValueOf(app.baseCEProto)
+		if bp.Kind() == reflect.Ptr && ap.Type().AssignableTo(bp.Type()) {
+			bp.Set(ap)
+		}
+
+		if ap.Type().Elem().AssignableTo(bp.Type()) {
+			bp.Set(ap.Elem())
+		}
+	}
+}
+
+func (r registry) CustomTags(customTags ...custom.HtmlTag) {
 	err := r.w.tm.RegisterTags(customTags)
 	if err != nil {
 		panic(err)
@@ -60,24 +134,18 @@ func (r registry) RegisterCustomTags(customTags ...custom.HtmlTag) {
 
 // RegisterController adds a new controller function for the specified
 // page / page group.
-func (r registry) RegisterController(displayScope string, fn PageControllerFunc) {
+func (r registry) Controller(displayScope string, fn PageControllerFunc) {
 	r.w.pm.registerController(displayScope, fn)
 }
 
 // RegisterDisplayScopes registers the pages and page groups
-func (r registry) RegisterDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
+func (r registry) DisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
 	r.w.pm.registerDisplayScopes(pages, pageGroups)
 }
 
 // RegisterNotFoundPage registers the page that is used when no page matches the url
-func (r registry) RegisterNotFoundPage(pageid string) {
+func (r registry) NotFoundPage(pageid string) {
 	r.w.pm.SetNotFoundPage(pageid)
-}
-
-func initServices(pm PageManager, rb RenderBackend) {
-	AppServices.Http = http.NewClient(rb.HttpBackend)
-	AppServices.LocalStorage, AppServices.SessionStorage = rb.JsBackend.WebStorages()
-	AppServices.PageManager = pm
 }
 
 // loadHtml loads html from script[type='text/wadin'], performs html imports on it
@@ -91,28 +159,35 @@ func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string
 	return templateContainer, err
 }
 
-// StartApp initializes the app.
+// StartApp initializes the app
 //
 // "appFn" is the main function for your app.
-func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
-	AppConf = config
-
+func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application, err error) {
 	jsDepCheck(rb.JsBackend)
-	http.SetDefaultClient(http.NewClient(rb.HttpBackend))
 	document := rb.Document
 
-	templateContainer, err := loadHtml(document, http.DefaultClient(), config.ServerBase)
+	httpClient := http.NewClient(rb.HttpBackend)
+	http.SetDefaultClient(httpClient)
+	templateContainer, err := loadHtml(document, httpClient, config.ServerBase)
 
 	if err != nil {
-		return err
+		return
 	}
 
+	app = &Application{
+		Config:   config,
+		Services: &AppServices{},
+		wade:     nil,
+		main:     appFn,
+		errChan:  make(chan error),
+	}
+	app.baseCEProto = &BaseProto{app}
+
 	tm := custom.NewTagManager()
-	binding := bind.NewBindEngine(tm, rb.JsBackend)
+	binding := bind.NewBindEngine(app, tm, rb.JsBackend)
 
 	wd := &wade{
-		errChan:    make(chan error),
-		pm:         newPageManager(rb.JsBackend.History(), config, document, templateContainer, binding),
+		pm:         newPageManager(app, rb.JsBackend.History(), document, templateContainer, binding),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,
@@ -120,24 +195,19 @@ func StartApp(config AppConfig, appFn AppFunc, rb RenderBackend) error {
 		customTags: make(map[string]map[string]custom.TagPrototype),
 	}
 
+	app.wade = wd
+	app.Register = registry{wd}
 	wd.init()
-	initServices(wd.pm, rb)
 
-	appFn(registry{wd})
+	app.initServices(wd.pm, rb, httpClient)
+
+	appFn(app)
 	err = wd.loadCustomTagDefs()
 	if err != nil {
-		return err
+		return
 	}
 
-	wd.start()
-
-	select {
-	case err = <-wd.errChan:
-		return err
-	default:
-	}
-
-	return nil
+	return
 }
 
 func (wd *wade) init() {
@@ -158,7 +228,7 @@ func (w *wade) loadCustomTagDefs() (err error) {
 	return
 }
 
-// Start starts the real operation, meant to be called at the end of everything.
+// Start starts the real operation
 func (wd *wade) start() {
 	wd.pm.prepare()
 }
