@@ -28,6 +28,15 @@ type (
 	requestList struct {
 		Records []wadehttp.HttpRecord
 	}
+
+	JsBackend struct {
+		bind.BasicWatchBackend
+		JsHistory wade.History
+	}
+
+	storage struct {
+		values map[string]interface{}
+	}
 )
 
 func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
@@ -67,8 +76,8 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
 	app, err := wade.NewApp(conf, appFn, wade.RenderBackend{
 		JsBackend: &JsBackend{
-			NoopJsWatcher: bind.NoopJsWatcher{},
-			JsHistory:     wade.NewNoopHistory(request.URL.Path),
+			BasicWatchBackend: bind.BasicWatchBackend{},
+			JsHistory:         wade.NewNoopHistory(request.URL.Path),
 		},
 		Document:    doc,
 		HttpBackend: cacheb,
@@ -97,17 +106,6 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	err = html.Render(w, doc.(gqdom.Selection).Nodes[0])
 	return
 }
-
-type (
-	JsBackend struct {
-		bind.NoopJsWatcher
-		JsHistory wade.History
-	}
-
-	storage struct {
-		values map[string]interface{}
-	}
-)
 
 func newStorage() storage {
 	return storage{make(map[string]interface{})}

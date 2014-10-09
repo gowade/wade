@@ -192,7 +192,11 @@ func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.W
 	return observeCloser{osvs}
 }
 
-func (b *JsBackend) DigestAll() {
+func (b *JsBackend) DigestAll(watcher *bind.Watcher) {
+	b.Checkpoint()
+}
+
+func (b *JsBackend) Checkpoint() {
 	js.Global.Get("Platform").Call("performMicrotaskCheckpoint")
 }
 

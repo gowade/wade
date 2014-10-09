@@ -127,10 +127,20 @@ func (mb *HttpMock) Wait(operation func(), responseCount int) {
 	mb.WaitResponseCount = 0
 }
 
-func (mb *HttpMock) Do(r *http.Request) error {
+func (mb *HttpMock) responseFinish() {
+	if mb.WaitResponseCount > 0 {
+		mb.ResponseCount++
+		if mb.ResponseCount >= mb.WaitResponseCount {
+			mb.BlockChan <- false
+		}
+	}
+}
+
+func (mb *HttpMock) Do(r *http.Request) (err error) {
 	match, params := mb.Router.Lookup(r.URL.Path)
 	if match == nil {
-		return fmt.Errorf(`404 no handler found for path "%v".`, r.URL.Path)
+		mb.responseFinish()
+		panic(fmt.Errorf(`404 no handler found for path "%v".`, r.URL.Path))
 	}
 
 	tr := match.(Responder).Response(&Context{http.NewNamedParams(params), r})
@@ -141,12 +151,7 @@ func (mb *HttpMock) Do(r *http.Request) error {
 		Status:     gohttp.StatusText(tr.StatusCode),
 	}
 
-	if mb.WaitResponseCount > 0 {
-		mb.ResponseCount++
-		if mb.ResponseCount >= mb.WaitResponseCount {
-			mb.BlockChan <- false
-		}
-	}
+	mb.responseFinish()
 
 	return nil
 }

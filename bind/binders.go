@@ -185,12 +185,10 @@ func (b *EventBinder) Bind(d DomBind) error {
 		go func() {
 			if ok0 {
 				//gopherjs:blocking
-				d.binding.Watcher().Apply(handler0)
+				handler0()
 			} else if ok1 {
 				//gopherjs:blocking
-				d.binding.Watcher().Apply(func() {
-					handler1(evt)
-				})
+				handler1(evt)
 			}
 		}()
 	})

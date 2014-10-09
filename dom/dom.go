@@ -22,16 +22,21 @@ type (
 
 	Event interface {
 		Target() Selection
-		CurrentTarget() Selection
-		DelegateTarget() Selection
-		RelatedTarget() Selection
 		PreventDefault()
 		StopPropagation()
-		KeyCode() int
-		Which() int
-		MetaKey() bool
-		PageXY() (int, int)
 		Type() string
+		Js() js.Object
+	}
+
+	KeyEvent interface {
+		Event
+		Which() int
+	}
+
+	MouseEvent interface {
+		Event
+		Which() int
+		Pos() (int, int)
 	}
 
 	EventHandler func(Event)

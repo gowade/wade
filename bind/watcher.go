@@ -14,9 +14,10 @@ type (
 
 	ObserveCallback func(oldVal, newVal interface{})
 
-	JsWatcher interface {
+	WatchBackend interface {
 		Watch(watchCtl WatchCtl, callback WatchCallback) WatchCloser
-		DigestAll()
+		DigestAll(watcher *Watcher)
+		Checkpoint()
 	}
 
 	WatchCloser interface {
@@ -29,7 +30,7 @@ type (
 	}
 
 	Watcher struct {
-		jsWatcher JsWatcher
+		backend   WatchBackend
 		observers map[uintptr][]observer
 	}
 
@@ -41,8 +42,12 @@ type (
 		w *Watcher
 	}
 
-	NoopJsWatcher   struct{}
-	NoopWatchCloser struct{}
+	BasicWatchBackend struct{}
+
+	BasicWatchCloser struct {
+		watcher *Watcher
+		value   reflect.Value
+	}
 )
 
 func (c WatchCtl) WatchAdd(newFr reflect.Value, obs WatchCloser, callback WatchCallback) {
@@ -63,24 +68,33 @@ func (w WatchCtl) NewFieldRefl() reflect.Value {
 	return v
 }
 
-func NewWatcher(jsWatcher JsWatcher) *Watcher {
+func NewWatcher(wb WatchBackend) *Watcher {
 	return &Watcher{
-		jsWatcher: jsWatcher,
+		backend:   wb,
 		observers: make(map[uintptr][]observer),
 	}
 }
 
-func (NoopWatchCloser) Close() {}
-
-func (w NoopJsWatcher) Watch(wc WatchCtl, callback WatchCallback) WatchCloser {
-	return NoopWatchCloser{}
+func (c BasicWatchCloser) Close() {
+	delete(c.watcher.observers, c.value.UnsafeAddr())
 }
 
-func (w NoopJsWatcher) DigestAll() {}
+func (w BasicWatchBackend) Watch(wc WatchCtl, callback WatchCallback) WatchCloser {
+	return BasicWatchCloser{wc.w, wc.FieldRefl}
+}
 
-// Watch calls Watch.js to watch the object's changes
+func (w BasicWatchBackend) DigestAll(watcher *Watcher) {
+	for _, l := range watcher.observers {
+		for _, obs := range l {
+			obs.Callback(0, nil)
+		}
+	}
+}
+
+func (w BasicWatchBackend) Checkpoint() {}
+
 func (b *Watcher) Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback WatchCallback) {
-	closer := b.jsWatcher.Watch(WatchCtl{modelRefl, fieldRefl, field, b}, callback)
+	closer := b.backend.Watch(WatchCtl{modelRefl, fieldRefl, field, b}, callback)
 
 	pt := fieldRefl.UnsafeAddr()
 	_, ok := b.observers[pt]
@@ -114,6 +128,8 @@ func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallb
 	return
 }
 
+// Digest manually triggers the observers for the given object.
+// It must be a pointer, normally a pointer to a struct field.
 func (b *Watcher) Digest(ptr interface{}) {
 	p := reflect.ValueOf(ptr)
 	if p.Kind() != reflect.Ptr {
@@ -131,11 +147,14 @@ func (b *Watcher) Digest(ptr interface{}) {
 
 func (b *Watcher) Apply(fn func()) {
 	fn()
-	b.Checkpoint()
 }
 
 func (b *Watcher) Checkpoint() {
-	b.jsWatcher.DigestAll()
+	b.backend.Checkpoint()
+}
+
+func (b *Watcher) DigestAll() {
+	b.backend.DigestAll(b)
 }
 
 func (b *Watcher) ResetWatchers() {

@@ -29,7 +29,7 @@ type (
 )
 
 func (b *NoopBindEngine) Watcher() *bind.Watcher {
-	return bind.NewWatcher(bind.NoopJsWatcher{})
+	return bind.NewWatcher(bind.BasicWatchBackend{})
 }
 
 func (b *NoopBindEngine) BindModels(root dom.Selection, models []interface{}, once bool) {

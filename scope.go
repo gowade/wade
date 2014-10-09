@@ -4,6 +4,7 @@ import (
 	"fmt"
 	gourl "net/url"
 
+	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
@@ -13,6 +14,8 @@ type (
 	ObserveCallback func(oldVal, newVal interface{}, document dom.Dom)
 
 	Scope struct {
+		*bind.Watcher
+
 		App         *Application
 		PageInfo    *PageInfo
 		NamedParams *http.NamedParams
@@ -33,6 +36,7 @@ type (
 
 func (pm *pageManager) newRootScope(page *page, params *http.NamedParams, url *gourl.URL) *Scope {
 	return &Scope{
+		Watcher: pm.binding.Watcher(),
 		PageInfo: &PageInfo{
 			Id:    page.id,
 			Title: page.title,
@@ -68,16 +72,10 @@ func (pc *Scope) FormatTitle(params ...interface{}) {
 	pc.PageInfo.Title = pc.pm.formattedTitle
 }
 
-// Digest manually triggers the observers for the given object.
-// It must be a pointer, normally a pointer to a struct field.
-func (pc *Scope) Digest(object interface{}) {
-	pc.pm.binding.Watcher().Digest(object)
-}
-
 // Observe manually registers an observer for the given model, watching the given field
 // and call the given callback when the the field changes
 func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallback) {
-	pc.pm.binding.Watcher().Observe(model, field, func(oldVal, newVal interface{}) {
+	pc.Watcher.Observe(model, field, func(oldVal, newVal interface{}) {
 		callback(oldVal, newVal, pc.pm.document)
 	})
 }

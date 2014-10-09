@@ -48,7 +48,7 @@ type (
 	JsBackend interface {
 		DepChecker
 		History() History
-		bind.JsWatcher
+		bind.WatchBackend
 		WebStorages() (Storage, Storage)
 	}
 
@@ -80,6 +80,10 @@ func (app *Application) initServices(pm PageManager, rb RenderBackend, httpClien
 
 func (app *Application) CurrentPage() *Scope {
 	return app.Services.PageManager.CurrentPage()
+}
+
+func (app *Application) SetStartPath(startPath string) {
+	app.wade.pm.startPath = startPath
 }
 
 func (app *Application) Start() (err error) {

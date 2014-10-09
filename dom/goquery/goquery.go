@@ -18,7 +18,8 @@ const (
 )
 
 var (
-	gDom = Dom{}
+	gDom          = Dom{}
+	EventHandlers = map[*html.Node]map[string][]dom.EventHandler{}
 )
 
 type (
@@ -347,10 +348,6 @@ func (s Selection) Exists() bool {
 		s.Selection.ParentsFiltered("wroot").Length() > 0 || s.Selection.ParentsFiltered("html").Length() > 0
 }
 
-func (s Selection) On(eventname string, handler dom.EventHandler) {
-	s.AddClass("w-incomplete")
-}
-
 func (s Selection) Attrs() []dom.Attr {
 	aa := s.Selection.First().Nodes[0].Attr
 	attrs := make([]dom.Attr, len(aa))
@@ -473,4 +470,32 @@ func (s Selection) BEach(fn dom.EachFn) {
 
 func (s Selection) Underlying() js.Object {
 	return nil
+}
+
+func (s Selection) On(eventname string, handler dom.EventHandler) {
+	s.AddClass("w-incomplete")
+
+	// Save to EventHandlers for event simulation
+	node := s.Nodes[0]
+	if _, ok := EventHandlers[node]; !ok {
+		EventHandlers[node] = map[string][]dom.EventHandler{}
+	}
+
+	if _, ok := EventHandlers[node][eventname]; !ok {
+		EventHandlers[node][eventname] = []dom.EventHandler{}
+	}
+
+	EventHandlers[node][eventname] = append(EventHandlers[node][eventname], handler)
+}
+
+func TriggerEvent(selection dom.Selection, event dom.Event) {
+	for _, e := range selection.Elements() {
+		if ee, ok := EventHandlers[e.(Selection).Nodes[0]]; ok {
+			if list, ok := ee[event.Type()]; ok {
+				for _, handler := range list {
+					handler(event)
+				}
+			}
+		}
+	}
 }

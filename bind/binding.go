@@ -68,10 +68,10 @@ func (da DummyApp) CustomElemInit(proto custom.TagPrototype) {
 }
 
 func NewTestBindEngine() *Binding {
-	return NewBindEngine(DummyApp{}, custom.NewTagManager(), NoopJsWatcher{})
+	return NewBindEngine(DummyApp{}, custom.NewTagManager(), BasicWatchBackend{})
 }
 
-func NewBindEngine(app Application, tm *custom.TagManager, jsWatcher JsWatcher) *Binding {
+func NewBindEngine(app Application, tm *custom.TagManager, jsWatcher WatchBackend) *Binding {
 	b := &Binding{
 		app:        app,
 		tm:         tm,
@@ -132,6 +132,7 @@ func (b *Binding) watchModel(binds *barray, root *expr, bs *bindScope, callback 
 		bo := bi.bindObj()
 		b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue interface{}) {
 			newResult, _ := bs.evaluateRec(root, binds, old, repValue)
+
 			//gopherjs:blocking
 			callback(newResult)
 		})

@@ -28,17 +28,7 @@ type (
 )
 
 func (e Event) Target() dom.Selection {
-	return newSelection(gJQ(e.Event.Target))
-}
-
-func (e Event) CurrentTarget() dom.Selection {
-	return newSelection(gJQ(e.Event.CurrentTarget))
-}
-func (e Event) RelatedTarget() dom.Selection {
-	return newSelection(gJQ(e.Event.RelatedTarget))
-}
-func (e Event) DelegateTarget() dom.Selection {
-	return newSelection(gJQ(e.Event.DelegateTarget))
+	return NewSelection(gJQ(e.Event.Target))
 }
 
 func (e Event) PreventDefault() {
@@ -49,19 +39,11 @@ func (e Event) StopPropagation() {
 	e.Event.StopPropagation()
 }
 
-func (e Event) KeyCode() int {
-	return e.Event.KeyCode
-}
-
 func (e Event) Which() int {
 	return e.Event.Which
 }
 
-func (e Event) MetaKey() bool {
-	return e.Event.MetaKey
-}
-
-func (e Event) PageXY() (int, int) {
+func (e Event) Pos() (int, int) {
 	return e.Event.PageX, e.Event.PageY
 }
 
@@ -69,32 +51,36 @@ func (e Event) Type() string {
 	return e.Event.Type
 }
 
+func (e Event) Js() js.Object {
+	return e.Event.Object
+}
+
 func GetDom() dom.Dom {
 	return gDom
 }
 
 func Document() dom.Selection {
-	return newSelection(gJQ(js.Global.Get("document")))
+	return NewSelection(gJQ(js.Global.Get("document")))
 }
 
-func newSelection(jq jquery.JQuery) dom.Selection {
+func NewSelection(jq jquery.JQuery) dom.Selection {
 	return Selection{jq, gDom}
 }
 
 func (d Dom) NewFragment(html string) dom.Selection {
-	return newSelection(gJQ(html))
+	return NewSelection(gJQ(html))
 }
 
 func (d Dom) NewEmptySelection() dom.Selection {
-	return newSelection(gJQ())
+	return NewSelection(gJQ())
 }
 
 func (d Dom) NewRootFragment() dom.Selection {
-	return newSelection(gJQ(js.Global.Get(jquery.JQ).Call("parseHTML", "<wroot></wroot>")))
+	return NewSelection(gJQ(js.Global.Get(jquery.JQ).Call("parseHTML", "<wroot></wroot>")))
 }
 
 func (d Dom) NewTextNode(content string) dom.Selection {
-	return newSelection(gJQ(js.Global.Get("document").Call("createTextNode", content)))
+	return NewSelection(gJQ(js.Global.Get("document").Call("createTextNode", content)))
 }
 
 func (s Selection) TagName() (tn string, err error) {
@@ -113,15 +99,15 @@ func (s Selection) TagName() (tn string, err error) {
 }
 
 func (s Selection) Children() dom.Selection {
-	return newSelection(s.JQuery.Children(""))
+	return NewSelection(s.JQuery.Children(""))
 }
 
 func (s Selection) Contents() dom.Selection {
-	return newSelection(s.JQuery.Contents())
+	return NewSelection(s.JQuery.Contents())
 }
 
 func (s Selection) First() dom.Selection {
-	return newSelection(s.JQuery.First())
+	return NewSelection(s.JQuery.First())
 }
 
 func (s Selection) IsElement() bool {
@@ -129,7 +115,7 @@ func (s Selection) IsElement() bool {
 }
 
 func (s Selection) Find(selector string) dom.Selection {
-	return newSelection(s.JQuery.Find(selector))
+	return NewSelection(s.JQuery.Find(selector))
 }
 
 func (s Selection) Length() int {
@@ -140,7 +126,7 @@ func (s Selection) Elements() []dom.Selection {
 	list := make([]dom.Selection, s.Length())
 	u := s.JQuery.Underlying()
 	for i := 0; i < s.JQuery.Length; i++ {
-		list[i] = newSelection(gJQ(u.Index(i)))
+		list[i] = NewSelection(gJQ(u.Index(i)))
 	}
 
 	return list
@@ -149,7 +135,7 @@ func (s Selection) Elements() []dom.Selection {
 func (s Selection) Each(fn dom.EachFn) {
 	u := s.JQuery.Underlying()
 	for i := 0; i < s.JQuery.Length; i++ {
-		fn(i, newSelection(gJQ(u.Index(i))))
+		fn(i, NewSelection(gJQ(u.Index(i))))
 	}
 }
 
@@ -157,7 +143,7 @@ func (s Selection) BEach(fn dom.EachFn) {
 	u := s.JQuery.Underlying()
 	for i := 0; i < s.JQuery.Length; i++ {
 		//gopherjs:blocking
-		fn(i, newSelection(gJQ(u.Index(i))))
+		fn(i, NewSelection(gJQ(u.Index(i))))
 	}
 }
 
@@ -170,7 +156,7 @@ func (s Selection) Remove() {
 }
 
 func (s Selection) Clone() dom.Selection {
-	return newSelection(s.JQuery.Clone())
+	return NewSelection(s.JQuery.Clone())
 }
 
 func (s Selection) ReplaceWith(sel dom.Selection) {
@@ -193,7 +179,7 @@ func (s Selection) Attr(attr string) (string, bool) {
 }
 
 func (s Selection) Parents() dom.Selection {
-	return newSelection(s.JQuery.Parents())
+	return NewSelection(s.JQuery.Parents())
 }
 
 func (s Selection) Is(selector string) bool {
@@ -209,7 +195,7 @@ func (s Selection) Unwrap() {
 }
 
 func (s Selection) Parent() dom.Selection {
-	return newSelection(s.JQuery.Parent())
+	return NewSelection(s.JQuery.Parent())
 }
 
 func (s Selection) SetHtml(content string) {
@@ -237,7 +223,7 @@ func (s Selection) After(sel dom.Selection) {
 }
 
 func (s Selection) Next() dom.Selection {
-	return newSelection(s.JQuery.Next())
+	return NewSelection(s.JQuery.Next())
 }
 
 func (s Selection) Exists() bool {
@@ -261,7 +247,7 @@ func (s Selection) Attrs() []dom.Attr {
 }
 
 func (s Selection) Prev() dom.Selection {
-	return newSelection(s.JQuery.Prev())
+	return NewSelection(s.JQuery.Prev())
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
@@ -285,7 +271,7 @@ func (s Selection) Show() {
 }
 
 func (s Selection) Filter(selector string) dom.Selection {
-	return newSelection(s.JQuery.Filter(selector))
+	return NewSelection(s.JQuery.Filter(selector))
 }
 
 func (s Selection) AddClass(class string) {
@@ -319,7 +305,7 @@ func (s Selection) SetText(text string) {
 }
 
 func (s Selection) Add(sel dom.Selection) dom.Selection {
-	return newSelection(s.JQuery.Add(sel.(Selection).JQuery))
+	return NewSelection(s.JQuery.Add(sel.(Selection).JQuery))
 }
 
 func (s Selection) Prop(prop string, recv interface{}) (ok bool) {

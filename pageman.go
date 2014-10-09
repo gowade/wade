@@ -8,7 +8,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	urlrouter "github.com/naoina/kocha-urlrouter"
-	_ "github.com/naoina/kocha-urlrouter/regexp"
+	_ "github.com/phaikawl/regrouter"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/icommon"
@@ -40,6 +40,7 @@ type (
 		router        urlrouter.URLRouter
 		currentPage   *page
 		basePath      string
+		startPath     string
 		notFoundPage  *page
 		rcProto       string
 		container     dom.Selection
@@ -110,7 +111,9 @@ func (pm *pageManager) CurrentPageId() string {
 func (pm *pageManager) cutPath(spath string) string {
 	if strings.HasPrefix(spath, pm.basePath) {
 		spath = spath[len(pm.basePath):]
-		spath = path.Join("/", spath)
+		if !strings.HasPrefix(spath, "/") {
+			spath = "/" + spath
+		}
 	}
 	return spath
 }
@@ -165,7 +168,12 @@ func (pm *pageManager) prepare() {
 		}()
 	})
 
-	err, _ := pm.updateUrl(pm.history.CurrentPath(), false, true)
+	p := pm.history.CurrentPath()
+	if pm.cutPath(p) == "/" && pm.startPath != "" {
+		p = path.Join(pm.basePath, pm.startPath)
+	}
+
+	err, _ := pm.updateUrl(p, false, true)
 	if err != nil {
 		pm.app.ErrChanPut(err)
 	}
@@ -241,6 +249,7 @@ func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (er
 
 	match, routeparams := pm.router.Lookup(u.Path)
 	if match == nil {
+
 		if pm.notFoundPage != nil {
 			pm.updatePage(pm.notFoundPage, u, []urlrouter.Param{}, false, false)
 		} else {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/phaikawl/wade"
@@ -17,7 +18,7 @@ import (
 
 type (
 	PageView struct {
-		Document dom.Selection
+		Html dom.Selection
 	}
 
 	TestApp struct {
@@ -27,10 +28,50 @@ type (
 	}
 )
 
+// Get the page's current title
 func (v PageView) Title() string {
-	return v.Document.Find("head title").Text()
+	return v.Html.Find("head title").Text()
 }
 
+// Find is simply a wrapper of v.Html.Find()
+func (v PageView) Find(queryStr string) dom.Selection {
+	return v.Html.Find(queryStr)
+}
+
+// TriggerEvent triggers a given event on the selected elements
+func (v PageView) triggerEvent(selection dom.Selection, event Event) {
+	for _, e := range selection.Elements() {
+		event.Event().propaStopped = false
+		event.Event().target = e
+		triggerRec(e, event)
+	}
+}
+
+// CheckHaveText successively checks if each selected element has the corresponding
+// list of text content.
+//
+// Returns an error if some content is not found.
+func (v PageView) AssertHaveText(t *testing.T, selection dom.Selection, textLists [][]string) (err error) {
+	elems := selection.Elements()
+	for i, textList := range textLists {
+		for _, text := range textList {
+			if !strings.Contains(elems[i].Text(), text) {
+				t.Fatal(fmt.Errorf(`%vth element does not have text content "%v"`, i, text))
+				return
+			}
+		}
+	}
+
+	return
+}
+
+// TriggerEvent triggers an event with watcher.Apply()
+// this triggers a DigestAll() so that the view is updated with the changed data
+func (app *TestApp) TriggerEvent(selection dom.Selection, event Event) {
+	app.View.triggerEvent(selection, event)
+}
+
+// GoTo navigates the app to the given path
 func (app *TestApp) GoTo(path string) {
 	if !app.started {
 		panic(fmt.Errorf("Application has not been started."))
@@ -45,6 +86,10 @@ func (app *TestApp) GoTo(path string) {
 func (app *TestApp) Start() {
 	app.started = true
 	app.Application.Start()
+}
+
+func (app *TestApp) Digest() {
+	app.CurrentPage().Watcher.DigestAll()
 }
 
 func NewTestApp(t *testing.T, conf wade.AppConfig,
@@ -69,8 +114,8 @@ func NewTestApp(t *testing.T, conf wade.AppConfig,
 	document := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
 	wapp, err := wade.NewApp(conf, appFn, wade.RenderBackend{
 		JsBackend: &serverside.JsBackend{
-			NoopJsWatcher: bind.NoopJsWatcher{},
-			JsHistory:     wade.NewNoopHistory(conf.BasePath),
+			BasicWatchBackend: bind.BasicWatchBackend{},
+			JsHistory:         wade.NewNoopHistory(conf.BasePath),
 		},
 		Document:    document,
 		HttpBackend: httpMock,
@@ -79,7 +124,7 @@ func NewTestApp(t *testing.T, conf wade.AppConfig,
 	app = &TestApp{
 		Application: wapp,
 		View: PageView{
-			Document: document,
+			Html: document,
 		},
 	}
 
