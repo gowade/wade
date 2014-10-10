@@ -10,12 +10,14 @@ import (
 type (
 	JsWatchCb func(string, string, js.Object, js.Object)
 
-	WatchCallback func(uintptr, interface{})
+	WatchCallback func(interface{})
+	ReplCallback  func(oldAddr uintptr, repl interface{})
+	EvalFn        func(oldAddr uintptr, repl interface{}) interface{}
 
 	ObserveCallback func(oldVal, newVal interface{})
 
 	WatchBackend interface {
-		Watch(watchCtl WatchCtl, callback WatchCallback) WatchCloser
+		Watch(watchCtl WatchCtl, callback ReplCallback) WatchCloser
 		DigestAll(watcher *Watcher)
 		Checkpoint()
 	}
@@ -27,19 +29,20 @@ type (
 	observer struct {
 		Callback WatchCallback
 		Closer   WatchCloser
+		efn      EvalFn
+		obj      *ObjEval
+		val      interface{}
 	}
 
 	Watcher struct {
 		backend   WatchBackend
-		observers map[uintptr][]observer
+		observers map[uintptr][]*observer
 	}
 
 	WatchCtl struct {
-		ModelRefl reflect.Value
-		FieldRefl reflect.Value
-		Field     string
-
-		w *Watcher
+		Obj *ObjEval
+		obs *observer
+		w   *Watcher
 	}
 
 	BasicWatchBackend struct{}
@@ -50,19 +53,20 @@ type (
 	}
 )
 
-func (c WatchCtl) WatchAdd(newFr reflect.Value, obs WatchCloser, callback WatchCallback) {
+func (c WatchCtl) WatchAdd(newFr reflect.Value, closer WatchCloser, callback WatchCallback) {
 	_, ok := c.w.observers[newFr.UnsafeAddr()]
 	if !ok {
-		c.w.observers[newFr.UnsafeAddr()] = []observer{}
+		c.w.observers[newFr.UnsafeAddr()] = []*observer{}
 	}
 
-	c.w.observers[newFr.UnsafeAddr()] = append(c.w.observers[newFr.UnsafeAddr()], observer{callback, obs})
+	c.w.observers[newFr.UnsafeAddr()] = append(c.w.observers[newFr.UnsafeAddr()],
+		&observer{callback, closer, c.obs.efn, c.obs.obj, nil})
 }
 
 func (w WatchCtl) NewFieldRefl() reflect.Value {
-	v, ok, err := getReflectField(w.ModelRefl, w.Field)
+	v, ok, err := getReflectField(w.Obj.ModelRefl, w.Obj.Field)
 	if !ok || err != nil {
-		fmt.Printf("Getting new value for field %v failed.", w.Field)
+		fmt.Printf("Getting new value for field %v failed.", w.Obj.Field)
 	}
 
 	return v
@@ -71,7 +75,7 @@ func (w WatchCtl) NewFieldRefl() reflect.Value {
 func NewWatcher(wb WatchBackend) *Watcher {
 	return &Watcher{
 		backend:   wb,
-		observers: make(map[uintptr][]observer),
+		observers: make(map[uintptr][]*observer),
 	}
 }
 
@@ -79,30 +83,46 @@ func (c BasicWatchCloser) Close() {
 	delete(c.watcher.observers, c.value.UnsafeAddr())
 }
 
-func (w BasicWatchBackend) Watch(wc WatchCtl, callback WatchCallback) WatchCloser {
-	return BasicWatchCloser{wc.w, wc.FieldRefl}
+func (w BasicWatchBackend) Watch(wc WatchCtl, callback ReplCallback) WatchCloser {
+	return BasicWatchCloser{wc.w, wc.Obj.FieldRefl}
 }
 
 func (w BasicWatchBackend) DigestAll(watcher *Watcher) {
 	for _, l := range watcher.observers {
 		for _, obs := range l {
-			obs.Callback(0, nil)
+			newValue := obs.efn(0, nil)
+			rv := reflect.ValueOf(newValue)
+			//fmt.Printf("%v %v %v\n", obs, obs.obj.Field, newValue, obs.val)
+			if comp, _ := compareRefl(reflect.ValueOf(obs.val), rv); comp != 0 {
+				obs.Callback(newValue)
+				obs.val = newValue
+			}
 		}
 	}
 }
 
 func (w BasicWatchBackend) Checkpoint() {}
 
-func (b *Watcher) Watch(fieldRefl reflect.Value, modelRefl reflect.Value, field string, callback WatchCallback) {
-	closer := b.backend.Watch(WatchCtl{modelRefl, fieldRefl, field, b}, callback)
+func (b *Watcher) Watch(value interface{}, efn EvalFn, obj *ObjEval, callback WatchCallback) {
+	obs := &observer{callback, nil, efn, obj, value}
+	rcb := func(oldAddr uintptr, repl interface{}) {
+		newValue := efn(oldAddr, repl)
+		obs.val = newValue
 
-	pt := fieldRefl.UnsafeAddr()
-	_, ok := b.observers[pt]
-	if !ok {
-		b.observers[pt] = make([]observer, 0)
+		//gopherjs:blocking
+		callback(newValue)
 	}
 
-	b.observers[pt] = append(b.observers[pt], observer{callback, closer})
+	closer := b.backend.Watch(WatchCtl{obj, obs, b}, rcb)
+	obs.Closer = closer
+
+	pt := obj.FieldRefl.UnsafeAddr()
+	_, ok := b.observers[pt]
+	if !ok {
+		b.observers[pt] = make([]*observer, 0)
+	}
+
+	b.observers[pt] = append(b.observers[pt], obs)
 
 	return
 }
@@ -117,12 +137,14 @@ func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallb
 		return
 	}
 
-	old := oe.fieldRefl.Interface()
+	old := oe.FieldRefl.Interface()
 
-	b.Watch(oe.fieldRefl, oe.modelRefl, oe.field, func(_ uintptr, _ interface{}) {
+	b.Watch(old, func(_ uintptr, _ interface{}) interface{} {
 		noe, _, _ := evaluateObjField(field, reflect.ValueOf(model))
-		callback(old, noe.fieldRefl.Interface())
-		old = noe.fieldRefl.Interface()
+		return noe.FieldRefl.Interface()
+	}, oe, func(newVal interface{}) {
+		callback(old, newVal)
+		old = newVal
 	})
 
 	return
@@ -141,7 +163,7 @@ func (b *Watcher) Digest(ptr interface{}) {
 	}
 
 	for _, ob := range b.observers[p.Elem().UnsafeAddr()] {
-		ob.Callback(0, reflect.ValueOf(nil))
+		ob.Callback(p.Elem().Interface())
 	}
 }
 
@@ -164,5 +186,5 @@ func (b *Watcher) ResetWatchers() {
 		}
 	}
 
-	b.observers = make(map[uintptr][]observer)
+	b.observers = make(map[uintptr][]*observer)
 }

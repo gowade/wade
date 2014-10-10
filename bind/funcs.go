@@ -31,7 +31,7 @@ func callFunc(fn reflect.Value, args []reflect.Value) (v reflect.Value, err erro
 
 // evaluateObj uses reflection to access a field (obj.field1.field2.field3) of the given model.
 // It returns an evaluation of the field, and a bool which indicates whether the field is found
-func evaluateObjField(query string, model reflect.Value) (oe *objEval, ok bool, err error) {
+func evaluateObjField(query string, model reflect.Value) (oe *ObjEval, ok bool, err error) {
 	flist := strings.Split(query, ".")
 	vals := make([]reflect.Value, len(flist)+1)
 	o := model
@@ -55,10 +55,10 @@ func evaluateObjField(query string, model reflect.Value) (oe *objEval, ok bool, 
 	}
 
 	ok = true
-	oe = &objEval{
-		fieldRefl: vals[len(vals)-1],
-		modelRefl: vals[len(vals)-2],
-		field:     flist[len(flist)-1],
+	oe = &ObjEval{
+		FieldRefl: vals[len(vals)-1],
+		ModelRefl: vals[len(vals)-2],
+		Field:     flist[len(flist)-1],
 	}
 
 	return

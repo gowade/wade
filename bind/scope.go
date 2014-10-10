@@ -34,7 +34,7 @@ type (
 
 	fieldSymbol struct {
 		name string
-		eval *objEval
+		eval *ObjEval
 	}
 )
 
@@ -124,26 +124,26 @@ func newHelpersSymbolTable(helpers map[string]interface{}) helpersSymbolTable {
 	return helpersSymbolTable{m}
 }
 
-func (fs fieldSymbol) bindObj() *objEval {
+func (fs fieldSymbol) bindObj() *ObjEval {
 	return fs.eval
 }
 
 func (fs fieldSymbol) value() (v reflect.Value, err error) {
-	return fs.eval.fieldRefl, nil
+	return fs.eval.FieldRefl, nil
 }
 
 func (fs fieldSymbol) call(args []reflect.Value, async bool) (v reflect.Value, err error) {
-	if fs.eval.fieldRefl.Kind() != reflect.Func {
+	if fs.eval.FieldRefl.Kind() != reflect.Func {
 		err = fmt.Errorf(`Cannot call "%v", it's not a method or a function.`, fs.name)
 		return
 	}
 
 	if async {
-		fs.eval.fieldRefl.Call(args)
+		fs.eval.FieldRefl.Call(args)
 		return
 	}
 
-	v, err = callFunc(fs.eval.fieldRefl, args)
+	v, err = callFunc(fs.eval.FieldRefl, args)
 	if err != nil {
 		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
 	}
@@ -157,7 +157,7 @@ func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err 
 		return
 	}
 
-	var eval *objEval
+	var eval *ObjEval
 	eval, ok, err = evaluateObjField(symbol, st.model)
 	if ok {
 		sym = fieldSymbol{symbol, eval}

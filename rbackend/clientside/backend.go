@@ -151,13 +151,15 @@ func jso(object reflect.Value) js.Object {
 	return js.InternalObject(object.Interface()).Get("$val")
 }
 
-func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.WatchCloser {
+func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.ReplCallback) bind.WatchCloser {
 	cbWrap := func() {
 		go callback(0, nil)
 	}
 
+	oe := ctl.Obj
+
 	var osvs []js.Object
-	switch ctl.FieldRefl.Kind() {
+	switch oe.FieldRefl.Kind() {
 	case reflect.Slice:
 		fn := func(fieldRefl reflect.Value) js.Object {
 			o1 := js.Global.Get("ArrayObserver").New(jso(fieldRefl).Get("$array"))
@@ -166,25 +168,27 @@ func (b *JsBackend) Watch(ctl bind.WatchCtl, callback bind.WatchCallback) bind.W
 			return o1
 		}
 
-		o2 := js.Global.Get("PathObserver").New(jso(ctl.ModelRefl), ctl.Field)
+		o2 := js.Global.Get("PathObserver").New(jso(oe.ModelRefl), oe.Field)
 		fn2 := func() {
 			rf := ctl.NewFieldRefl()
-			ctl.WatchAdd(rf, observeCloser{[]js.Object{fn(rf)}}, callback)
+			ctl.WatchAdd(rf, observeCloser{[]js.Object{fn(rf)}}, func(v interface{}) {
+				callback(0, nil)
+			})
 
-			go callback(ctl.FieldRefl.UnsafeAddr(), rf.Interface())
+			go callback(oe.FieldRefl.UnsafeAddr(), rf.Interface())
 		}
 
 		o2.Call("open", fn2)
 
-		osvs = []js.Object{fn(ctl.FieldRefl), o2}
+		osvs = []js.Object{fn(oe.FieldRefl), o2}
 
 	case reflect.Map:
-		osv := js.Global.Get("ObjectObserver").New(jso(ctl.FieldRefl))
+		osv := js.Global.Get("ObjectObserver").New(jso(oe.FieldRefl))
 		osv.Call("open", cbWrap)
 		osvs = []js.Object{osv}
 
 	default:
-		osv := js.Global.Get("PathObserver").New(jso(ctl.ModelRefl), ctl.Field)
+		osv := js.Global.Get("PathObserver").New(jso(oe.ModelRefl), oe.Field)
 		osv.Call("open", cbWrap)
 		osvs = []js.Object{osv}
 	}

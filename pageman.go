@@ -11,15 +11,21 @@ import (
 	_ "github.com/phaikawl/regrouter"
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/icommon"
 	"github.com/phaikawl/wade/libs/http"
 )
 
 const (
-	GlobalDisplayScope = "__global__"
+	GlobalDisplayScope       = "__global__"
+	ProductionPageLinkHandle = false
+)
+
+var (
+	PageProcessingLock *lock
 )
 
 type (
+	lock struct{}
+
 	bindEngine interface {
 		Watcher() *bind.Watcher
 		BindModels(root dom.Selection, models []interface{}, once bool)
@@ -266,6 +272,9 @@ func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (er
 }
 
 func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrouter.Param, pushState bool, firstLoad bool) {
+	lck := &lock{}
+	PageProcessingLock = lck
+
 	if pushState {
 		pm.history.PushState(page.title, pm.FullPath(u.Path))
 	}
@@ -283,7 +292,11 @@ func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrou
 
 	pm.binding.Watcher().ResetWatchers()
 	pm.bind(namedParams, u)
-	icommon.WrapperUnwrap(pm.container)
+
+	if PageProcessingLock != lck {
+		return
+	}
+
 	pm.setTitle(pm.formattedTitle)
 
 	if ClientSide {
@@ -294,6 +307,7 @@ func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrou
 			for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
 				sp.getScroll(c)
 			}
+
 			pm.realContainer.ReplaceWith(pm.container)
 			sp.applyScrolls(pm.container)
 			jqwindow.Call("scrollTop", scrollpos)
@@ -302,27 +316,31 @@ func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrou
 			jqwindow.Call("scrollTop", 0)
 		}
 	} else {
-		pm.realContainer.ReplaceWith(pm.container)
+		if PageProcessingLock == lck {
+			pm.realContainer.ReplaceWith(pm.container)
+		}
 	}
 	pm.realContainer = pm.container
 
-	//Handle link events
-	pm.realContainer.Listen("click", "a", func(e dom.Event) {
-		href, ok := e.Target().Attr("href")
-		if !ok {
-			return
-		}
+	//Handle link events on Dev mode
+	if ProductionPageLinkHandle || DevMode {
+		pm.realContainer.Listen("click", "a", func(e dom.Event) {
+			href, ok := e.Target().Attr("href")
+			if !ok {
+				return
+			}
 
-		if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
-			return
-		}
+			if !strings.HasPrefix(href, pm.BasePath()) { //not a wade page link, let the browser do its job
+				return
+			}
 
-		e.PreventDefault()
+			e.PreventDefault()
 
-		go func() {
-			pm.updateUrl(href, true, false)
-		}()
-	})
+			go func() {
+				pm.updateUrl(href, true, false)
+			}()
+		})
+	}
 
 	return
 }

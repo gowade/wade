@@ -122,20 +122,17 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 	return
 }
 
-func (b *Binding) watchModel(binds *barray, root *expr, bs *bindScope, callback func(interface{})) error {
+func (b *Binding) watchModel(value interface{}, binds *barray, root *expr, bs *bindScope, callback WatchCallback) error {
 	for _, bi := range binds.slice {
-		if !bi.bindObj().fieldRefl.CanAddr() {
-			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().field)
+		if !bi.bindObj().FieldRefl.CanAddr() {
+			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().Field)
 		}
 
 		//use watchjs to watch for changes to the model
-		bo := bi.bindObj()
-		b.watcher.Watch(bo.fieldRefl, bo.modelRefl, bo.field, func(old uintptr, repValue interface{}) {
-			newResult, _ := bs.evaluateRec(root, binds, old, repValue)
-
-			//gopherjs:blocking
-			callback(newResult)
-		})
+		b.watcher.Watch(value, func(oldAddr uintptr, repl interface{}) (newVal interface{}) {
+			newVal, _ = bs.evaluateRec(root, nil, oldAddr, repl)
+			return
+		}, bi.bindObj(), callback)
 	}
 
 	return nil
@@ -174,7 +171,7 @@ func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, 
 		elem.SetAttr(attr, vstr)
 
 		if !once {
-			err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
+			err = b.watchModel(v, binds, roote, bs, func(newResult interface{}) {
 				nr := reflect.ValueOf(newResult)
 				elem.SetAttr(attr, nr.String())
 			})
@@ -212,14 +209,14 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 		}
 	}
 
-	checkCompat(reflect.TypeOf(v), oe.fieldRefl.Type())
-	oe.fieldRefl.Set(reflect.ValueOf(v))
+	checkCompat(reflect.TypeOf(v), oe.FieldRefl.Type())
+	oe.FieldRefl.Set(reflect.ValueOf(v))
 
 	if !once {
-		err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
+		err = b.watchModel(v, binds, roote, bs, func(newResult interface{}) {
 			nr := reflect.ValueOf(newResult)
-			checkCompat(nr.Type(), oe.fieldRefl.Type())
-			oe.fieldRefl.Set(nr)
+			checkCompat(nr.Type(), oe.FieldRefl.Type())
+			oe.FieldRefl.Set(nr)
 
 			err := ce.Update()
 			if err != nil {
@@ -347,7 +344,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 		}
 
 		if binds.size == 1 {
-			fmodel := binds.slice[0].bindObj().fieldRefl
+			fmodel := binds.slice[0].bindObj().FieldRefl
 			err = binder.Watch(domBind, func(newVal string) {
 				if !fmodel.CanSet() {
 					bstrPanic("2-way data binding on unchangable field", bstr, elem)
@@ -376,7 +373,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 			udb := domBind
 			udb.Elem = elem
 
-			err = b.watchModel(binds, roote, bs, func(newResult interface{}) {
+			err = b.watchModel(v, binds, roote, bs, func(newResult interface{}) {
 				udb.OldValue = udb.Value
 				udb.Value = newResult
 				//gopherjs:blocking
@@ -423,7 +420,7 @@ func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope)
 			node := elem.NewTextNode(toString(v))
 
 			if !once {
-				err = b.watchModel(blist, cr, bs, func(val interface{}) {
+				err = b.watchModel(v, blist, cr, bs, func(val interface{}) {
 					node.SetText(toString(val))
 				})
 

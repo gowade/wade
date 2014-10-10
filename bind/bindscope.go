@@ -6,14 +6,14 @@ import (
 )
 
 type (
-	objEval struct {
-		fieldRefl reflect.Value
-		modelRefl reflect.Value
-		field     string
+	ObjEval struct {
+		FieldRefl reflect.Value
+		ModelRefl reflect.Value
+		Field     string
 	}
 
 	bindable interface {
-		bindObj() *objEval
+		bindObj() *ObjEval
 	}
 
 	bindScope struct {
@@ -85,7 +85,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 			v = rv.Interface()
 		}
 
-		if watch {
+		if watch && blist != nil {
 			blist.add(sym.(bindable))
 		}
 

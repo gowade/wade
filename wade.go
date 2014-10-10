@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	WadeDevMode = true
+	DevMode = true
 )
 
 func init() {

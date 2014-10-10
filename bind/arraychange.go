@@ -21,6 +21,16 @@ func compareRefl(ap, bp reflect.Value) (comp int, ok bool) {
 
 	ai, b := ap.Interface(), bp.Interface()
 	switch a := ai.(type) {
+	case bool:
+		bi := b.(bool)
+		switch {
+		case a == bi:
+			comp = 0
+		case a == false && bi == true:
+			comp = -1
+		default:
+			comp = 1
+		}
 	case string:
 		bi := b.(string)
 		switch {
@@ -112,7 +122,14 @@ func compareRefl(ap, bp reflect.Value) (comp int, ok bool) {
 			comp = 1
 		}
 	default:
-		ok = false
+		if ap == bp {
+			comp = 0
+			ok = true
+		} else {
+			ok = false
+		}
+
+		return
 	}
 
 	return
