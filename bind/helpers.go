@@ -12,11 +12,6 @@ type PageManager interface {
 	FullPath(string) string
 }
 
-type UrlInfo struct {
-	path    string
-	fullUrl string
-}
-
 // This function is internal, not intended or outside use
 func RegisterInternalHelpers(pm PageManager, b *Binding) {
 	b.RegisterHelper("url", func(pageid string, params ...interface{}) string {

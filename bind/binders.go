@@ -34,7 +34,7 @@ func defaultBinders() map[string]DomBinder {
 // value update on keyup. Defaults to false.
 //
 // Usage:
-//	#value([optional]catchKeyup)="Expression"
+//	#value({optional}catchKeyup)="Expression"
 type ValueBinder struct{ *BaseBinder }
 
 // Update sets the element's value attribute to a new value
@@ -84,7 +84,7 @@ func (b *HtmlBinder) BindInstance() DomBinder { return b }
 // It takes 1 required argument className which is the class name.
 //
 // Usage:
-//	#class([required]className)="Expression"
+//	#class({required}className)="Expression"
 type ClassBinder struct{ BaseBinder }
 
 func (b *ClassBinder) Update(d DomBind) error {
@@ -130,7 +130,7 @@ func (b *DisabledBinder) BindInstance() DomBinder { return b }
 // It takes 1 argument that is the event name.
 //
 // Usage:
-//	#on([required]eventName)="Expression"
+//	#on({required}eventName)="Expression"
 //
 //
 // The Expression is evaluated like any other expressions, if you call a function,
@@ -201,7 +201,7 @@ func (b *EventBinder) BindInstance() DomBinder { return b }
 //
 // It takes 2 arguments: the name to bind the index to, and the name to bind the value to.
 // Usage:
-//  #each=([required]indexBindName, [required]valueBindName)
+//  #each=({required}indexBindName, [required]valueBindName)
 //
 // Example:
 //  #each(i,product)="$Products"

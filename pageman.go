@@ -192,14 +192,23 @@ func walk(elem dom.Selection, pm *pageManager) {
 		if !ok {
 			walk(e, pm)
 		} else {
-			if ds, ok := pm.displayScopes[belong]; ok {
-				if ds.hasPage(pm.currentPage.id) {
-					walk(e, pm)
+			list := strings.Split(belong, " ")
+			display := false
+			for _, belong := range list {
+				belong = strings.TrimSpace(belong)
+				if ds, ok := pm.displayScopes[belong]; ok {
+					if ds.hasPage(pm.currentPage.id) {
+						display = true
+						walk(e, pm)
+						break
+					}
 				} else {
-					e.Remove()
+					panic(fmt.Sprintf(`Invalid value "%v" for w-belong, no such page or page group is registered.`, belong))
 				}
-			} else {
-				panic(fmt.Sprintf(`Invalid value "%v" for w-belong, no such page or page group is registered.`, belong))
+			}
+
+			if !display {
+				e.Remove()
 			}
 		}
 	}
