@@ -12,6 +12,7 @@ import (
 
 var (
 	DevMode = true
+	App     *Application
 )
 
 func init() {
@@ -56,7 +57,7 @@ type (
 		Register    Registration
 		Router      *Router
 		Config      AppConfig
-		Services    *AppServices
+		Services    AppServices
 		wade        *wade
 		main        AppFunc
 		errChan     chan error
@@ -74,9 +75,17 @@ func (b BaseProto) ProcessContents(ctl custom.ContentsCtl) error { return nil }
 func (b BaseProto) Update(ctl custom.ElemCtl) error              { return nil }
 
 func (app *Application) initServices(pm PageManager, rb RenderBackend, httpClient *http.Client) {
-	app.Services.Http = httpClient
-	app.Services.LocalStorage, app.Services.SessionStorage = rb.JsBackend.WebStorages()
-	app.Services.PageManager = pm
+	los, ses := rb.JsBackend.WebStorages()
+	app.Services = AppServices{
+		Http:           httpClient,
+		LocalStorage:   los,
+		SessionStorage: ses,
+		PageManager:    pm,
+	}
+}
+
+func (app *Application) Checkpoint() {
+	app.wade.binding.Watcher().Checkpoint()
 }
 
 func (app *Application) CurrentPage() *Scope {
@@ -91,6 +100,13 @@ func (app *Application) Start() (err error) {
 		return err
 	default:
 	}
+
+	go func() {
+		for {
+			<-http.ResponseChan
+			app.Checkpoint()
+		}
+	}()
 
 	return
 }
@@ -170,12 +186,12 @@ func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application
 	}
 
 	app = &Application{
-		Config:   config,
-		Services: &AppServices{},
-		wade:     nil,
-		main:     appFn,
-		errChan:  make(chan error),
+		Config:  config,
+		wade:    nil,
+		main:    appFn,
+		errChan: make(chan error),
 	}
+
 	app.baseCEProto = &BaseProto{app}
 
 	tm := custom.NewTagManager()
@@ -193,6 +209,7 @@ func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application
 	app.wade = wd
 	app.Register = Registration{wd}
 	app.Router = app.wade.pm.router
+	App = app
 	wd.init()
 
 	app.initServices(wd.pm, rb, httpClient)

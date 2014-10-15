@@ -19,8 +19,18 @@ var (
 	gGlobal js.Object = js.Global
 )
 
+func init() {
+	go func() {
+		for {
+			<-jqdom.EventChan
+			js.Global.Get("Platform").Call("performMicrotaskCheckpoint")
+		}
+	}()
+}
+
 func RenderBackend() wade.RenderBackend {
 	doc := jqdom.Document()
+
 	return wade.RenderBackend{
 		JsBackend: &JsBackend{
 			history: History{js.Global.Get("history")},

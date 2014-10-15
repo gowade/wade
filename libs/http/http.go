@@ -18,6 +18,7 @@ const (
 
 var (
 	defaultClient *Client
+	ResponseChan  = make(chan *Response)
 )
 
 func SetDefaultClient(c *Client) {
@@ -222,6 +223,12 @@ func (c *Client) DoPure(r *Request) (resp *Response, err error) {
 	if err != nil {
 		err = ConnectionError{err}
 	}
+
+	select {
+	case ResponseChan <- r.Response:
+	default:
+	}
+
 	resp = r.Response
 	return
 }

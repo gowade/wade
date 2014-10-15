@@ -84,7 +84,7 @@ func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallba
 }
 
 // Services returns the global services
-func (pc *Scope) Services() *AppServices {
+func (pc *Scope) Services() AppServices {
 	return pc.App.Services
 }
 

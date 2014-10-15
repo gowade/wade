@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	gDom = Dom{}
-	gJQ  = jquery.NewJQuery
+	gDom      = Dom{}
+	gJQ       = jquery.NewJQuery
+	EventChan = make(chan Event)
 )
 
 type (
@@ -252,7 +253,13 @@ func (s Selection) Prev() dom.Selection {
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
 	s.JQuery.On(eventname, func(event jquery.Event) {
-		handler(Event{event})
+		evt := Event{event}
+		handler(evt)
+
+		select {
+		case EventChan <- evt:
+		default:
+		}
 	})
 }
 
