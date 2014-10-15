@@ -17,7 +17,7 @@ type (
 	}
 
 	bindScope struct {
-		scope *scope
+		scope *Scope
 	}
 
 	barray struct {
@@ -58,7 +58,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 		}
 	}
 
-	var sym scopeSymbol
+	var sym ScopeSymbol
 	if e.preque != nil {
 		var preVal interface{}
 		preVal, err = b.evaluateRec(e.preque, blist, old, repl)
@@ -66,9 +66,9 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 			return
 		}
 
-		sym, err = newModelScope(preVal).lookup(e.name[1:])
+		sym, err = newModelScope(preVal).Lookup(e.name[1:])
 	} else {
-		sym, err = b.scope.lookup(e.name)
+		sym, err = b.scope.Lookup(e.name)
 	}
 
 	if err != nil {
@@ -78,7 +78,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 	var rv reflect.Value
 	switch e.typ {
 	case ValueExpr:
-		rv, err = sym.value()
+		rv, err = sym.Value()
 		if old != 0 && old == rv.UnsafeAddr() {
 			v = repl
 		} else {

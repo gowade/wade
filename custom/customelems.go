@@ -17,15 +17,19 @@ var (
 )
 
 type (
+	CustomTag struct {
+		HtmlTag
+		attrs map[string]string
+	}
+
 	HtmlTag struct {
-		Name       string
-		Html       string
-		Prototype  TagPrototype
-		Attributes []string
+		Name      string
+		Prototype TagPrototype
+		Html      string
 	}
 
 	TagManager struct {
-		custags map[string]*HtmlTag
+		custags map[string]*CustomTag
 	}
 
 	CustomElem struct {
@@ -112,30 +116,21 @@ func dePtr(proto TagPrototype) reflect.Type {
 	return p
 }
 
-func (tag HtmlTag) prepareAttributes(prototype reflect.Type) error {
-	for _, attr := range tag.Attributes {
-		attr = strings.TrimSpace(attr)
-		if isForbiddenAttr(attr) {
-			return fmt.Errorf(`Unable to register custom tag "%v", use of `+
-				`"%v" as a public attribute is forbidden because it conflicts `+
-				`with HTML's %v attribute.`, tag.Name, attr, strings.ToLower(attr))
+func (tag *CustomTag) prepareAttributes(prototype reflect.Type) error {
+	for i := 0; i < prototype.NumField(); i++ {
+		field := prototype.Field(i)
+		hname := field.Tag.Get("html")
+		if hname == "" {
+			hname = field.Name
 		}
-		if _, ok := prototype.FieldByName(attr); !ok {
-			return fmt.Errorf(`Attribute "%v" is not available in the model for custom tag "%v".`, attr, tag.Name)
-		}
+		tag.attrs[strings.ToLower(hname)] = field.Name
 	}
 
 	return nil
 }
 
-func (tag HtmlTag) HasAttr(attr string) (has bool, realName string) {
-	for _, a := range tag.Attributes {
-		if strings.ToLower(a) == attr {
-			has = true
-			realName = a
-			return
-		}
-	}
+func (tag *CustomTag) HasAttr(attr string) (has bool, fieldName string) {
+	fieldName, has = tag.attrs[attr]
 
 	return
 }
@@ -170,7 +165,7 @@ func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection, bool)) (
 	return
 }
 
-func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
+func (t *CustomTag) NewModel(elem dom.Selection) TagPrototype {
 	if t.Prototype == nil {
 		return nil
 	}
@@ -178,13 +173,13 @@ func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 	prototype := dePtr(t.Prototype)
 	cptr := reflect.New(prototype)
 	clone := cptr.Elem()
-	if t.Attributes != nil {
-		for _, attr := range t.Attributes {
+	if t.attrs != nil {
+		for attr, fieldName := range t.attrs {
 			if val, ok := elem.Attr(attr); ok {
-				field := clone.FieldByName(attr)
+				field := clone.FieldByName(fieldName)
 				var err error = nil
 				var v interface{}
-				ftype, _ := prototype.FieldByName(attr)
+				ftype, _ := prototype.FieldByName(fieldName)
 				kind := ftype.Type.Kind()
 				switch kind {
 				case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -219,7 +214,7 @@ func (t HtmlTag) NewModel(elem dom.Selection) TagPrototype {
 	return cptr.Interface().(TagPrototype)
 }
 
-func (t HtmlTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomElem, err error) {
+func (t *CustomTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomElem, err error) {
 	contentElem := elem.NewFragment("<wroot></wroot>")
 	contentElem.SetHtml(elem.Html())
 	elem.SetHtml(t.Html)
@@ -245,7 +240,7 @@ func (t HtmlTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomElem,
 
 func NewTagManager() *TagManager {
 	return &TagManager{
-		custags: make(map[string]*HtmlTag),
+		custags: make(map[string]*CustomTag),
 	}
 }
 
@@ -260,7 +255,12 @@ func isForbiddenAttr(attr string) bool {
 }
 
 func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
-	for _, ct := range customTags {
+	for _, ht := range customTags {
+		ct := &CustomTag{
+			HtmlTag: ht,
+			attrs:   map[string]string{},
+		}
+
 		prototype := ct.Prototype
 		if prototype != nil {
 			p := reflect.ValueOf(prototype)
@@ -280,14 +280,14 @@ func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
 			continue
 		}
 
-		tm.custags[strings.ToLower(ct.Name)] = &ct
+		tm.custags[strings.ToLower(ct.Name)] = ct
 	}
 
 	return ret
 }
 
 // GetHtmlTag checks if the element's tag is of a registered custom tag
-func (tm *TagManager) GetTag(elem dom.Selection) (ct *HtmlTag, ok bool) {
+func (tm *TagManager) GetTag(elem dom.Selection) (ct *CustomTag, ok bool) {
 	tagname, err := elem.TagName()
 	if err != nil {
 		ok = false

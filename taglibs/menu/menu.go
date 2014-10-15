@@ -72,10 +72,9 @@ func (sm *SwitchMenu) Update(ctl custom.ElemCtl) error {
 func HtmlTags() []custom.HtmlTag {
 	return []custom.HtmlTag{
 		custom.HtmlTag{
-			Name:       "switchmenu",
-			Attributes: []string{"Current", "ActiveClass"},
-			Prototype:  &SwitchMenu{},
-			Html:       `<wcontents></wcontents>`,
+			Name:      "switchmenu",
+			Prototype: &SwitchMenu{},
+			Html:      `<wcontents></wcontents>`,
 		},
 	}
 }

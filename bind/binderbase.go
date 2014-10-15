@@ -35,7 +35,7 @@ type DomBind struct {
 	Args     []string
 
 	binding *Binding
-	scope   *scope
+	scope   *Scope
 }
 
 // Bind performs a bind.

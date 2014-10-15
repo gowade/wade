@@ -37,12 +37,14 @@ func (b *NoopBindEngine) BindModels(root dom.Selection, models []interface{}, on
 }
 
 func TestPageUrl(t *testing.T) {
-	pm := pageManager{}
+	pm := &pageManager{}
 	pm.displayScopes = make(map[string]displayScope)
+	pm.router = newRouter(pm)
 	route := "/:testparam/:testparam2/*testparam3"
-	pm.registerDisplayScopes([]PageDesc{
-		MakePage("test", route, ""),
-	}, nil)
+	pm.router.Handle(route,
+		Page{
+			Id: "test",
+		})
 
 	var u string
 	var err error
@@ -98,13 +100,12 @@ func TestPageManager(t *testing.T) {
 
 	container := doc.Find("body").First()
 
-	pm.registerDisplayScopes([]PageDesc{
-		MakePage("pg-home", "/", "Home"),
-		MakePage("pg-child-1", "/child/:name", "Child 1"),
-		MakePage("pg-child-2", "/child/:name/:gender", "Child 2"),
-	}, []PageGroupDesc{
-		MakePageGroup("grp-parent", []string{"pg-child-1", "pg-child-2"}),
-	})
+	pm.router.Handle("/", Redirecter{"/home"}).
+		Handle("/home", Page{Id: "pg-home"}).
+		Handle("/child/:name", Page{Id: "pg-child-1"}).
+		Handle("/child/:name/:gender", Page{Id: "pg-child-2"})
+
+	pm.registerPageGroup("grp-parent", []string{"pg-child-1", "pg-child-2"})
 
 	mess := make(chan int, 5)
 
@@ -112,7 +113,7 @@ func TestPageManager(t *testing.T) {
 
 	pm.registerController(GlobalDisplayScope, func(s *Scope) (err error) {
 		globalCalled = true
-		s.AddModel(Struct1{
+		s.SetModelNamed("global", Struct1{
 			A: 0,
 		})
 
@@ -121,7 +122,7 @@ func TestPageManager(t *testing.T) {
 
 	pm.registerController("pg-home", func(s *Scope) (err error) {
 		mess <- 1
-		s.AddModel(Struct2{B: 1})
+		s.SetModel(Struct2{B: 1})
 
 		return
 	})
@@ -132,33 +133,48 @@ func TestPageManager(t *testing.T) {
 	require.Equal(t, <-mess, 1)
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "Home")
 
-	require.Equal(t, b.models[0].(Struct1).A, 0)
-	require.Equal(t, b.models[1].(Struct2).B, 1)
+	s := bind.ScopeFromModels(b.models)
+	sym, _ := s.Lookup("global.A")
+	v, _ := sym.Value()
+	require.Equal(t, v.Int(), 0)
+
+	sym, _ = s.Lookup("B")
+	v, _ = sym.Value()
+	require.Equal(t, v.Int(), 1)
 
 	pm.registerController("grp-parent", func(s *Scope) (err error) {
-		s.AddModel(Struct1{A: 2})
+		s.SetModelNamed("parent", Struct1{A: 2})
 		return
 	})
 
 	pm.registerController("pg-child-1", func(s *Scope) (err error) {
-		s.AddModel(Struct2{B: 3})
+		s.SetModel(Struct2{B: 3})
 		return
 	})
 
 	pm.registerController("pg-child-2", func(s *Scope) (err error) {
-		s.AddModel(Struct3{C: 4})
+		s.SetModel(Struct3{C: 4})
 		return
 	})
 
 	pm.updateUrl("/child/vuong", false, false)
-	require.Equal(t, b.models[0].(Struct1).A, 0)
-	require.Equal(t, b.models[1].(Struct1).A, 2)
-	require.Equal(t, b.models[2].(Struct2).B, 3)
+
+	s = bind.ScopeFromModels(b.models)
+	sym, _ = s.Lookup("parent.A")
+	v, _ = sym.Value()
+	require.Equal(t, v.Int(), 2)
+
+	sym, _ = s.Lookup("B")
+	v, _ = sym.Value()
+	require.Equal(t, v.Int(), 3)
+
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild1")
 
 	pm.updateUrl("/child/vuong/nam", false, false)
-	require.Equal(t, b.models[0].(Struct1).A, 0)
-	require.Equal(t, b.models[1].(Struct1).A, 2)
-	require.Equal(t, b.models[2].(Struct3).C, 4)
+	s = bind.ScopeFromModels(b.models)
+	sym, _ = s.Lookup("C")
+	v, _ = sym.Value()
+	require.Equal(t, v.Int(), 4)
+
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild2")
 }

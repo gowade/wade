@@ -25,7 +25,7 @@ type (
 		B bool
 	}
 
-	Scope struct {
+	Sc struct {
 		Name string
 		Num  int
 		Test *TestModel
@@ -34,12 +34,11 @@ type (
 
 func TestBinding(t *testing.T) {
 	b := NewTestBindEngine()
-	sc := &Scope{"a", 9000, &TestModel{A{true}}}
+	sc := &Sc{"a", 9000, &TestModel{A{true}}}
 	bs := &bindScope{b.newModelScope(sc)}
 
 	testct := custom.HtmlTag{
-		Name:       "test",
-		Attributes: []string{"Name", "Value", "Test"},
+		Name: "test",
 		Html: `
 			<div><wcontents></wcontents></div>
 			<span #html="$Name"></span>
@@ -79,7 +78,8 @@ func TestBinding(t *testing.T) {
 
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
-	ct, _ := testct.NewElem(elem, nil)
+	tct, _ := b.tm.GetTag(elem)
+	ct, _ := tct.NewElem(elem, nil)
 	model := ct.Model().(*Model)
 	b.processFieldBind("Name", "':Hai;'", elem, bs, false, ct)
 	b.processFieldBind("Value", "$Num", elem, bs, false, ct)
@@ -95,7 +95,7 @@ func TestBinding(t *testing.T) {
 		<wroot>
 			<ww @title="$Name" #class(awesome)="true">
 				<div id="0">da{{ $Num }}n</div>
-				<test @Value="$Num" @Name="'abc'" @Test="$Test" id="1">{{ $Name }}<!-- --></test>
+				<test @Value="$Num" Name="abc" @Test="$Test" id="1">{{ $Name }}<!-- --></test>
 				<div id="2">{{ $Test.A.B }}</div>
 			</ww>
 		</wroot>

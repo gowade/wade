@@ -1,7 +1,6 @@
 package custom
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/phaikawl/wade/dom"
@@ -34,19 +33,10 @@ func TestCustomTag(t *testing.T) {
 	d := goquery.GetDom()
 	tm := NewTagManager()
 	err := tm.RegisterTags([]HtmlTag{HtmlTag{
-		Name:       "testfail",
-		Attributes: []string{"Id", "Gender"},
-		Prototype:  BaseProto{},
-		Html:       ``,
-	}, HtmlTag{
-		Name:       "test",
-		Attributes: []string{"Str", "Num", "Fnum", "Tf"},
-		Prototype:  &Test{},
-		Html:       `<span><wcontents></wcontents></span>`,
+		Name:      "test",
+		Prototype: &Test{},
+		Html:      `<span><wcontents></wcontents></span>`,
 	}})
-
-	require.NotEqual(t, err, nil)
-	require.Equal(t, strings.Contains(err.Error(), "forbidden"), true)
 
 	tag, ok := tm.GetTag(d.NewFragment("<div></div>"))
 	require.Equal(t, ok, false)

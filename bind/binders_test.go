@@ -46,10 +46,9 @@ func TestEach(t *testing.T) {
 	b := NewTestBindEngine()
 	b.tm.RegisterTags([]custom.HtmlTag{
 		custom.HtmlTag{
-			Name:       "test",
-			Prototype:  &ceModel{},
-			Attributes: []string{"A"},
-			Html:       `<span #html="$A.B"></span>`,
+			Name:      "test",
+			Prototype: &ceModel{},
+			Html:      `<span #html="$A.B"></span>`,
 		},
 	})
 

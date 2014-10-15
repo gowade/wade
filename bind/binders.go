@@ -16,14 +16,13 @@ var (
 
 func defaultBinders() map[string]DomBinder {
 	return map[string]DomBinder{
-		"value":    &ValueBinder{},
-		"html":     &HtmlBinder{},
-		"on":       &EventBinder{},
-		"each":     new(EachBinder),
-		"if":       new(IfBinder),
-		"ifn":      &UnlessBinder{&IfBinder{}},
-		"class":    &ClassBinder{},
-		"disabled": &DisabledBinder{},
+		"value": &ValueBinder{},
+		"html":  &HtmlBinder{},
+		"on":    &EventBinder{},
+		"each":  new(EachBinder),
+		"if":    new(IfBinder),
+		"ifn":   &UnlessBinder{&IfBinder{}},
+		"class": &ClassBinder{},
 	}
 }
 
@@ -105,25 +104,6 @@ func (b *ClassBinder) Update(d DomBind) error {
 }
 
 func (b *ClassBinder) BindInstance() DomBinder { return b }
-
-// DisabledBinder is a 1-way binder that sets the element's disabled property
-// according to a boolean Expression
-//
-// Usage:
-//  #disabled="Expression"
-type DisabledBinder struct{ BaseBinder }
-
-func (b *DisabledBinder) Update(d DomBind) error {
-	if len(d.Args) != 0 {
-		return fmt.Errorf(`Incorrect number of args (%v). Need 0 argument.`, len(d.Args))
-	}
-
-	enabled := d.Value.(bool)
-	d.Elem.SetProp("disabled", enabled)
-	return nil
-}
-
-func (b *DisabledBinder) BindInstance() DomBinder { return b }
 
 // EventBinder is a 1-way binder that binds an element's event to a function or method.
 //

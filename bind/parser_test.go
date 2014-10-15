@@ -41,7 +41,7 @@ func TestParser(t *testing.T) {
 
 	hst := newHelpersSymbolTable(helpers)
 	dhst := newHelpersSymbolTable(defaultHelpers())
-	bs := &bindScope{&scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
+	bs := &bindScope{&Scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
 	tests := map[string]interface{}{
 		"$Test":                                                    "Nt",
 		"$Data.Username":                                           "Hai",

@@ -19,8 +19,7 @@ const (
 </div>
 </div>`
 
-	FailSrc = `<div><winclude src="/kdkfk"></winclude></div>`
-	NoSrc   = `<div><winclude></winclude></div>`
+	NoSrc = `<div><winclude></winclude></div>`
 
 	SrcA = `<winclude src="/d"></winclude>`
 	SrcB = `b`
@@ -45,10 +44,6 @@ func TestHtmlImport(t *testing.T) {
 	root = goquery.GetDom().NewFragment(Src)
 	htmlImport(client, root, "/")
 	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `bb<div>c</div>`)
-
-	root = root.NewFragment(FailSrc)
-	err = htmlImport(client, root, "/")
-	require.NotEqual(t, err, nil)
 
 	root = root.NewFragment(NoSrc)
 	err = htmlImport(client, root, "/")

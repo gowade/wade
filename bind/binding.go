@@ -40,7 +40,7 @@ type (
 		helpers    helpersSymbolTable
 
 		watcher   *Watcher
-		scope     *scope
+		scope     *Scope
 		pageModel interface{}
 	}
 
@@ -80,7 +80,7 @@ func NewBindEngine(app Application, tm *custom.TagManager, jsWatcher WatchBacken
 		helpers:    newHelpersSymbolTable(defaultHelpers()),
 	}
 
-	b.scope = &scope{[]symbolTable{b.helpers}}
+	b.scope = &Scope{[]symbolTable{b.helpers}}
 	return b
 }
 
@@ -167,21 +167,27 @@ func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, 
 		bstrPanic(er.Error(), bstr, elem)
 	}
 
-	if vstr, ok := v.(string); ok {
-		elem.SetAttr(attr, vstr)
-
-		if !once {
-			err = b.watchModel(v, binds, roote, bs, func(newResult interface{}) {
-				nr := reflect.ValueOf(newResult)
-				elem.SetAttr(attr, nr.String())
-			})
-
-			if err != nil {
-				bstrPanic(err.Error(), bstr, elem)
-			}
+	var setFn func(value interface{})
+	if _, ok := v.(string); ok {
+		setFn = func(value interface{}) {
+			elem.SetAttr(attr, value.(string))
 		}
 	} else {
-		bstrPanic("Cannot bind native html attribute to a non-string value", bstr, elem)
+		setFn = func(value interface{}) {
+			elem.SetProp(attr, value)
+		}
+	}
+
+	setFn(v)
+
+	if !once {
+		err = b.watchModel(v, binds, roote, bs, func(newResult interface{}) {
+			setFn(newResult)
+		})
+	}
+
+	if err != nil {
+		bstrPanic(err.Error(), bstr, elem)
 	}
 
 	return
@@ -230,7 +236,7 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 	}
 }
 
-func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.HtmlTag, bs *bindScope, once bool, scopeElem dom.Selection) {
+func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.CustomTag, bs *bindScope, once bool, scopeElem dom.Selection) {
 	if !elem.Exists() {
 		return
 	}
@@ -468,7 +474,7 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 	isElement := elem.IsElement()
 
-	var tag *custom.HtmlTag
+	var tag *custom.CustomTag
 	isCustom := false
 	if isElement {
 		tag, isCustom = b.tm.GetTag(elem)
@@ -577,10 +583,21 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 	return
 }
 
-func (b *Binding) newModelScope(model interface{}) *scope {
+func (b *Binding) newModelScope(model interface{}) *Scope {
 	s := newModelScope(model)
 	s.merge(b.scope)
 	return s
+}
+
+func ScopeFromModels(models []interface{}) (s *Scope) {
+	s = newScope()
+	for _, model := range models {
+		if model != nil {
+			s.symTables = append(s.symTables, modelSymbolTable{reflect.ValueOf(model)})
+		}
+	}
+
+	return
 }
 
 func (b *Binding) BindModels(rootElem dom.Selection, models []interface{}, once bool) {
@@ -588,12 +605,7 @@ func (b *Binding) BindModels(rootElem dom.Selection, models []interface{}, once 
 		panic("Invalid root element for bind. It must be a node in a real html document, a <wroot> or a child of <wroot>.")
 	}
 
-	s := newScope()
-	for _, model := range models {
-		if model != nil {
-			s.symTables = append(s.symTables, modelSymbolTable{reflect.ValueOf(model)})
-		}
-	}
+	s := ScopeFromModels(models)
 	s.merge(b.scope)
 
 	b.bindWithScope(rootElem, s, once, false, rootElem)
@@ -611,7 +623,7 @@ func (b *Binding) rootList(rootElems dom.Selection, bindRoot bool) []dom.Selecti
 	return rootElems.Contents().Elements()
 }
 
-func (b *Binding) bindWithScope(rootElems dom.Selection, s *scope, once bool, bindRoot bool, scopeElem dom.Selection) {
+func (b *Binding) bindWithScope(rootElems dom.Selection, s *Scope, once bool, bindRoot bool, scopeElem dom.Selection) {
 	bs := &bindScope{s}
 	elems := b.rootList(rootElems, bindRoot)
 

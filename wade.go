@@ -41,7 +41,7 @@ type (
 		customTags map[string]map[string]custom.TagPrototype
 	}
 
-	registry struct {
+	Registration struct {
 		w *wade
 	}
 
@@ -54,6 +54,7 @@ type (
 
 	Application struct {
 		Register    Registration
+		Router      *Router
 		Config      AppConfig
 		Services    *AppServices
 		wade        *wade
@@ -80,10 +81,6 @@ func (app *Application) initServices(pm PageManager, rb RenderBackend, httpClien
 
 func (app *Application) CurrentPage() *Scope {
 	return app.Services.PageManager.CurrentPage()
-}
-
-func (app *Application) SetStartPath(startPath string) {
-	app.wade.pm.startPath = startPath
 }
 
 func (app *Application) Start() (err error) {
@@ -129,7 +126,7 @@ func (app *Application) CustomElemInit(proto custom.TagPrototype) {
 	}
 }
 
-func (r registry) CustomTags(customTags ...custom.HtmlTag) {
+func (r Registration) CustomTags(customTags ...custom.HtmlTag) {
 	err := r.w.tm.RegisterTags(customTags)
 	if err != nil {
 		panic(err)
@@ -138,18 +135,12 @@ func (r registry) CustomTags(customTags ...custom.HtmlTag) {
 
 // RegisterController adds a new controller function for the specified
 // page / page group.
-func (r registry) Controller(displayScope string, fn PageControllerFunc) {
+func (r Registration) Controller(displayScope string, fn PageControllerFunc) {
 	r.w.pm.registerController(displayScope, fn)
 }
 
-// RegisterDisplayScopes registers the pages and page groups
-func (r registry) DisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
-	r.w.pm.registerDisplayScopes(pages, pageGroups)
-}
-
-// RegisterNotFoundPage registers the page that is used when no page matches the url
-func (r registry) NotFoundPage(pageid string) {
-	r.w.pm.SetNotFoundPage(pageid)
+func (r Registration) PageGroup(id string, children []string) {
+	r.w.pm.registerPageGroup(id, children)
 }
 
 // loadHtml loads html from script[type='text/wadin'], performs html imports on it
@@ -200,7 +191,8 @@ func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application
 	}
 
 	app.wade = wd
-	app.Register = registry{wd}
+	app.Register = Registration{wd}
+	app.Router = app.wade.pm.router
 	wd.init()
 
 	app.initServices(wd.pm, rb, httpClient)

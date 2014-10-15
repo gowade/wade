@@ -8,7 +8,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	urlrouter "github.com/naoina/kocha-urlrouter"
-	_ "github.com/phaikawl/regrouter"
+
 	"github.com/phaikawl/wade/bind"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
@@ -42,11 +42,9 @@ type (
 	pageManager struct {
 		app           *Application
 		document      dom.Selection
-		routes        []urlrouter.Record
-		router        urlrouter.URLRouter
+		router        *Router
 		currentPage   *page
 		basePath      string
-		startPath     string
 		notFoundPage  *page
 		rcProto       string
 		container     dom.Selection
@@ -54,7 +52,7 @@ type (
 		realContainer dom.Selection
 
 		binding        bindEngine
-		pc             *Scope
+		scope          *Scope
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
 		formattedTitle string
@@ -92,8 +90,7 @@ func newPageManager(app *Application, history History, document dom.Selection,
 	pm := &pageManager{
 		app:           app,
 		document:      document,
-		routes:        make([]urlrouter.Record, 0),
-		router:        urlrouter.NewURLRouter("regexp"),
+		router:        newRouter(nil),
 		currentPage:   nil,
 		basePath:      basePath,
 		notFoundPage:  nil,
@@ -106,12 +103,14 @@ func newPageManager(app *Application, history History, document dom.Selection,
 		history:       history,
 	}
 
+	pm.router.pm = pm
+
 	pm.displayScopes[GlobalDisplayScope] = pm.globalDs
 	return pm
 }
 
 func (pm *pageManager) CurrentPageId() string {
-	return pm.currentPage.id
+	return pm.currentPage.Id
 }
 
 func (pm *pageManager) cutPath(spath string) string {
@@ -165,8 +164,7 @@ func (pm *pageManager) GoToUrl(url string) (found bool) {
 }
 
 func (pm *pageManager) prepare() {
-	//build the router
-	pm.router.Build(pm.routes)
+	pm.router.Build()
 
 	pm.history.OnPopState(func() {
 		go func() {
@@ -175,11 +173,9 @@ func (pm *pageManager) prepare() {
 	})
 
 	p := pm.history.CurrentPath()
-	if pm.cutPath(p) == "/" && pm.startPath != "" {
-		p = path.Join(pm.basePath, pm.startPath)
-	}
 
 	err, _ := pm.updateUrl(p, false, true)
+
 	if err != nil {
 		pm.app.ErrChanPut(err)
 	}
@@ -197,7 +193,7 @@ func walk(elem dom.Selection, pm *pageManager) {
 			for _, belong := range list {
 				belong = strings.TrimSpace(belong)
 				if ds, ok := pm.displayScopes[belong]; ok {
-					if ds.hasPage(pm.currentPage.id) {
+					if ds.hasPage(pm.currentPage.Id) {
 						display = true
 						walk(e, pm)
 						break
@@ -250,10 +246,11 @@ func (sp *scrollPreserver) applyScrolls(newCtn dom.Selection) {
 	}
 }
 
-func (pm *pageManager) addRoute(p *page) {
-	if p.path != "" {
-		pm.routes = append(pm.routes, urlrouter.NewRecord(p.path, p))
-	}
+type pageUpdate struct {
+	url         *gourl.URL
+	routeParams []urlrouter.Param
+	pushState   bool
+	firstLoad   bool
 }
 
 func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (err error, found bool) {
@@ -263,34 +260,43 @@ func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (er
 	}
 
 	match, routeparams := pm.router.Lookup(u.Path)
-	if match == nil {
+	pu := pageUpdate{
+		url:         u,
+		routeParams: routeparams,
+		pushState:   pushState,
+		firstLoad:   firstLoad,
+	}
 
-		if pm.notFoundPage != nil {
-			pm.updatePage(pm.notFoundPage, u, []urlrouter.Param{}, false, false)
-		} else {
-			err = fmt.Errorf("Page not found. No 404 page declared.")
+	if match == nil {
+		if pm.router.notFoundHandler == nil {
+			err = fmt.Errorf("404 page not found. No handler for page not found has been set.")
+			return
 		}
+
+		//gopherjs:blocking
+		pm.router.notFoundHandler.UpdatePage(pm, pu)
 		return
 	}
 
 	found = true
-	page := match.(*page)
 
-	pm.updatePage(page, u, routeparams, pushState, firstLoad)
+	//gopherjs:blocking
+	err, found = match.UpdatePage(pm, pu)
+
 	return
 }
 
-func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrouter.Param, pushState bool, firstLoad bool) {
+func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 	lck := &lock{}
 	PageProcessingLock = lck
 
-	if pushState {
-		pm.history.PushState(page.title, pm.FullPath(u.Path))
+	if pu.pushState {
+		pm.history.PushState(page.Title, pm.FullPath(pu.url.Path))
 	}
 
-	namedParams := http.NewNamedParams(routeparams)
+	namedParams := http.NewNamedParams(pu.routeParams)
 
-	pm.formattedTitle = page.title
+	pm.formattedTitle = page.Title
 
 	pm.currentPage = page
 	pm.container = newHiddenContainer(pm.rcProto, pm.document)
@@ -300,7 +306,7 @@ func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrou
 	walk(pm.container, pm)
 
 	pm.binding.Watcher().ResetWatchers()
-	pm.bind(namedParams, u)
+	pm.bind(namedParams, pu.url)
 
 	if PageProcessingLock != lck {
 		return
@@ -310,7 +316,7 @@ func (pm *pageManager) updatePage(page *page, u *gourl.URL, routeparams []urlrou
 
 	if ClientSide {
 		jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
-		if firstLoad {
+		if pu.firstLoad {
 			scrollpos := jqwindow.Call("scrollTop")
 			sp := &scrollPreserver{[]scrollItem{}}
 			for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
@@ -377,7 +383,7 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, e
 	page := pm.page(pageId)
 
 	k, i := 0, 0
-	route := page.path
+	route := page.route
 	routeparams := urlrouter.ParamNames(route)
 	for {
 		if i >= len(route) {
@@ -410,7 +416,7 @@ func (pm *pageManager) BasePath() string {
 }
 
 func (pm *pageManager) CurrentPage() *Scope {
-	return pm.pc
+	return pm.scope
 }
 
 func (pm *pageManager) bind(namedParams *http.NamedParams, url *gourl.URL) {
@@ -429,13 +435,15 @@ func (pm *pageManager) bind(namedParams *http.NamedParams, url *gourl.URL) {
 	for _, grp := range pm.currentPage.groups {
 		add(grp)
 	}
+
 	add(pm.currentPage)
 
 	if len(controllers) > 0 {
 		completeChan := make(chan bool, 1)
 		queueChan := make(chan bool, len(controllers))
-		for _, controller := range controllers {
+		for i, controller := range controllers {
 			go func(controller PageControllerFunc) {
+				s.ModelHolder.inMainCtrl = (i == len(controllers)-1)
 				//gopherjs:blocking
 				err := controller(s)
 				if err != nil {
@@ -454,7 +462,7 @@ func (pm *pageManager) bind(namedParams *http.NamedParams, url *gourl.URL) {
 	//gopherjs:blocking
 	pm.binding.BindModels(pm.container, s.bindModels(), false)
 
-	pm.pc = s
+	pm.scope = s
 
 	pm.binding.Watcher().Checkpoint()
 }
@@ -470,17 +478,35 @@ func (pm *pageManager) registerController(displayScope string, fn PageController
 	ds.addController(fn)
 }
 
-// RegisterDisplayScopes registers the given maps of pages and pageGroups
-func (pm *pageManager) registerDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
-	if pages != nil {
-		for _, pg := range pages {
-			pm.displayScopes[pg.id] = pg.Register(pm)
-		}
+//// RegisterDisplayScopes registers the given maps of pages and pageGroups
+//func (pm *pageManager) registerDisplayScopes(pages []PageDesc, pageGroups []PageGroupDesc) {
+//	if pages != nil {
+//		for _, pg := range pages {
+//			pm.displayScopes[pg.id] = pg.Register(pm)
+//		}
+//	}
+
+//	if pageGroups != nil {
+//		for _, pg := range pageGroups {
+//			pm.displayScopes[pg.id] = pg.Register(pm)
+//		}
+//	}
+//}
+
+func (pm *pageManager) registerPageGroup(pgid string, children []string) {
+	if _, exist := pm.displayScopes[pgid]; exist {
+		panic(fmt.Sprintf(`Page or page group with id "%v" has already been registered.`, pgid))
 	}
 
-	if pageGroups != nil {
-		for _, pg := range pageGroups {
-			pm.displayScopes[pg.id] = pg.Register(pm)
+	grp := newPageGroup(make([]displayScope, len(children)))
+	for i, id := range children {
+		ds, ok := pm.displayScopes[id]
+		if !ok {
+			panic(fmt.Errorf(`Wrong children for page group "%v", there's no page or page group with id "%v".`, pgid, id))
 		}
+		ds.addParent(grp)
+		grp.children[i] = ds
 	}
+
+	pm.displayScopes[pgid] = grp
 }

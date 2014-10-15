@@ -140,7 +140,7 @@ func (mb *HttpMock) Do(r *http.Request) (err error) {
 	match, params := mb.Router.Lookup(r.URL.Path)
 	if match == nil {
 		mb.responseFinish()
-		panic(fmt.Errorf(`404 no handler found for path "%v".`, r.URL.Path))
+		panic(fmt.Errorf(`404 Page not found for path "%v".`, r.URL.Path))
 	}
 
 	tr := match.(Responder).Response(&Context{http.NewNamedParams(params), r})

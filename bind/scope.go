@@ -6,21 +6,21 @@ import (
 )
 
 type (
-	scope struct {
+	Scope struct {
 		symTables []symbolTable
 	}
 
-	scopeSymbol interface {
-		value() (reflect.Value, error)
+	ScopeSymbol interface {
+		Value() (reflect.Value, error)
 		call(args []reflect.Value, async bool) (reflect.Value, error)
 	}
 
 	symbolTable interface {
-		lookup(symbol string) (scopeSymbol, bool, error)
+		lookup(symbol string) (ScopeSymbol, bool, error)
 	}
 
 	helpersSymbolTable struct {
-		m map[string]scopeSymbol
+		m map[string]ScopeSymbol
 	}
 
 	funcSymbol struct {
@@ -38,11 +38,11 @@ type (
 	}
 )
 
-func newScope() *scope {
-	return &scope{make([]symbolTable, 0)}
+func newScope() *Scope {
+	return &Scope{make([]symbolTable, 0)}
 }
 
-func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
+func (s *Scope) Lookup(symbol string) (sym ScopeSymbol, err error) {
 	for _, st := range s.symTables {
 		var ok bool
 		sym, ok, err = st.lookup(symbol)
@@ -55,17 +55,17 @@ func (s *scope) lookup(symbol string) (sym scopeSymbol, err error) {
 		}
 	}
 
-	err = fmt.Errorf(`Unable to find symbol "%v" in the scope`, symbol)
+	err = fmt.Errorf(`Unable to find symbol "%v" in the Scope`, symbol)
 	return
 }
 
-func (s *scope) merge(target *scope) {
+func (s *Scope) merge(target *Scope) {
 	for _, st := range target.symTables {
 		s.symTables = append(s.symTables, st)
 	}
 }
 
-func (st helpersSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
+func (st helpersSymbolTable) lookup(symbol string) (sym ScopeSymbol, ok bool, err error) {
 	sym, ok = st.m[symbol]
 	return
 }
@@ -87,7 +87,7 @@ func newFuncSymbol(name string, fn interface{}) funcSymbol {
 	return funcSymbol{name, reflect.ValueOf(fn)}
 }
 
-func (fs funcSymbol) value() (reflect.Value, error) {
+func (fs funcSymbol) Value() (reflect.Value, error) {
 	return fs.fn, nil
 }
 
@@ -116,7 +116,7 @@ func (fs funcSymbol) call(args []reflect.Value, async bool) (v reflect.Value, er
 }
 
 func newHelpersSymbolTable(helpers map[string]interface{}) helpersSymbolTable {
-	m := make(map[string]scopeSymbol)
+	m := make(map[string]ScopeSymbol)
 	for name, helper := range helpers {
 		m[name] = newFuncSymbol(name, helper)
 	}
@@ -128,7 +128,7 @@ func (fs fieldSymbol) bindObj() *ObjEval {
 	return fs.eval
 }
 
-func (fs fieldSymbol) value() (v reflect.Value, err error) {
+func (fs fieldSymbol) Value() (v reflect.Value, err error) {
 	return fs.eval.FieldRefl, nil
 }
 
@@ -151,7 +151,7 @@ func (fs fieldSymbol) call(args []reflect.Value, async bool) (v reflect.Value, e
 	return
 }
 
-func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err error) {
+func (st modelSymbolTable) lookup(symbol string) (sym ScopeSymbol, ok bool, err error) {
 	if st.model.Kind() == reflect.Ptr && st.model.IsNil() {
 		ok = false
 		return
@@ -166,10 +166,10 @@ func (st modelSymbolTable) lookup(symbol string) (sym scopeSymbol, ok bool, err 
 	return
 }
 
-func newModelScope(model interface{}) *scope {
+func newModelScope(model interface{}) *Scope {
 	stl := []symbolTable{}
 	if model != nil {
 		stl = append(stl, modelSymbolTable{reflect.ValueOf(model)})
 	}
-	return &scope{stl}
+	return &Scope{stl}
 }

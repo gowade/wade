@@ -16,21 +16,21 @@ type (
 
 func TestScope(t *testing.T) {
 	s1 := newModelScope(Test{C9: 1})
-	_, err := s1.lookup("Nonexistant")
+	_, err := s1.Lookup("Nonexistant")
 	require.Equal(t, strings.Contains(err.Error(), "Unable to find"), true)
-	symbol, err := s1.lookup("C9")
+	symbol, err := s1.Lookup("C9")
 	require.Equal(t, err, nil)
-	v, _ := symbol.value()
+	v, _ := symbol.Value()
 	require.Equal(t, v.Int(), 1)
 
-	s2 := &scope{[]symbolTable{newHelpersSymbolTable(map[string]interface{}{
+	s2 := &Scope{[]symbolTable{newHelpersSymbolTable(map[string]interface{}{
 		"testHelper": func() bool {
 			return true
 		},
 	})}}
 
 	s1.merge(s2)
-	symbol, err = s1.lookup("testHelper")
+	symbol, err = s1.Lookup("testHelper")
 	require.Equal(t, err, nil)
 	v, _ = symbol.call([]reflect.Value{}, false)
 	require.Equal(t, v.Bool(), true)
@@ -43,13 +43,13 @@ func TestScope(t *testing.T) {
 	}
 
 	st := newModelScope(m)
-	symbol, err = st.lookup("a.b")
+	symbol, err = st.Lookup("a.b")
 	require.Equal(t, err, nil)
-	v, _ = symbol.value()
+	v, _ = symbol.Value()
 	require.Equal(t, v.Interface(), true)
 
-	symbol, err = st.lookup("b.C9")
+	symbol, err = st.Lookup("b.C9")
 	require.Equal(t, err, nil)
-	v, _ = symbol.value()
+	v, _ = symbol.Value()
 	require.Equal(t, v.Interface(), 2)
 }
