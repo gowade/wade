@@ -3,12 +3,12 @@
 
 # Wade.Go
 **Wade.Go** is a **client-centric** web framework like nothing you ever heard. It brings these awesome things together
-* Compiled, statically typed programming and the best concurrency model with Go (compiled to Javascript on client side by [gopherjs](https://github.com/gopherjs/gopherjs))
+* Compiled, statically typed programming with Go (compiled to Javascript on client side by [gopherjs](https://github.com/gopherjs/gopherjs))
 * Client-centric web development with data binding (think AngularJs or ReactJs)
 * Hybrid rendering: Write code once, render on both client and server (think server-side ReactJS)
 * Instant functional testing with native `go test` (no browser needed)
 
-With the creation of Wade.Go, you can now write both client and server in a single programming language that is not Javascript. And Go brings the static type system that makes maintenance a breeze.
+With the creation of Wade.Go, you can now write both client and server in a single programming language that is not Javascript. Go brings the best concurrency pattern (goroutines) and the static type system that makes maintenance a breeze.
 
 Although being a client-centric web framework, Wade.Go works even when Javascript is disabled and is SEO-friendly due to the ability to render the site with server-side Go. Wade.Go is built for web *sites*, not just *apps*, it works for content-heavy sites like blog, forum as well as very dynamic ones like Facebook.
 
