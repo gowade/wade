@@ -1,4 +1,4 @@
-package custom
+package com
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/scope"
 )
 
 var (
@@ -17,23 +18,30 @@ var (
 )
 
 type (
-	CustomTag struct {
-		HtmlTag
-		attrs map[string]string
+	Component struct {
+		Spec
+		template string
+		attrs    map[string]string
+		manager  *Manager
 	}
 
-	HtmlTag struct {
+	TemplateProvider interface {
+		Template(container dom.Selection) string
+	}
+
+	Spec struct {
 		Name      string
-		Prototype TagPrototype
-		Html      string
+		Prototype Prototype
+		Template  TemplateProvider
 	}
 
-	TagManager struct {
-		custags map[string]*CustomTag
+	Manager struct {
+		components      map[string]*Component
+		sourceContainer dom.Selection
 	}
 
-	CustomElem struct {
-		model    TagPrototype
+	Element struct {
+		model    Prototype
 		Elem     dom.Selection
 		Contents dom.Selection
 	}
@@ -44,7 +52,7 @@ type (
 		Dom() dom.Dom
 	}
 
-	ContentsCtl interface {
+	ContentsData interface {
 		Ctl
 		Contents() dom.Selection //returns the contents container
 	}
@@ -53,27 +61,43 @@ type (
 		contents dom.Selection
 	}
 
-	ElemCtl interface {
+	ElemData interface {
 		Ctl
 		Element() dom.Selection // returns the element itself
 	}
 
-	TagPrototype interface {
-		ProcessContents(ContentsCtl) error
-		Update(ElemCtl) error
-		Init() error
+	Prototype interface {
+		Init(parentScope *scope.Scope) error
+		ProcessContents(ContentsData) error
+		Update(ElemData) error
 	}
 
-	ElemIniter interface {
-		CustomElemInit(proto TagPrototype)
+	ComponentIniter interface {
+		ComponentInit(proto Prototype)
 	}
 
 	BaseProto struct{}
+
+	StringTemplate   string
+	DeclaredTemplate struct {
+		Id string
+	}
 )
 
-func (b BaseProto) Init() error                           { return nil }
-func (b BaseProto) ProcessContents(ctl ContentsCtl) error { return nil }
-func (b BaseProto) Update(ctl ElemCtl) error              { return nil }
+func (t DeclaredTemplate) Template(container dom.Selection) string {
+	tpl := container.Find("template#" + t.Id)
+	tpl.Remove()
+
+	return tpl.Html()
+}
+
+func (t StringTemplate) Template(_ dom.Selection) string {
+	return string(t)
+}
+
+func (b BaseProto) Init(parentScope *scope.Scope) error    { return nil }
+func (b BaseProto) ProcessContents(ctl ContentsData) error { return nil }
+func (b BaseProto) Update(ctl ElemData) error              { return nil }
 
 func (c contentsCtlImpl) Contents() dom.Selection {
 	return c.contents
@@ -83,27 +107,27 @@ func (c contentsCtlImpl) Dom() dom.Dom {
 	return c.contents
 }
 
-func (c *CustomElem) Model() interface{} {
+func (c *Element) Model() interface{} {
 	return c.model
 }
 
-func (c *CustomElem) ContentsCtn() dom.Selection {
+func (c *Element) ContentsCtn() dom.Selection {
 	return c.Contents
 }
 
-func (c *CustomElem) Element() dom.Selection {
+func (c *Element) Element() dom.Selection {
 	return c.Elem
 }
 
-func (c *CustomElem) Update() error {
+func (c *Element) Update() error {
 	return c.model.Update(c)
 }
 
-func (c *CustomElem) Dom() dom.Dom {
+func (c *Element) Dom() dom.Dom {
 	return c.Elem
 }
 
-func dePtr(proto TagPrototype) reflect.Type {
+func dePtr(proto Prototype) reflect.Type {
 	if proto == nil {
 		return reflect.TypeOf(Empty{})
 	}
@@ -116,7 +140,7 @@ func dePtr(proto TagPrototype) reflect.Type {
 	return p
 }
 
-func (tag *CustomTag) prepareAttributes(prototype reflect.Type) error {
+func (tag *Component) prepareAttributes(prototype reflect.Type) error {
 	for i := 0; i < prototype.NumField(); i++ {
 		field := prototype.Field(i)
 		hname := field.Tag.Get("html")
@@ -129,13 +153,13 @@ func (tag *CustomTag) prepareAttributes(prototype reflect.Type) error {
 	return nil
 }
 
-func (tag *CustomTag) HasAttr(attr string) (has bool, fieldName string) {
+func (tag *Component) HasAttr(attr string) (has bool, fieldName string) {
 	fieldName, has = tag.attrs[attr]
 
 	return
 }
 
-func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection, bool)) (err error) {
+func (ce *Element) PrepareContents(contentBindFn func(dom.Selection, bool)) (err error) {
 	contents := ce.Contents.Contents()
 	if contents.Length() > 0 {
 		for i, wc := range ce.Elem.Find("wcontents").Elements() {
@@ -165,7 +189,7 @@ func (ce *CustomElem) PrepareContents(contentBindFn func(dom.Selection, bool)) (
 	return
 }
 
-func (t *CustomTag) NewModel(elem dom.Selection) TagPrototype {
+func (t *Component) NewModel(elem dom.Selection) Prototype {
 	if t.Prototype == nil {
 		return nil
 	}
@@ -211,25 +235,25 @@ func (t *CustomTag) NewModel(elem dom.Selection) TagPrototype {
 		}
 	}
 
-	return cptr.Interface().(TagPrototype)
+	return cptr.Interface().(Prototype)
 }
 
-func (t *CustomTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomElem, err error) {
+func (t *Component) NewElem(elem dom.Selection, initer ComponentIniter, parentScope *scope.Scope) (ce *Element, err error) {
 	contentElem := elem.NewFragment("<wroot></wroot>")
 	contentElem.SetHtml(elem.Html())
-	elem.SetHtml(t.Html)
+	elem.SetHtml(t.template)
 	model := t.NewModel(elem)
 
 	if initer != nil {
-		initer.CustomElemInit(model)
+		initer.ComponentInit(model)
 	}
 
-	err = model.Init()
+	err = model.Init(parentScope)
 	if err != nil {
 		return
 	}
 
-	ce = &CustomElem{
+	ce = &Element{
 		model:    model,
 		Elem:     elem,
 		Contents: contentElem,
@@ -238,9 +262,10 @@ func (t *CustomTag) NewElem(elem dom.Selection, initer ElemIniter) (ce *CustomEl
 	return
 }
 
-func NewTagManager() *TagManager {
-	return &TagManager{
-		custags: make(map[string]*CustomTag),
+func NewManager(sourceContainer dom.Selection) *Manager {
+	return &Manager{
+		components:      make(map[string]*Component),
+		sourceContainer: sourceContainer,
 	}
 }
 
@@ -254,12 +279,19 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
-	for _, ht := range customTags {
-		ct := &CustomTag{
-			HtmlTag: ht,
+func (tm *Manager) RegisterComponents(specs []Spec) (ret error) {
+	for _, ht := range specs {
+		ct := &Component{
+			Spec:    ht,
 			attrs:   map[string]string{},
+			manager: tm,
 		}
+
+		if ht.Template == nil {
+			panic(fmt.Errorf("No template available for component %v", ht.Name))
+		}
+
+		ct.template = ht.Template.Template(tm.sourceContainer)
 
 		prototype := ct.Prototype
 		if prototype != nil {
@@ -280,32 +312,20 @@ func (tm *TagManager) RegisterTags(customTags []HtmlTag) (ret error) {
 			continue
 		}
 
-		tm.custags[strings.ToLower(ct.Name)] = ct
+		tm.components[strings.ToLower(ct.Name)] = ct
 	}
 
 	return ret
 }
 
-// GetHtmlTag checks if the element's tag is of a registered custom tag
-func (tm *TagManager) GetTag(elem dom.Selection) (ct *CustomTag, ok bool) {
+// GetHtmlTag checks if the element's tag is of a registered component
+func (tm *Manager) GetComponent(elem dom.Selection) (ct *Component, ok bool) {
 	tagname, err := elem.TagName()
 	if err != nil {
 		ok = false
 		return
 	}
 
-	ct, ok = tm.custags[tagname]
-	return
-}
-
-func (tm *TagManager) RedefTag(tagname string, html string) (err error) {
-	tag, ok := tm.custags[tagname]
-	if !ok {
-		err = fmt.Errorf(`Custom tag "%v" has not been registered.`, tagname)
-		return
-	}
-
-	tag.Html = html
-	tm.custags[tagname] = tag
+	ct, ok = tm.components[tagname]
 	return
 }

@@ -5,18 +5,18 @@ import (
 	"strings"
 
 	"github.com/phaikawl/wade"
-	"github.com/phaikawl/wade/custom"
+	"github.com/phaikawl/wade/com"
 	"github.com/phaikawl/wade/dom"
 )
 
 type SwitchMenu struct {
-	custom.BaseProto
+	com.BaseProto
 	Current     string
 	ActiveClass string
 	Choices     map[string]dom.Selection
 }
 
-func (sm *SwitchMenu) ProcessContents(ctl custom.ContentsCtl) error {
+func (sm *SwitchMenu) ProcessContents(ctl com.ContentsData) error {
 	sm.Choices = make(map[string]dom.Selection)
 	sm.ActiveClass = strings.TrimSpace(sm.ActiveClass)
 	if sm.ActiveClass == "" {
@@ -60,7 +60,7 @@ func (sm *SwitchMenu) ProcessContents(ctl custom.ContentsCtl) error {
 	return nil
 }
 
-func (sm *SwitchMenu) Update(ctl custom.ElemCtl) error {
+func (sm *SwitchMenu) Update(ctl com.ElemData) error {
 	ctl.Element().Find("li." + sm.ActiveClass).RemoveClass(sm.ActiveClass)
 	if item, ok := sm.Choices[sm.Current]; ok {
 		item.AddClass(sm.ActiveClass)
@@ -69,12 +69,12 @@ func (sm *SwitchMenu) Update(ctl custom.ElemCtl) error {
 	return nil
 }
 
-func HtmlTags() []custom.HtmlTag {
-	return []custom.HtmlTag{
-		custom.HtmlTag{
-			Name:      "switchmenu",
+func Components() []com.Spec {
+	return []com.Spec{
+		com.Spec{
+			Name:      "wSwitchMenu",
 			Prototype: &SwitchMenu{},
-			Html:      `<wcontents></wcontents>`,
+			Template:  com.StringTemplate(`<wcontents></wcontents>`),
 		},
 	}
 }

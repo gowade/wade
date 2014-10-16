@@ -3,30 +3,21 @@ package bind
 import (
 	"fmt"
 	"reflect"
+	. "github.com/phaikawl/wade/scope"
 )
 
 type (
-	ObjEval struct {
-		FieldRefl reflect.Value
-		ModelRefl reflect.Value
-		Field     string
-	}
-
-	bindable interface {
-		bindObj() *ObjEval
-	}
-
 	bindScope struct {
 		scope *Scope
 	}
 
 	barray struct {
-		slice []bindable
+		slice []Bindable
 		size  int
 	}
 )
 
-func (a *barray) add(value bindable) {
+func (a *barray) add(value Bindable) {
 	a.slice[a.size] = value
 	a.size++
 }
@@ -66,7 +57,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 			return
 		}
 
-		sym, err = newModelScope(preVal).Lookup(e.name[1:])
+		sym, err = NewModelScope(preVal).Lookup(e.name[1:])
 	} else {
 		sym, err = b.scope.Lookup(e.name)
 	}
@@ -86,7 +77,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 		}
 
 		if watch && blist != nil {
-			blist.add(sym.(bindable))
+			blist.add(sym.(Bindable))
 		}
 
 	case CallExpr:
@@ -102,7 +93,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 
 		if wrapped {
 			v = func() {
-				_, er := sym.call(args, true)
+				_, er := sym.Call(args, true)
 				if er != nil {
 					panic(er)
 				}
@@ -111,7 +102,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 			return
 		}
 
-		rv, err = sym.call(args, false)
+		rv, err = sym.Call(args, false)
 		if rv.IsValid() && rv.CanInterface() {
 			v = rv.Interface()
 		}
@@ -142,7 +133,7 @@ func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist *barray, value 
 }
 
 func (b *bindScope) evaluatePart(calcRoot *expr, nwatches int) (blist *barray, value interface{}, err error) {
-	blist = &barray{make([]bindable, nwatches), 0}
+	blist = &barray{make([]Bindable, nwatches), 0}
 	value, err = b.evaluateRec(calcRoot, blist, 0, nil)
 	if err != nil {
 		return
@@ -152,7 +143,7 @@ func (b *bindScope) evaluatePart(calcRoot *expr, nwatches int) (blist *barray, v
 }
 
 func (b *bindScope) clone() *bindScope {
-	scope := newScope()
-	scope.merge(b.scope)
+	scope := NewScope([]SymbolTable{})
+	scope.Merge(b.scope)
 	return &bindScope{scope}
 }

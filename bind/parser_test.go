@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	. "github.com/phaikawl/wade/scope"
 )
 
 type TestUser struct {
@@ -39,9 +41,9 @@ func TestParser(t *testing.T) {
 		},
 	}
 
-	hst := newHelpersSymbolTable(helpers)
-	dhst := newHelpersSymbolTable(defaultHelpers())
-	bs := &bindScope{&Scope{[]symbolTable{dhst, hst, modelSymbolTable{reflect.ValueOf(model)}}}}
+	hst := NewHelpersSymbolTable(helpers)
+	dhst := NewHelpersSymbolTable(defaultHelpers())
+	bs := &bindScope{NewScope([]SymbolTable{dhst, hst, NewModelSymbolTable(model)})}
 	tests := map[string]interface{}{
 		"$Test":                                                    "Nt",
 		"$Data.Username":                                           "Hai",
@@ -58,7 +60,7 @@ func TestParser(t *testing.T) {
 	for bstr, result := range tests {
 		_, _, v, err := bs.evaluate(bstr)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf(`Error {%v"} on bind string "%v".`, err.Error(), bstr)
 		}
 		switch v.(type) {
 		case string, int, float32:

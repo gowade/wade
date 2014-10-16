@@ -52,7 +52,7 @@ type (
 		realContainer dom.Selection
 
 		binding        bindEngine
-		scope          *Scope
+		scope          *PageScope
 		displayScopes  map[string]displayScope
 		globalDs       *globalDisplayScope
 		formattedTitle string
@@ -301,7 +301,6 @@ func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 	pm.currentPage = page
 	pm.container = newHiddenContainer(pm.rcProto, pm.document)
 	pm.container.SetHtml(pm.tcontainer.Html())
-	pm.container.Find("wdefine").Remove()
 
 	walk(pm.container, pm)
 
@@ -415,12 +414,12 @@ func (pm *pageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *pageManager) CurrentPage() *Scope {
+func (pm *pageManager) CurrentPage() *PageScope {
 	return pm.scope
 }
 
 func (pm *pageManager) bind(namedParams *http.NamedParams, url *gourl.URL) {
-	s := pm.newRootScope(pm.currentPage, namedParams, url)
+	s := pm.newPageScope(pm.currentPage, namedParams, url)
 	controllers := make([]PageControllerFunc, 0)
 
 	add := func(ds displayScope) {

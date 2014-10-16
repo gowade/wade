@@ -3,7 +3,7 @@ package bind
 import (
 	"testing"
 
-	"github.com/phaikawl/wade/custom"
+	"github.com/phaikawl/wade/com"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/stretchr/testify/require"
@@ -11,7 +11,7 @@ import (
 
 type (
 	Model struct {
-		custom.BaseProto
+		com.BaseProto
 		Name  string
 		Value int
 		Test  *TestModel
@@ -37,18 +37,18 @@ func TestBinding(t *testing.T) {
 	sc := &Sc{"a", 9000, &TestModel{A{true}}}
 	bs := &bindScope{b.newModelScope(sc)}
 
-	testct := custom.HtmlTag{
+	testct := com.Spec{
 		Name: "test",
-		Html: `
+		Template: com.StringTemplate(`
 			<div><wcontents></wcontents></div>
 			<span #html="$Name"></span>
 			<p #html="$Value"></p>
 			<div #html="$Test.A.B"></div>
 			<div><wcontents></wcontents></div>
-			`,
+			`),
 		Prototype: &Model{},
 	}
-	b.tm.RegisterTags([]custom.HtmlTag{
+	b.tm.RegisterComponents([]com.Spec{
 		testct,
 	})
 
@@ -78,8 +78,8 @@ func TestBinding(t *testing.T) {
 
 	//test processFieldBind
 	elem = goquery.GetDom().NewFragment("<test></test>")
-	tct, _ := b.tm.GetTag(elem)
-	ct, _ := tct.NewElem(elem, nil)
+	tct, _ := b.tm.GetComponent(elem)
+	ct, _ := tct.NewElem(elem, nil, nil)
 	model := ct.Model().(*Model)
 	b.processFieldBind("Name", "':Hai;'", elem, bs, false, ct)
 	b.processFieldBind("Value", "$Num", elem, bs, false, ct)

@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/gopherjs/gopherjs/js"
+	sc "github.com/phaikawl/wade/scope"
 )
 
 type (
@@ -30,7 +31,7 @@ type (
 		Callback WatchCallback
 		Closer   WatchCloser
 		efn      EvalFn
-		obj      *ObjEval
+		obj      *sc.ObjEval
 		val      interface{}
 	}
 
@@ -40,7 +41,7 @@ type (
 	}
 
 	WatchCtl struct {
-		Obj *ObjEval
+		Obj *sc.ObjEval
 		obs *observer
 		w   *Watcher
 	}
@@ -64,7 +65,7 @@ func (c WatchCtl) WatchAdd(newFr reflect.Value, closer WatchCloser, callback Wat
 }
 
 func (w WatchCtl) NewFieldRefl() reflect.Value {
-	v, ok, err := getReflectField(w.Obj.ModelRefl, w.Obj.Field)
+	v, ok, err := sc.GetReflectField(w.Obj.ModelRefl, w.Obj.Field)
 	if !ok || err != nil {
 		fmt.Printf("Getting new value for field %v failed.", w.Obj.Field)
 	}
@@ -103,7 +104,7 @@ func (w BasicWatchBackend) DigestAll(watcher *Watcher) {
 
 func (w BasicWatchBackend) Checkpoint() {}
 
-func (b *Watcher) Watch(value interface{}, efn EvalFn, obj *ObjEval, callback WatchCallback) {
+func (b *Watcher) Watch(value interface{}, efn EvalFn, obj *sc.ObjEval, callback WatchCallback) {
 	obs := &observer{callback, nil, efn, obj, value}
 	rcb := func(oldAddr uintptr, repl interface{}) {
 		newValue := efn(oldAddr, repl)
@@ -128,7 +129,7 @@ func (b *Watcher) Watch(value interface{}, efn EvalFn, obj *ObjEval, callback Wa
 }
 
 func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallback) (ok bool) {
-	oe, ok, err := evaluateObjField(field, reflect.ValueOf(model))
+	oe, ok, err := sc.EvaluateObjField(field, reflect.ValueOf(model))
 	if err != nil {
 		panic(err)
 	}
@@ -140,7 +141,7 @@ func (b *Watcher) Observe(model interface{}, field string, callback ObserveCallb
 	old := oe.FieldRefl.Interface()
 
 	b.Watch(old, func(_ uintptr, _ interface{}) interface{} {
-		noe, _, _ := evaluateObjField(field, reflect.ValueOf(model))
+		noe, _, _ := sc.EvaluateObjField(field, reflect.ValueOf(model))
 		return noe.FieldRefl.Interface()
 	}, oe, func(newVal interface{}) {
 		callback(old, newVal)

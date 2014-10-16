@@ -15,8 +15,8 @@ func (wd *wade) getHtml(httpClient *http.Client, href string) (string, error) {
 
 func getHtmlFile(httpClient *http.Client, serverbase string, href string) (data string, err error) {
 	resp, err := httpClient.GET(path.Join(serverbase, href))
-	if err != nil {
-		err = fmt.Errorf(`Failed to load HTML file "%v". Error: "%v".`, href, err.Error())
+	if resp.Failed() || err != nil {
+		err = fmt.Errorf(`Failed to load HTML file "%v". Status code: %v. Error: %v.`, href, resp.StatusCode, err)
 		return
 	}
 
@@ -24,7 +24,7 @@ func getHtmlFile(httpClient *http.Client, serverbase string, href string) (data 
 	return
 }
 
-// htmlImport performs an HTML include
+// htmlImport performs HTML include
 func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string) error {
 	imports := parent.Find("winclude").Elements()
 	if len(imports) == 0 {
@@ -51,7 +51,7 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 
 			// the go html parser will refuse to work if the content is only text, so
 			// we put a wrapper here
-			ne := parent.NewFragment("<pendingincl>" + html + "</pendingincl>")
+			ne := parent.NewFragment("<wpendingincl>" + html + "</wpendingincl>")
 			elem.ReplaceWith(ne)
 
 			err = htmlImport(httpClient, ne, serverbase)
@@ -68,6 +68,7 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 			}
 		}(elem)
 	}
+
 	err := <-finishChan
 	if err != nil {
 		return err

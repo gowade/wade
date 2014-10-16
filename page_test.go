@@ -111,7 +111,7 @@ func TestPageManager(t *testing.T) {
 
 	globalCalled := false
 
-	pm.registerController(GlobalDisplayScope, func(s *Scope) (err error) {
+	pm.registerController(GlobalDisplayScope, func(s *PageScope) (err error) {
 		globalCalled = true
 		s.SetModelNamed("global", Struct1{
 			A: 0,
@@ -120,7 +120,7 @@ func TestPageManager(t *testing.T) {
 		return
 	})
 
-	pm.registerController("pg-home", func(s *Scope) (err error) {
+	pm.registerController("pg-home", func(s *PageScope) (err error) {
 		mess <- 1
 		s.SetModel(Struct2{B: 1})
 
@@ -134,25 +134,23 @@ func TestPageManager(t *testing.T) {
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "Home")
 
 	s := bind.ScopeFromModels(b.models)
-	sym, _ := s.Lookup("global.A")
-	v, _ := sym.Value()
-	require.Equal(t, v.Int(), 0)
+	v, _ := s.LookupValue("global.A")
+	require.Equal(t, v.(int), 0)
 
-	sym, _ = s.Lookup("B")
-	v, _ = sym.Value()
-	require.Equal(t, v.Int(), 1)
+	v, _ = s.LookupValue("B")
+	require.Equal(t, v.(int), 1)
 
-	pm.registerController("grp-parent", func(s *Scope) (err error) {
+	pm.registerController("grp-parent", func(s *PageScope) (err error) {
 		s.SetModelNamed("parent", Struct1{A: 2})
 		return
 	})
 
-	pm.registerController("pg-child-1", func(s *Scope) (err error) {
+	pm.registerController("pg-child-1", func(s *PageScope) (err error) {
 		s.SetModel(Struct2{B: 3})
 		return
 	})
 
-	pm.registerController("pg-child-2", func(s *Scope) (err error) {
+	pm.registerController("pg-child-2", func(s *PageScope) (err error) {
 		s.SetModel(Struct3{C: 4})
 		return
 	})
@@ -160,21 +158,18 @@ func TestPageManager(t *testing.T) {
 	pm.updateUrl("/child/vuong", false, false)
 
 	s = bind.ScopeFromModels(b.models)
-	sym, _ = s.Lookup("parent.A")
-	v, _ = sym.Value()
-	require.Equal(t, v.Int(), 2)
+	v, _ = s.LookupValue("parent.A")
+	require.Equal(t, v.(int), 2)
 
-	sym, _ = s.Lookup("B")
-	v, _ = sym.Value()
-	require.Equal(t, v.Int(), 3)
+	v, _ = s.LookupValue("B")
+	require.Equal(t, v.(int), 3)
 
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild1")
 
 	pm.updateUrl("/child/vuong/nam", false, false)
 	s = bind.ScopeFromModels(b.models)
-	sym, _ = s.Lookup("C")
-	v, _ = sym.Value()
-	require.Equal(t, v.Int(), 4)
+	v, _ = s.LookupValue("C")
+	require.Equal(t, v.(int), 4)
 
 	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild2")
 }

@@ -47,16 +47,16 @@ func (v PageView) triggerEvent(selection dom.Selection, event Event) {
 	}
 }
 
-// CheckHaveText successively checks if each selected element has the corresponding
+// CheckText successively checks if each selected element has the corresponding
 // list of text content.
 //
 // Returns an error if some content is not found.
-func (v PageView) AssertHaveText(t *testing.T, selection dom.Selection, textLists [][]string) (err error) {
+func (v PageView) CheckText(selection dom.Selection, textLists [][]string) (err error) {
 	elems := selection.Elements()
 	for i, textList := range textLists {
 		for _, text := range textList {
 			if !strings.Contains(elems[i].Text(), text) {
-				t.Fatal(fmt.Errorf(`%vth element does not have text content "%v"`, i, text))
+				err = fmt.Errorf(`%vth element does not have text content "%v"`, i, text)
 				return
 			}
 		}

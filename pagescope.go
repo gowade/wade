@@ -9,11 +9,11 @@ import (
 	"github.com/phaikawl/wade/libs/http"
 )
 
-// Scope provides access to the page data and operations inside a controller func
+// PageScope provides access to the page data and operations inside a controller func
 type (
 	ObserveCallback func(oldVal, newVal interface{}, document dom.Dom)
 
-	Scope struct {
+	PageScope struct {
 		*bind.Watcher
 		*ModelHolder
 
@@ -36,8 +36,8 @@ type (
 	}
 )
 
-func (pm *pageManager) newRootScope(page *page, params *http.NamedParams, url *gourl.URL) *Scope {
-	return &Scope{
+func (pm *pageManager) newPageScope(page *page, params *http.NamedParams, url *gourl.URL) *PageScope {
+	return &PageScope{
 		ModelHolder: &ModelHolder{
 			models:      []interface{}{},
 			namedModels: map[string]interface{}{},
@@ -53,48 +53,48 @@ func (pm *pageManager) newRootScope(page *page, params *http.NamedParams, url *g
 }
 
 // Manager returns the page manager
-func (pc *Scope) Manager() PageManager {
+func (pc *PageScope) Manager() PageManager {
 	return pc.pm
 }
 
 // NavigatePage navigates to the given page with the given namedParams values
-func (pc *Scope) GoToPage(page string, namedParams ...interface{}) {
+func (pc *PageScope) GoToPage(page string, namedParams ...interface{}) {
 	pc.pm.GoToPage(page, namedParams...)
 }
 
-func (pc *Scope) GoToUrl(url string) {
+func (pc *PageScope) GoToUrl(url string) {
 	pc.pm.GoToUrl(url)
 }
 
-func (pc *Scope) Page() Page {
+func (pc *PageScope) Page() Page {
 	return pc.p.Page
 }
 
 // FormatTitle formats the page's title with the given param values
-func (pc *Scope) FormatTitle(params ...interface{}) {
+func (pc *PageScope) FormatTitle(params ...interface{}) {
 	pc.pm.formattedTitle = fmt.Sprintf(pc.pm.currentPage.Title, params...)
 }
 
 // Observe manually registers an observer for the given model, watching the given field
 // and call the given callback when the the field changes
-func (pc *Scope) Observe(model interface{}, field string, callback ObserveCallback) {
+func (pc *PageScope) Observe(model interface{}, field string, callback ObserveCallback) {
 	pc.Watcher.Observe(model, field, func(oldVal, newVal interface{}) {
 		callback(oldVal, newVal, pc.pm.document)
 	})
 }
 
 // Services returns the global services
-func (pc *Scope) Services() AppServices {
+func (pc *PageScope) Services() AppServices {
 	return pc.App.Services
 }
 
 // Url returns the url for the given page pageId, with the given namedParams values
-func (pc *Scope) GetUrl(pageId string, namedParams ...interface{}) (url string, err error) {
+func (pc *PageScope) GetUrl(pageId string, namedParams ...interface{}) (url string, err error) {
 	return pc.pm.PageUrl(pageId, namedParams...)
 }
 
 // AddValue adds a value to the scope and assigns it a given name
-func (pc *Scope) AddValue(name string, value interface{}) {
+func (pc *PageScope) AddValue(name string, value interface{}) {
 	pc.valMap[name] = value
 }
 
@@ -137,7 +137,7 @@ func (mh *ModelHolder) NamedModel(name string) interface{} {
 	return mh.namedModels[name]
 }
 
-func (pc *Scope) bindModels() (ret []interface{}) {
+func (pc *PageScope) bindModels() (ret []interface{}) {
 	ret = []interface{}{}
 	ret = append(ret, pc.ModelHolder.Models()...)
 
@@ -152,6 +152,6 @@ func (pc *Scope) bindModels() (ret []interface{}) {
 }
 
 // Http is a convenient method which returns the default http client
-func (pc *Scope) Http() *http.Client {
+func (pc *PageScope) Http() *http.Client {
 	return pc.Services().Http
 }

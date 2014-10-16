@@ -5,14 +5,13 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/phaikawl/wade/bind"
-	"github.com/phaikawl/wade/custom"
+	"github.com/phaikawl/wade/com"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
 
 var (
 	DevMode = true
-	App     *Application
 )
 
 func init() {
@@ -35,11 +34,11 @@ type (
 	wade struct {
 		errChan    chan error
 		pm         *pageManager
-		tm         *custom.TagManager
+		tm         *com.Manager
 		tcontainer dom.Selection
 		binding    *bind.Binding
 		serverBase string
-		customTags map[string]map[string]custom.TagPrototype
+		customTags map[string]map[string]com.Prototype
 	}
 
 	Registration struct {
@@ -54,25 +53,21 @@ type (
 	}
 
 	Application struct {
-		Register    Registration
-		Router      *Router
-		Config      AppConfig
-		Services    AppServices
-		wade        *wade
-		main        AppFunc
-		errChan     chan error
-		baseCEProto *BaseProto
+		Register           Registration
+		Router             *Router
+		Config             AppConfig
+		Services           AppServices
+		wade               *wade
+		main               AppFunc
+		errChan            chan error
+		baseComponentProto com.Prototype
 	}
 
-	//Base custom element prototype
 	BaseProto struct {
+		com.BaseProto
 		App *Application
 	}
 )
-
-func (b BaseProto) Init() error                                  { return nil }
-func (b BaseProto) ProcessContents(ctl custom.ContentsCtl) error { return nil }
-func (b BaseProto) Update(ctl custom.ElemCtl) error              { return nil }
 
 func (app *Application) initServices(pm PageManager, rb RenderBackend, httpClient *http.Client) {
 	los, ses := rb.JsBackend.WebStorages()
@@ -88,7 +83,7 @@ func (app *Application) Checkpoint() {
 	app.wade.binding.Watcher().Checkpoint()
 }
 
-func (app *Application) CurrentPage() *Scope {
+func (app *Application) CurrentPage() *PageScope {
 	return app.Services.PageManager.CurrentPage()
 }
 
@@ -123,7 +118,7 @@ func (app *Application) Http() *http.Client {
 	return app.Services.Http
 }
 
-func (app *Application) CustomElemInit(proto custom.TagPrototype) {
+func (app *Application) ComponentInit(proto com.Prototype) {
 	v := reflect.ValueOf(proto)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -131,7 +126,7 @@ func (app *Application) CustomElemInit(proto custom.TagPrototype) {
 	bp := v.FieldByName("BaseProto")
 
 	if bp.IsValid() {
-		ap := reflect.ValueOf(app.baseCEProto)
+		ap := reflect.ValueOf(app.baseComponentProto)
 		if bp.Kind() == reflect.Ptr && ap.Type().AssignableTo(bp.Type()) {
 			bp.Set(ap)
 		}
@@ -142,8 +137,8 @@ func (app *Application) CustomElemInit(proto custom.TagPrototype) {
 	}
 }
 
-func (r Registration) CustomTags(customTags ...custom.HtmlTag) {
-	err := r.w.tm.RegisterTags(customTags)
+func (r Registration) Components(components ...com.Spec) {
+	err := r.w.tm.RegisterComponents(components)
 	if err != nil {
 		panic(err)
 	}
@@ -192,9 +187,9 @@ func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application
 		errChan: make(chan error),
 	}
 
-	app.baseCEProto = &BaseProto{app}
+	app.baseComponentProto = &BaseProto{com.BaseProto{}, app}
 
-	tm := custom.NewTagManager()
+	tm := com.NewManager(templateContainer)
 	binding := bind.NewBindEngine(app, tm, rb.JsBackend)
 
 	wd := &wade{
@@ -203,42 +198,22 @@ func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application
 		binding:    binding,
 		tcontainer: templateContainer,
 		serverBase: config.ServerBase,
-		customTags: make(map[string]map[string]custom.TagPrototype),
 	}
 
 	app.wade = wd
 	app.Register = Registration{wd}
 	app.Router = app.wade.pm.router
-	App = app
 	wd.init()
 
 	app.initServices(wd.pm, rb, httpClient)
 
 	appFn(app)
-	err = wd.loadCustomTagDefs()
-	if err != nil {
-		return
-	}
 
 	return
 }
 
 func (wd *wade) init() {
 	bind.RegisterInternalHelpers(wd.pm, wd.binding)
-}
-
-func (w *wade) loadCustomTagDefs() (err error) {
-	for _, d := range w.tcontainer.Find("wdefine").Elements() {
-		if tagname, ok := d.Attr("tagname"); ok {
-			err = w.tm.RedefTag(tagname, d.Html())
-			if err != nil {
-				err = dom.ElementError(d, err.Error())
-				return
-			}
-		}
-	}
-
-	return
 }
 
 // Start starts the real operation

@@ -16,20 +16,20 @@ type (
 
 func TestSwitchMenu(t *testing.T) {
 	b := bind.NewTestBindEngine()
-	b.TagManager().RegisterTags(HtmlTags())
+	b.ComponentManager().RegisterComponents(Components())
 	scope := &Scope{
 		Choice: "a",
 	}
 
 	root := goquery.GetDom().NewFragment(`
 	<wroot>
-		<switchmenu @Current="$Choice">
+		<wSwitchMenu @Current="$Choice">
 			<ul>
 				<li case="a"></li>
 				<li case="b"></li>
 				<li case="c"></li>
 			</ul>
-		</switchmenu>
+		</wSwitchMenu>
 	</wroot>
 	`)
 

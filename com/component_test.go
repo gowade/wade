@@ -1,4 +1,4 @@
-package custom
+package com
 
 import (
 	"testing"
@@ -24,28 +24,28 @@ type (
 	}
 )
 
-func (t *Test) ProcessContents(ctl ContentsCtl) error {
+func (t *Test) ProcessContents(ctl ContentsData) error {
 	ctl.Contents().Filter("smile").ReplaceWith(ctl.Dom().NewFragment(":D"))
 	return nil
 }
 
 func TestCustomTag(t *testing.T) {
 	d := goquery.GetDom()
-	tm := NewTagManager()
-	err := tm.RegisterTags([]HtmlTag{HtmlTag{
+	tm := NewManager(nil)
+	err := tm.RegisterComponents([]Spec{Spec{
 		Name:      "test",
 		Prototype: &Test{},
-		Html:      `<span><wcontents></wcontents></span>`,
+		Template:  StringTemplate(`<span><wcontents></wcontents></span>`),
 	}})
 
-	tag, ok := tm.GetTag(d.NewFragment("<div></div>"))
+	tag, ok := tm.GetComponent(d.NewFragment("<div></div>"))
 	require.Equal(t, ok, false)
 
 	re := d.NewFragment(Real)
-	tag, ok = tm.GetTag(re)
+	tag, ok = tm.GetComponent(re)
 	require.Equal(t, ok, true)
 
-	elem, _ := tag.NewElem(re, nil)
+	elem, _ := tag.NewElem(re, nil, nil)
 	model := elem.Model().(*Test)
 	require.Equal(t, model.Str, "Awesome!")
 	require.Equal(t, model.Num, 69)

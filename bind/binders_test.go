@@ -3,7 +3,7 @@ package bind
 import (
 	"testing"
 
-	"github.com/phaikawl/wade/custom"
+	"github.com/phaikawl/wade/com"
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ type (
 	}
 
 	ceModel struct {
-		custom.BaseProto
+		com.BaseProto
 		A *aStr
 	}
 
@@ -44,11 +44,11 @@ type (
 func TestEach(t *testing.T) {
 	// Test with slice
 	b := NewTestBindEngine()
-	b.tm.RegisterTags([]custom.HtmlTag{
-		custom.HtmlTag{
+	b.tm.RegisterComponents([]com.Spec{
+		com.Spec{
 			Name:      "test",
 			Prototype: &ceModel{},
-			Html:      `<span #html="$A.B"></span>`,
+			Template:  com.StringTemplate(`<span #html="$A.B"></span>`),
 		},
 	})
 

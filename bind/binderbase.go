@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/phaikawl/wade/dom"
+	. "github.com/phaikawl/wade/scope"
 )
 
 type ModelUpdateFn func(value string)
@@ -43,8 +44,8 @@ type DomBind struct {
 // bind only once (no watching) or watch for changes; bindRoot is whether we bind the root element
 // or not
 func (d DomBind) Bind(elem dom.Selection, m map[string]interface{}, once bool, bindRoot bool) {
-	s := newModelScope(m)
-	s.merge(d.scope)
+	s := NewModelScope(m)
+	s.Merge(d.scope)
 
 	d.binding.bindWithScope(elem, s, once, bindRoot, d.Elem)
 }

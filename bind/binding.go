@@ -6,9 +6,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/phaikawl/wade/custom"
+	"github.com/phaikawl/wade/com"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/icommon"
+
+	. "github.com/phaikawl/wade/scope"
 )
 
 const (
@@ -23,7 +25,7 @@ const (
 type (
 	Application interface {
 		ErrChanPut(error)
-		CustomElemInit(prototype custom.TagPrototype)
+		ComponentInit(prototype com.Prototype)
 	}
 
 	CustomElem interface {
@@ -35,9 +37,9 @@ type (
 
 	Binding struct {
 		app        Application
-		tm         *custom.TagManager
+		tm         *com.Manager
 		domBinders map[string]DomBinder
-		helpers    helpersSymbolTable
+		helpers    HelpersSymbolTable
 
 		watcher   *Watcher
 		scope     *Scope
@@ -64,23 +66,23 @@ type DummyApp struct {
 func (da DummyApp) ErrChanPut(err error) {
 }
 
-func (da DummyApp) CustomElemInit(proto custom.TagPrototype) {
+func (da DummyApp) ComponentInit(proto com.Prototype) {
 }
 
 func NewTestBindEngine() *Binding {
-	return NewBindEngine(DummyApp{}, custom.NewTagManager(), BasicWatchBackend{})
+	return NewBindEngine(DummyApp{}, com.NewManager(nil), BasicWatchBackend{})
 }
 
-func NewBindEngine(app Application, tm *custom.TagManager, jsWatcher WatchBackend) *Binding {
+func NewBindEngine(app Application, tm *com.Manager, jsWatcher WatchBackend) *Binding {
 	b := &Binding{
 		app:        app,
 		tm:         tm,
 		watcher:    NewWatcher(jsWatcher),
 		domBinders: defaultBinders(),
-		helpers:    newHelpersSymbolTable(defaultHelpers()),
+		helpers:    NewHelpersSymbolTable(defaultHelpers()),
 	}
 
-	b.scope = &Scope{[]symbolTable{b.helpers}}
+	b.scope = NewScope([]SymbolTable{b.helpers})
 	return b
 }
 
@@ -97,7 +99,7 @@ func (b *Binding) RegisterBinder(name string, binder DomBinder) {
 	b.domBinders[name] = binder
 }
 
-func (b *Binding) TagManager() *custom.TagManager {
+func (b *Binding) ComponentManager() *com.Manager {
 	return b.tm
 }
 
@@ -113,8 +115,8 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 		panic(fmt.Sprintf("Invalid helper %v, a helper must return something.", name))
 	}
 
-	if _, exist, _ := b.helpers.lookup(name); !exist {
-		b.helpers.registerFunc(name, fn)
+	if _, exist, _ := b.helpers.Lookup(name); !exist {
+		b.helpers.RegisterFunc(name, fn)
 		return
 	}
 
@@ -124,15 +126,15 @@ func (b *Binding) RegisterHelper(name string, fn interface{}) {
 
 func (b *Binding) watchModel(value interface{}, binds *barray, root *expr, bs *bindScope, callback WatchCallback) error {
 	for _, bi := range binds.slice {
-		if !bi.bindObj().FieldRefl.CanAddr() {
-			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.bindObj().Field)
+		if !bi.BindObj().FieldRefl.CanAddr() {
+			return fmt.Errorf(`Cannot watch field "%v" because it's an unaddressable value. Perhaps you don't really need to watch for its changes, if that's the case, you can use a pipe ("|") at the beginning`, bi.BindObj().Field)
 		}
 
 		//use watchjs to watch for changes to the model
 		b.watcher.Watch(value, func(oldAddr uintptr, repl interface{}) (newVal interface{}) {
 			newVal, _ = bs.evaluateRec(root, nil, oldAddr, repl)
 			return
-		}, bi.bindObj(), callback)
+		}, bi.BindObj(), callback)
 	}
 
 	return nil
@@ -199,7 +201,7 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 		bstrPanic(er.Error(), bstr, elem)
 	}
 
-	oe, ok, err := evaluateObjField(field, reflect.ValueOf(ce.Model()))
+	oe, ok, err := EvaluateObjField(field, reflect.ValueOf(ce.Model()))
 	if err != nil {
 		bstrPanic(err.Error(), bstr, elem)
 	}
@@ -236,7 +238,7 @@ func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection
 	}
 }
 
-func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.CustomTag, bs *bindScope, once bool, scopeElem dom.Selection) {
+func (b *Binding) bindCustomElem(elem dom.Selection, tag *com.Component, bs *bindScope, once bool, scopeElem dom.Selection) {
 	if !elem.Exists() {
 		return
 	}
@@ -254,7 +256,7 @@ func (b *Binding) bindCustomElem(elem dom.Selection, tag *custom.CustomTag, bs *
 		}
 	}
 
-	customElem, err := tag.NewElem(elem, b.app)
+	customElem, err := tag.NewElem(elem, b.app, bs.scope)
 	if err != nil {
 		panic(dom.ElementError(elem, fmt.Sprintf(`Cannot initialize the custom element, error in its Init(). Error: %v`, err.Error())))
 	}
@@ -350,7 +352,7 @@ func (b *Binding) processBinderBind(astr, bstr string, elem dom.Selection, bs *b
 		}
 
 		if binds.size == 1 {
-			fmodel := binds.slice[0].bindObj().FieldRefl
+			fmodel := binds.slice[0].BindObj().FieldRefl
 			err = binder.Watch(domBind, func(newVal string) {
 				if !fmodel.CanSet() {
 					bstrPanic("2-way data binding on unchangable field", bstr, elem)
@@ -474,10 +476,10 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 
 	isElement := elem.IsElement()
 
-	var tag *custom.CustomTag
+	var tag *com.Component
 	isCustom := false
 	if isElement {
-		tag, isCustom = b.tm.GetTag(elem)
+		tag, isCustom = b.tm.GetComponent(elem)
 	}
 
 	attrs := make([]dom.Attr, 0)
@@ -584,16 +586,16 @@ func (b *Binding) bindDomRec(elem dom.Selection,
 }
 
 func (b *Binding) newModelScope(model interface{}) *Scope {
-	s := newModelScope(model)
-	s.merge(b.scope)
+	s := NewModelScope(model)
+	s.Merge(b.scope)
 	return s
 }
 
 func ScopeFromModels(models []interface{}) (s *Scope) {
-	s = newScope()
+	s = NewScope([]SymbolTable{})
 	for _, model := range models {
 		if model != nil {
-			s.symTables = append(s.symTables, modelSymbolTable{reflect.ValueOf(model)})
+			s.AddSymTables(NewModelSymbolTable(model))
 		}
 	}
 
@@ -606,7 +608,7 @@ func (b *Binding) BindModels(rootElem dom.Selection, models []interface{}, once 
 	}
 
 	s := ScopeFromModels(models)
-	s.merge(b.scope)
+	s.Merge(b.scope)
 
 	b.bindWithScope(rootElem, s, once, false, rootElem)
 }
