@@ -16,7 +16,7 @@ Although being a client-centric web framework, Wade.Go works even when Javascrip
 ## Data binding
 Wade.Go's templating is HTML-based, the data binding mechanism is partly inspired by a design document from Angular 2.0 and Rivetsjs. The syntax is
   * Concise, strict and clear
-  * Composed of a few very clearly defined rules, *no surprise*
+  * Composed of a few very clearly defined rules, no surprises!
   * Watching is optional: you can control what data is watched for changes and what don't need
 
 A little example
