@@ -29,8 +29,15 @@ func defaultHelpers() map[string]interface{} {
 
 		"toLower": strings.ToLower,
 
-		"concat": func(s1, s2 string) string {
-			return s1 + s2
+		"strJoin": func(s1 string, strings ...string) string {
+			for _, s := range strings {
+				s1 += s
+			}
+			return s1
+		},
+
+		"format": func(format string, values ...interface{}) string {
+			return fmt.Sprintf(format, values...)
 		},
 
 		"isEqual": func(a, b interface{}) bool {

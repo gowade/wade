@@ -45,16 +45,16 @@ func TestParser(t *testing.T) {
 	dhst := NewHelpersSymbolTable(defaultHelpers())
 	bs := &bindScope{NewScope([]SymbolTable{dhst, hst, NewModelSymbolTable(model)})}
 	tests := map[string]interface{}{
-		"$Test":                                                    "Nt",
-		"$Data.Username":                                           "Hai",
-		"toUpper($Data.Username)":                                  "HAI",
-		"concat($Data.Username, $Data.Password)":                   "HaiPk",
-		"concat($Data.Username, 'Pk|')":                            "HaiPk|",
-		"concat(toUpper($Data.Username), toLower($Data.Password))": "HAIpk",
-		"addInt(-1, 2)":                                            1,
-		"addFloat(-1.0, 2.0)":                                      float32(1.0),
-		"fooAdd('bar*|-,')":                                        "foobar*|-,",
-		"concat($model().Test, 'a')":                               "Nta",
+		"$Test":                                                     "Nt",
+		"$Data.Username":                                            "Hai",
+		"toUpper($Data.Username)":                                   "HAI",
+		"strJoin($Data.Username, $Data.Password)":                   "HaiPk",
+		"strJoin($Data.Username, 'Pk|')":                            "HaiPk|",
+		"strJoin(toUpper($Data.Username), toLower($Data.Password))": "HAIpk",
+		"addInt(-1, 2)":                                             1,
+		"addFloat(-1.0, 2.0)":                                       float32(1.0),
+		"fooAdd('bar*|-,')":                                         "foobar*|-,",
+		"strJoin($model().Test, 'a')":                               "Nta",
 	}
 
 	for bstr, result := range tests {
