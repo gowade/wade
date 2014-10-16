@@ -12,7 +12,7 @@ With the creation of Wade.Go, you can now write both client and server in a sing
 
 Although being a client-centric web framework, Wade.Go works even when Javascript is disabled and is SEO-friendly due to the ability to render the site with server-side Go. Wade.Go is built for web *sites*, not just *apps*, it works for content-heavy sites like blog, forum as well as very dynamic ones like Facebook.
 
-# Markup intro
+# Templating overview
 ## Data binding
 Wade.Go's templating is HTML-based, the data binding mechanism is partly inspired by a design document from Angular 2.0 and Rivetsjs. Features
   * Concise, strict and clear syntax, composed of a few clearly defined rules, no surprises!
