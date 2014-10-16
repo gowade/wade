@@ -1,5 +1,5 @@
 
->>> I'm happy to announce that Wade.Go is now in **Beta Testing** phase, from now on it's unlikely that the API and binding syntax will be changed drastically. No release yet though, the *iteration 3* is still being developed that brings necessary performance improvements <<<
+>>> I'm happy to announce that Wade.Go is now in **Beta Testing** phase, from now on it's unlikely that the API and binding syntax will be changed drastically. No release yet though, the *iteration 3* is still being developed that brings necessary performance improvements
 
 # Wade.Go
 **Wade.Go** is a **client-centric** web framework like nothing you ever heard. It brings these awesome things together
