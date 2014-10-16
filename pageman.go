@@ -63,17 +63,7 @@ type (
 func newPageManager(app *Application, history History, document dom.Selection,
 	tcontainer dom.Selection, binding bindEngine) *pageManager {
 
-	realContainer := app.Config.Container
-	if realContainer == nil {
-		body := document.Find("body")
-		realContainer = body.Find(".wade-app-container")
-		if realContainer.Length() > 0 {
-			realContainer = realContainer.First()
-		} else {
-			realContainer = document.NewFragment(`<div class="wade-app-container"></div>`)
-			body.Prepend(realContainer)
-		}
-	}
+	realContainer := document.Find("[w-app-container]").First()
 
 	if realContainer.Length() == 0 {
 		panic("App container doesn't exist.")

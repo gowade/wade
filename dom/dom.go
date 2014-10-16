@@ -94,7 +94,7 @@ type (
 		IsTextNode() bool
 		SetText(text string)
 		Add(element Selection) Selection
-		Prop(prop string, recv interface{}) bool
+		Prop(prop string) (interface{}, bool)
 		SetProp(prop string, value interface{})
 		Underlying() js.Object
 		Each(EachFn)

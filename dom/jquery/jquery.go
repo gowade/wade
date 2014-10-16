@@ -2,7 +2,6 @@ package jquery
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
@@ -315,15 +314,14 @@ func (s Selection) Add(sel dom.Selection) dom.Selection {
 	return NewSelection(s.JQuery.Add(sel.(Selection).JQuery))
 }
 
-func (s Selection) Prop(prop string, recv interface{}) (ok bool) {
-	p := s.JQuery.Underlying().Call("prop")
+func (s Selection) Prop(prop string) (value interface{}, ok bool) {
+	p := s.JQuery.Underlying().Call("prop", prop)
 	if p.IsUndefined() {
 		ok = false
 		return
 	}
 
-	ok = true
-	reflect.ValueOf(recv).Elem().Set(reflect.ValueOf(p.Interface()))
+	value = p.Interface()
 	return
 }
 

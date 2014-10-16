@@ -109,6 +109,12 @@ func NewTestApp(t *testing.T, conf wade.AppConfig,
 		if err != nil {
 			return
 		}
+	} else {
+		sourcebytes = []byte(`<html>
+			<head></head>
+			<body w-app-container="">
+			</body>
+		</html>`)
 	}
 
 	document := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
@@ -132,5 +138,7 @@ func NewTestApp(t *testing.T, conf wade.AppConfig,
 }
 
 func NewDummyApp(t *testing.T, httpMock http.Backend) (app *TestApp, err error) {
-	return NewTestApp(t, wade.AppConfig{}, func(app *wade.Application) {}, "", httpMock)
+	app, err = NewTestApp(t, wade.AppConfig{}, func(app *wade.Application) {}, "", httpMock)
+
+	return
 }

@@ -1,9 +1,6 @@
 package wade
 
-import (
-	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/libs/http"
-)
+import "github.com/phaikawl/wade/libs/http"
 
 var (
 	ClientSide bool
@@ -36,9 +33,7 @@ type (
 
 	// AppConfig is app configurations, used at the start
 	AppConfig struct {
-		BasePath string
-		// The application container, if not specified, it's an element added into <body>
-		Container  dom.Selection
+		BasePath   string
 		ServerBase string
 	}
 )

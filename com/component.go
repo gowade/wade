@@ -29,8 +29,9 @@ type (
 		Template(container dom.Selection) string
 	}
 
+	// Spec declares what a component is
 	Spec struct {
-		Name      string
+		Name      string // The tag name for the component
 		Prototype Prototype
 		Template  TemplateProvider
 	}
@@ -66,9 +67,22 @@ type (
 		Element() dom.Selection // returns the element itself
 	}
 
+	// Prototype is the common interface for all component's prototype
 	Prototype interface {
-		Init(parentScope *scope.Scope) error
+		// Init is for initialization
+		Init(parentScope *scope.Scope, element dom.Selection) error
+
+		// ProcessContents is for processing the component's contents
+		// between the opening and closing tags.
+		//
+		// For example if the component is "smiley", when it's used like this
+		//
+		//  <smiley><div>:D</div></smiley>
+		// "<div>:D</div>" is the contents passed into this function
 		ProcessContents(ContentsData) error
+
+		// Update is called whenever something bound to one of
+		// the component's field changes
 		Update(ElemData) error
 	}
 
@@ -78,7 +92,11 @@ type (
 
 	BaseProto struct{}
 
-	StringTemplate   string
+	// StringTemplate satisfies the TemplateProvider interface for a plain string
+	StringTemplate string
+
+	// DeclaredTemplate is a TemplateProvider that gets the template HTML code
+	// from a <template> element with the given Id
 	DeclaredTemplate struct {
 		Id string
 	}
@@ -95,9 +113,9 @@ func (t StringTemplate) Template(_ dom.Selection) string {
 	return string(t)
 }
 
-func (b BaseProto) Init(parentScope *scope.Scope) error    { return nil }
-func (b BaseProto) ProcessContents(ctl ContentsData) error { return nil }
-func (b BaseProto) Update(ctl ElemData) error              { return nil }
+func (b BaseProto) Init(parentScope *scope.Scope, elem dom.Selection) error { return nil }
+func (b BaseProto) ProcessContents(ctl ContentsData) error                  { return nil }
+func (b BaseProto) Update(ctl ElemData) error                               { return nil }
 
 func (c contentsCtlImpl) Contents() dom.Selection {
 	return c.contents
@@ -248,7 +266,7 @@ func (t *Component) NewElem(elem dom.Selection, initer ComponentIniter, parentSc
 		initer.ComponentInit(model)
 	}
 
-	err = model.Init(parentScope)
+	err = model.Init(parentScope, elem)
 	if err != nil {
 		return
 	}

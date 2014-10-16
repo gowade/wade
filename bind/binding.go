@@ -243,7 +243,7 @@ func (b *Binding) bindCustomElem(elem dom.Selection, tag *com.Component, bs *bin
 		return
 	}
 
-	if bound, _ := elem.Attr(BoundAttr); bound == "true" {
+	if bound, ok := elem.Prop(BoundAttr); ok && bound.(bool) == true {
 		return
 	}
 
@@ -635,7 +635,7 @@ func (b *Binding) bindWithScope(rootElems dom.Selection, s *Scope, once bool, bi
 
 	for _, re := range rootElems.Elements() {
 		if re.IsElement() {
-			re.SetAttr(BoundAttr, "true")
+			re.SetProp(BoundAttr, true)
 		}
 	}
 }

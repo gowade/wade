@@ -418,10 +418,10 @@ func (s Selection) Add(elem dom.Selection) dom.Selection {
 	return newSelection(s.Selection.AddSelection(elem.(Selection).Selection))
 }
 
-func (s Selection) Prop(prop string, valueRecv interface{}) (ok bool) {
+func (s Selection) Prop(prop string) (value interface{}, ok bool) {
 	str, ok := s.Attr(PropPrefix + prop)
 	if ok {
-		err := json.Unmarshal([]byte(str), valueRecv)
+		err := json.Unmarshal([]byte(str), value)
 		if err != nil {
 			ok = false
 		}
