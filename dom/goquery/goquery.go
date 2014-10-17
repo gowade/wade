@@ -283,6 +283,10 @@ func (s Selection) Unwrap() {
 
 func (s Selection) SetHtml(content string) {
 	s.Contents().Remove()
+	if s.Is("script") {
+		s.Append(s.NewTextNode(content))
+		return
+	}
 	s.Append(s.NewFragment(content))
 }
 

@@ -20,7 +20,8 @@ const (
 )
 
 var (
-	PageProcessingLock *lock
+	gFinishChan         = make(chan error, 100)
+	gPageProcessingLock *lock
 )
 
 type (
@@ -29,6 +30,7 @@ type (
 	bindEngine interface {
 		Watcher() *bind.Watcher
 		BindModels(root dom.Selection, models []interface{}, once bool)
+		RegisterInternalHelpers(pm bind.PageManager)
 	}
 
 	History interface {
@@ -42,6 +44,7 @@ type (
 	pageManager struct {
 		app           *Application
 		document      dom.Selection
+		sourceElem    dom.Selection
 		router        *Router
 		currentPage   *page
 		basePath      string
@@ -61,8 +64,7 @@ type (
 )
 
 func newPageManager(app *Application, history History, document dom.Selection,
-	tcontainer dom.Selection, binding bindEngine) *pageManager {
-
+	tcontainer dom.Selection, sourceElem dom.Selection, binding bindEngine) *pageManager {
 	realContainer := document.Find("[w-app-container]").First()
 
 	if realContainer.Length() == 0 {
@@ -78,6 +80,7 @@ func newPageManager(app *Application, history History, document dom.Selection,
 	cl.SetHtml("")
 
 	pm := &pageManager{
+		sourceElem:    sourceElem,
 		app:           app,
 		document:      document,
 		router:        newRouter(nil),
@@ -172,32 +175,65 @@ func (pm *pageManager) prepare() {
 	return
 }
 
-func walk(elem dom.Selection, pm *pageManager) {
+func (pm *pageManager) walk(elem dom.Selection, remove bool) (err error) {
+	pendingIncludes := 0
 	for _, e := range elem.Children().Elements() {
-		belong, ok := e.Attr("w-belong")
-		if !ok {
-			walk(e, pm)
-		} else {
+		belong, hasbelong := e.Attr("w-belong")
+		excluded := false
+		if hasbelong {
 			list := strings.Split(belong, " ")
-			display := false
+
+			excluded = true
 			for _, belong := range list {
 				belong = strings.TrimSpace(belong)
 				if ds, ok := pm.displayScopes[belong]; ok {
 					if ds.hasPage(pm.currentPage.Id) {
-						display = true
-						walk(e, pm)
+						excluded = false
 						break
 					}
 				} else {
 					panic(fmt.Sprintf(`Invalid value "%v" for w-belong, no such page or page group is registered.`, belong))
 				}
 			}
+		}
 
-			if !display {
+		if !excluded {
+			if e.Is("winclude") {
+				pendingIncludes++
+				go func(e dom.Selection) {
+					html, err := htmlInclude(pm.app.Http(),
+						e, pm.app.Config.ServerBase)
+					if err == nil {
+						ne := elem.NewFragment("<ww>" + html + "</ww>")
+						if hasbelong {
+							ne.SetAttr("w-belong", belong)
+						}
+						e.ReplaceWith(ne)
+						err = pm.walk(ne, remove)
+						if err != nil {
+							return
+						}
+					}
+					gFinishChan <- err
+				}(e)
+			} else {
+				pm.walk(e, remove)
+			}
+		} else {
+			if remove {
 				e.Remove()
 			}
 		}
 	}
+
+	for i := 0; i < pendingIncludes; i++ {
+		err = <-gFinishChan
+		if err != nil {
+			return
+		}
+	}
+
+	return
 }
 
 func newHiddenContainer(rcProto string, document dom.Dom) dom.Selection {
@@ -278,7 +314,7 @@ func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) (er
 
 func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 	lck := &lock{}
-	PageProcessingLock = lck
+	gPageProcessingLock = lck
 
 	if pu.pushState {
 		pm.history.PushState(page.Title, pm.FullPath(pu.url.Path))
@@ -289,41 +325,63 @@ func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 	pm.formattedTitle = page.Title
 
 	pm.currentPage = page
+
+	if !ClientSide {
+		err := pm.walk(pm.tcontainer, false)
+		if err != nil {
+			panic(err)
+		}
+
+		pm.sourceElem.SetHtml(pm.tcontainer.Html())
+		pm.app.tm.ResolveTemplates(pm.tcontainer, false)
+	}
+
 	pm.container = newHiddenContainer(pm.rcProto, pm.document)
 	pm.container.SetHtml(pm.tcontainer.Html())
 
-	walk(pm.container, pm)
+	err := pm.walk(pm.container, true)
+
+	if !ClientSide {
+		pm.container.Find("template").Remove()
+	} else {
+		pm.app.tm.ResolveTemplates(pm.container, true)
+	}
+
+	if err != nil {
+		panic(err)
+	}
 
 	pm.binding.Watcher().ResetWatchers()
 	pm.bind(namedParams, pu.url)
 
-	if PageProcessingLock != lck {
+	if gPageProcessingLock != lck {
 		return
 	}
 
 	pm.setTitle(pm.formattedTitle)
 
 	if ClientSide {
-		jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
-		if pu.firstLoad {
-			scrollpos := jqwindow.Call("scrollTop")
-			sp := &scrollPreserver{[]scrollItem{}}
-			for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
-				sp.getScroll(c)
-			}
+		if gPageProcessingLock == lck {
+			jqwindow := js.Global.Call("jQuery", js.Global.Get("window"))
+			if pu.firstLoad {
+				scrollpos := jqwindow.Call("scrollTop")
+				sp := &scrollPreserver{[]scrollItem{}}
+				for _, c := range pm.realContainer.Find(".w-scrolled").Elements() {
+					sp.getScroll(c)
+				}
 
-			pm.realContainer.ReplaceWith(pm.container)
-			sp.applyScrolls(pm.container)
-			jqwindow.Call("scrollTop", scrollpos)
-		} else {
-			pm.realContainer.ReplaceWith(pm.container)
-			jqwindow.Call("scrollTop", 0)
+				pm.realContainer.ReplaceWith(pm.container)
+				sp.applyScrolls(pm.container)
+				jqwindow.Call("scrollTop", scrollpos)
+			} else {
+				pm.realContainer.ReplaceWith(pm.container)
+				jqwindow.Call("scrollTop", 0)
+			}
 		}
 	} else {
-		if PageProcessingLock == lck {
-			pm.realContainer.ReplaceWith(pm.container)
-		}
+		pm.realContainer.ReplaceWith(pm.container)
 	}
+
 	pm.realContainer = pm.container
 
 	//Handle link events on Dev mode

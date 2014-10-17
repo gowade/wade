@@ -7,12 +7,18 @@ import (
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/icommon"
+	hm "github.com/phaikawl/wade/test/httpmock"
 	"github.com/stretchr/testify/require"
 )
 
 type (
 	NoopBindEngine struct {
 		models []interface{}
+	}
+
+	NoopJsBackend struct {
+		bind.BasicWatchBackend
+		JsHistory History
 	}
 
 	Struct1 struct {
@@ -34,6 +40,22 @@ func (b *NoopBindEngine) Watcher() *bind.Watcher {
 
 func (b *NoopBindEngine) BindModels(root dom.Selection, models []interface{}, once bool) {
 	b.models = models
+}
+
+func (b *NoopBindEngine) RegisterInternalHelpers(pm bind.PageManager) {
+}
+
+func (b *NoopJsBackend) CheckJsDep(symbol string) bool {
+	return true
+}
+
+func (b *NoopJsBackend) History() History {
+	return b.JsHistory
+}
+
+func (b *NoopJsBackend) WebStorages() (Storage, Storage) {
+	s := Storage{}
+	return s, s
 }
 
 func TestPageUrl(t *testing.T) {
@@ -71,63 +93,91 @@ func TestPageManager(t *testing.T) {
 	doc := goquery.GetDom().NewDocument(`
 	<html>
 		<head>
+			<script type="text/wadin">
+				<winclude src="/pages.html"></winclude>
+			</script>
 		</head>
 		<body>
+			<div w-app-container></div>
 		</body>
 	</html>
 	`)
 
-	template := goquery.GetDom().NewFragment(`
-	<div>
+	server := hm.NewMock(map[string]hm.Responder{
+		"/pages.html": hm.NewOKResponse(`<div>
 		<div w-belong="pg-home">Home</div>
 		<div w-belong="grp-parent">
 			<div>Parent</div>
-			<div w-belong="pg-child-1">
-				Child 1
-			</div>
-			<div w-belong="pg-child-2">
-				Child 2
-			</div>
+			<winclude w-belong="pg-child-1" src="/child1.html"></winclude>
+			<winclude w-belong="pg-child-2" src="/child2.html"></winclude>
 		</div>
-	</div>
-	`)
-
-	b := &NoopBindEngine{}
-	pm := newPageManager(&Application{Config: AppConfig{BasePath: "/web"}}, NewNoopHistory("/"),
-		doc,
-		template,
-		b)
-
-	container := doc.Find("body").First()
-
-	pm.router.Handle("/", Redirecter{"/home"}).
-		Handle("/home", Page{Id: "pg-home"}).
-		Handle("/child/:name", Page{Id: "pg-child-1"}).
-		Handle("/child/:name/:gender", Page{Id: "pg-child-2"})
-
-	pm.registerPageGroup("grp-parent", []string{"pg-child-1", "pg-child-2"})
-
-	mess := make(chan int, 5)
+	</div>`),
+		"/child1.html": hm.NewOKResponse(`Child 1`),
+		"/child2.html": hm.NewOKResponse(`Child 2`),
+	})
 
 	globalCalled := false
+	mess := make(chan int, 5)
+	container := doc.Find("body").First()
+	b := &NoopBindEngine{}
 
-	pm.registerController(GlobalDisplayScope, func(s *PageScope) (err error) {
-		globalCalled = true
-		s.SetModelNamed("global", Struct1{
-			A: 0,
+	app, err := newApp(AppConfig{BasePath: "/"}, func(app *Application) {
+		app.Router.Handle("/", Redirecter{"/home"}).
+			Handle("/home", Page{Id: "pg-home"}).
+			Handle("/child/:name", Page{Id: "pg-child-1"}).
+			Handle("/child/:name/:gender", Page{Id: "pg-child-2"})
+
+		app.Register.PageGroup("grp-parent", []string{"pg-child-1", "pg-child-2"})
+
+		app.Register.Controller(GlobalDisplayScope, func(s *PageScope) (err error) {
+			globalCalled = true
+			s.SetModelNamed("global", Struct1{
+				A: 0,
+			})
+
+			return
 		})
 
-		return
-	})
+		app.Register.Controller("pg-home", func(s *PageScope) (err error) {
+			mess <- 1
+			s.SetModel(Struct2{B: 1})
 
-	pm.registerController("pg-home", func(s *PageScope) (err error) {
-		mess <- 1
-		s.SetModel(Struct2{B: 1})
+			return
+		})
 
-		return
-	})
+		app.Register.Controller("grp-parent", func(s *PageScope) (err error) {
+			s.SetModelNamed("parent", Struct1{A: 2})
+			return
+		})
 
-	pm.prepare()
+		app.Register.Controller("pg-child-1", func(s *PageScope) (err error) {
+			s.SetModel(Struct2{B: 3})
+			return
+		})
+
+		app.Register.Controller("pg-child-2", func(s *PageScope) (err error) {
+			s.SetModel(Struct3{C: 4})
+			return
+		})
+	},
+
+		RenderBackend{
+			JsBackend: &NoopJsBackend{
+				BasicWatchBackend: bind.BasicWatchBackend{},
+				JsHistory:         NewNoopHistory("/"),
+			},
+			HttpBackend: server,
+			Document:    doc,
+		},
+
+		b,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app.Start()
 
 	require.Equal(t, globalCalled, true)
 	require.Equal(t, <-mess, 1)
@@ -140,33 +190,19 @@ func TestPageManager(t *testing.T) {
 	v, _ = s.LookupValue("B")
 	require.Equal(t, v.(int), 1)
 
-	pm.registerController("grp-parent", func(s *PageScope) (err error) {
-		s.SetModelNamed("parent", Struct1{A: 2})
-		return
-	})
+	app.CurrentPage().GoToUrl("/child/vuong")
 
-	pm.registerController("pg-child-1", func(s *PageScope) (err error) {
-		s.SetModel(Struct2{B: 3})
-		return
-	})
-
-	pm.registerController("pg-child-2", func(s *PageScope) (err error) {
-		s.SetModel(Struct3{C: 4})
-		return
-	})
-
-	pm.updateUrl("/child/vuong", false, false)
+	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild1")
 
 	s = bind.ScopeFromModels(b.models)
-	v, _ = s.LookupValue("parent.A")
+	v, err = s.LookupValue("parent.A")
 	require.Equal(t, v.(int), 2)
 
 	v, _ = s.LookupValue("B")
 	require.Equal(t, v.(int), 3)
 
-	require.Equal(t, icommon.RemoveAllSpaces(container.Text()), "ParentChild1")
+	app.CurrentPage().GoToUrl("/child/vuong/nam")
 
-	pm.updateUrl("/child/vuong/nam", false, false)
 	s = bind.ScopeFromModels(b.models)
 	v, _ = s.LookupValue("C")
 	require.Equal(t, v.(int), 4)

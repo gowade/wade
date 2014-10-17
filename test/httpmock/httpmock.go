@@ -9,6 +9,8 @@ import (
 	"path"
 
 	urlrouter "github.com/naoina/kocha-urlrouter"
+	_ "github.com/phaikawl/regrouter"
+
 	"github.com/phaikawl/wade/libs/http"
 )
 
@@ -113,10 +115,12 @@ func NewMock(handlers map[string]Responder) *HttpMock {
 
 	router.Build(records)
 
-	return &HttpMock{
+	m := &HttpMock{
 		Router:    router,
 		BlockChan: make(chan bool, 1),
 	}
+
+	return m
 }
 
 func (mb *HttpMock) Wait(operation func(), responseCount int) {
@@ -140,7 +144,7 @@ func (mb *HttpMock) Do(r *http.Request) (err error) {
 	match, params := mb.Router.Lookup(r.URL.Path)
 	if match == nil {
 		mb.responseFinish()
-		panic(fmt.Errorf(`404 Page not found for path "%v".`, r.URL.Path))
+		panic(fmt.Errorf(`404 Not Found for path "%v".`, r.URL.Path))
 	}
 
 	tr := match.(Responder).Response(&Context{http.NewNamedParams(params), r})

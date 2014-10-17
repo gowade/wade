@@ -31,7 +31,7 @@ func (t *Test) ProcessContents(ctl ContentsData) error {
 
 func TestCustomTag(t *testing.T) {
 	d := goquery.GetDom()
-	tm := NewManager(nil)
+	tm := NewManager()
 	err := tm.RegisterComponents([]Spec{Spec{
 		Name:      "test",
 		Prototype: &Test{},
