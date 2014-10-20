@@ -161,7 +161,7 @@ func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string
 	templateContainer.Append(document.NewFragment(temp.Text()))
 
 	err := htmlImport(httpClient, templateContainer, serverBase)
-	temp.SetHtml(templateContainer.Html())
+	temp.SetText(templateContainer.Html())
 	return templateContainer, err
 }
 

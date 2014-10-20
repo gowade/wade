@@ -51,7 +51,11 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 
 			// the go html parser will refuse to work if the content is only text, so
 			// we put a wrapper here
-			ne := parent.NewFragment("<wpendingincl>" + html + "</wpendingincl>")
+			ne := parent.NewFragment("<ww>" + html + "</ww>")
+			if belong, hasbelong := elem.Attr("w-belong"); hasbelong {
+				ne.SetAttr("w-belong", belong)
+			}
+
 			elem.ReplaceWith(ne)
 
 			err = htmlImport(httpClient, ne, serverbase)
@@ -59,8 +63,6 @@ func htmlImport(httpClient *http.Client, parent dom.Selection, serverbase string
 				finishChan <- err
 				return
 			}
-
-			ne.Unwrap()
 
 			queueChan <- true
 			if len(queueChan) == len(imports) {

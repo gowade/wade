@@ -40,10 +40,10 @@ func TestHtmlImport(t *testing.T) {
 	root := goquery.GetDom().NewFragment(Src)
 	err := htmlImport(client, root, "/")
 	require.Equal(t, err, nil)
-	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `ab<div>c</div>`)
+	require.Equal(t, icommon.RemoveAllSpaces(root.Text()), `abc`)
 	root = goquery.GetDom().NewFragment(Src)
 	htmlImport(client, root, "/")
-	require.Equal(t, icommon.RemoveAllSpaces(root.Html()), `bb<div>c</div>`)
+	require.Equal(t, icommon.RemoveAllSpaces(root.Text()), `bbc`)
 
 	root = root.NewFragment(NoSrc)
 	err = htmlImport(client, root, "/")

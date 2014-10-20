@@ -73,6 +73,7 @@ func TestPageManager(t *testing.T) {
 		<head>
 		</head>
 		<body>
+			<div w-app-container></div>
 		</body>
 	</html>
 	`)
