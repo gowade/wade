@@ -16,7 +16,7 @@ var (
 
 func init() {
 	if js.Global == nil {
-		js.Global = NewStubJsValue(nil)
+		js.Global = newStubJsValue(nil)
 		ClientSide = false
 		return
 	}
