@@ -70,7 +70,7 @@ func (da DummyApp) ComponentInit(proto com.Prototype) {
 }
 
 func NewTestBindEngine() *Binding {
-	return NewBindEngine(DummyApp{}, com.NewManager(), BasicWatchBackend{})
+	return NewBindEngine(DummyApp{}, com.NewManager(nil), BasicWatchBackend{})
 }
 
 func NewBindEngine(app Application, tm *com.Manager, jsWatcher WatchBackend) *Binding {

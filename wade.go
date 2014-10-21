@@ -16,7 +16,7 @@ var (
 
 func init() {
 	if js.Global == nil {
-		js.Global = NewStubJsValue(nil)
+		js.Global = newStubJsValue(nil)
 		ClientSide = false
 		return
 	}
@@ -36,7 +36,7 @@ type (
 		pm         *pageManager
 		tm         *com.Manager
 		tcontainer dom.Selection
-		binding    bindEngine
+		binding    *bind.Binding
 		serverBase string
 		customTags map[string]map[string]com.Prototype
 	}
@@ -53,11 +53,11 @@ type (
 	}
 
 	Application struct {
-		*wade
 		Register           Registration
 		Router             *Router
 		Config             AppConfig
 		Services           AppServices
+		wade               *wade
 		main               AppFunc
 		errChan            chan error
 		baseComponentProto com.Prototype
@@ -154,29 +154,27 @@ func (r Registration) PageGroup(id string, children []string) {
 	r.w.pm.registerPageGroup(id, children)
 }
 
-// loadHtml loads html from script[type='text/wadin']
-func loadTemplate(document dom.Selection) (templateContainer, tempSourceElem dom.Selection) {
-	templateContainer = document.NewRootFragment()
-	tempSourceElem = document.Find("script[type='text/wadin']").First()
-	templateContainer.Append(document.NewFragment(tempSourceElem.Text()))
+// loadHtml loads html from script[type='text/wadin'], performs html imports on it
+func loadHtml(document dom.Selection, httpClient *http.Client, serverBase string) (dom.Selection, error) {
+	templateContainer := document.NewRootFragment()
+	temp := document.Find("script[type='text/wadin']").First()
+	templateContainer.Append(document.NewFragment(temp.Text()))
 
-	return
+	err := htmlImport(httpClient, templateContainer, serverBase)
+	temp.SetText(templateContainer.Html())
+	return templateContainer, err
 }
 
 // StartApp initializes the app
 //
 // "appFn" is the main function for your app.
 func NewApp(config AppConfig, appFn AppFunc, rb RenderBackend) (app *Application, err error) {
-	return newApp(config, appFn, rb, nil)
-}
-
-func newApp(config AppConfig, appFn AppFunc, rb RenderBackend, binding bindEngine) (app *Application, err error) {
 	jsDepCheck(rb.JsBackend)
 	document := rb.Document
 
 	httpClient := http.NewClient(rb.HttpBackend)
 	http.SetDefaultClient(httpClient)
-	templateContainer, sourceElem := loadTemplate(document)
+	templateContainer, err := loadHtml(document, httpClient, config.ServerBase)
 
 	if err != nil {
 		return
@@ -191,14 +189,11 @@ func newApp(config AppConfig, appFn AppFunc, rb RenderBackend, binding bindEngin
 
 	app.baseComponentProto = &BaseProto{com.BaseProto{}, app}
 
-	tm := com.NewManager()
-
-	if binding == nil {
-		binding = bind.NewBindEngine(app, tm, rb.JsBackend)
-	}
+	tm := com.NewManager(templateContainer)
+	binding := bind.NewBindEngine(app, tm, rb.JsBackend)
 
 	wd := &wade{
-		pm:         newPageManager(app, rb.JsBackend.History(), document, templateContainer, sourceElem, binding),
+		pm:         newPageManager(app, rb.JsBackend.History(), document, templateContainer, binding),
 		tm:         tm,
 		binding:    binding,
 		tcontainer: templateContainer,
@@ -218,7 +213,7 @@ func newApp(config AppConfig, appFn AppFunc, rb RenderBackend, binding bindEngin
 }
 
 func (wd *wade) init() {
-	wd.binding.RegisterInternalHelpers(wd.pm)
+	bind.RegisterInternalHelpers(wd.pm, wd.binding)
 }
 
 // Start starts the real operation

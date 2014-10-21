@@ -13,7 +13,7 @@ type PageManager interface {
 }
 
 // This function is internal, not intended or outside use
-func (b *Binding) RegisterInternalHelpers(pm PageManager) {
+func RegisterInternalHelpers(pm PageManager, b *Binding) {
 	b.RegisterHelper("url", func(pageid string, params ...interface{}) string {
 		url, err := pm.PageUrl(pageid, params...)
 		if err != nil {

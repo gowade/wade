@@ -21,13 +21,12 @@ type (
 	Component struct {
 		Spec
 		template string
-		ready    bool
 		attrs    map[string]string
 		manager  *Manager
 	}
 
 	TemplateProvider interface {
-		SetTemplate(c *Component)
+		Template(container dom.Selection) string
 	}
 
 	// Spec declares what a component is
@@ -37,14 +36,9 @@ type (
 		Template  TemplateProvider
 	}
 
-	PendingTemplateItem struct {
-		TemplateId string
-		Component  *Component
-	}
-
 	Manager struct {
-		components       map[string]*Component
-		pendingTemplates []PendingTemplateItem
+		components      map[string]*Component
+		sourceContainer dom.Selection
 	}
 
 	Element struct {
@@ -108,25 +102,15 @@ type (
 	}
 )
 
-func NewManager() *Manager {
-	return &Manager{
-		components:       make(map[string]*Component),
-		pendingTemplates: []PendingTemplateItem{},
-	}
+func (t DeclaredTemplate) Template(container dom.Selection) string {
+	tpl := container.Find("template#" + t.Id)
+	tpl.Remove()
+
+	return tpl.Html()
 }
 
-func (t DeclaredTemplate) SetTemplate(c *Component) {
-	c.manager.pendingTemplates = append(c.manager.pendingTemplates, PendingTemplateItem{
-		TemplateId: t.Id,
-		Component:  c,
-	})
-
-	c.ready = false
-}
-
-func (t StringTemplate) SetTemplate(c *Component) {
-	c.ready = true
-	c.template = string(t)
+func (t StringTemplate) Template(_ dom.Selection) string {
+	return string(t)
 }
 
 func (b BaseProto) Init(parentScope *scope.Scope, elem dom.Selection) error { return nil }
@@ -296,6 +280,13 @@ func (t *Component) NewElem(elem dom.Selection, initer ComponentIniter, parentSc
 	return
 }
 
+func NewManager(sourceContainer dom.Selection) *Manager {
+	return &Manager{
+		components:      make(map[string]*Component),
+		sourceContainer: sourceContainer,
+	}
+}
+
 func isForbiddenAttr(attr string) bool {
 	lattr := strings.ToLower(attr)
 	for _, a := range ForbiddenAttrs {
@@ -306,19 +297,6 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *Manager) ResolveTemplates(container dom.Selection, del bool) {
-	for _, pt := range tm.pendingTemplates {
-		tpl := container.Find("template#" + pt.TemplateId)
-		if tpl.Length() == 0 {
-			continue
-		}
-
-		pt.Component.template = tpl.Html()
-		if del {
-			tpl.Remove()
-		}
-	}
-}
 func (tm *Manager) RegisterComponents(specs []Spec) (ret error) {
 	for _, ht := range specs {
 		ct := &Component{
@@ -331,7 +309,7 @@ func (tm *Manager) RegisterComponents(specs []Spec) (ret error) {
 			panic(fmt.Errorf("No template available for component %v", ht.Name))
 		}
 
-		ht.Template.SetTemplate(ct)
+		ct.template = ht.Template.Template(tm.sourceContainer)
 
 		prototype := ct.Prototype
 		if prototype != nil {
