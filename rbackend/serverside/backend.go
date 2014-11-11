@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"code.google.com/p/go.net/html"
+	"golang.org/x/net/html"
 	"github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/bind"
 	gqdom "github.com/phaikawl/wade/dom/goquery"
