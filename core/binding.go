@@ -1,4 +1,4 @@
-package bind
+package core
 
 import (
 	"fmt"
@@ -7,32 +7,24 @@ import (
 	"strings"
 
 	"github.com/phaikawl/wade/com"
-	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/icommon"
 
 	. "github.com/phaikawl/wade/scope"
 )
 
 const (
 	ReservedPrefix = "data-w-"
-	BoundAttr      = ReservedPrefix + "bound"
-	BindInfoAttr   = ReservedPrefix + "binds"
+	//BoundAttr      = ReservedPrefix + "bound"
+	//BindInfoAttr   = ReservedPrefix + "binds"
 
 	AttrBindPrefix   = '@'
 	BinderBindPrefix = '#'
+	WrapperTag       = "w-ghost"
 )
 
 type (
 	Application interface {
 		ErrChanPut(error)
 		ComponentInit(prototype com.Prototype)
-	}
-
-	CustomElem interface {
-		Update() error
-		Model() interface{}
-		PrepareContents(func(dom.Selection, bool)) error
-		Element() dom.Selection
 	}
 
 	Binding struct {
@@ -195,7 +187,7 @@ func (b *Binding) processAttrBind(attr string, bstr string, elem dom.Selection, 
 	return
 }
 
-func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection, bs *bindScope, once bool, ce CustomElem) {
+func (b *Binding) processFieldBind(field string, bstr string, elem dom.Selection, bs *bindScope, once bool, ce ) {
 	roote, binds, v, er := bs.evaluate(bstr)
 	if er != nil {
 		bstrPanic(er.Error(), bstr, elem)

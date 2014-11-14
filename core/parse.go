@@ -1,4 +1,4 @@
-package bind
+package core
 
 import (
 	"errors"

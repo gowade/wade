@@ -1,15 +1,9 @@
 package dom
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/gopherjs/gopherjs/js"
-)
-
-var (
-	ErrorCantGetTagName    = errors.New("Not an element node, can't get tag name.")
-	ErrorNoElementSelected = errors.New("No element selected.")
 )
 
 type (

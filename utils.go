@@ -1,17 +1,9 @@
 package wade
 
-import (
-	neturl "net/url"
-
-	"github.com/phaikawl/wade/icommon"
-)
-
-var (
-	IsWrapperElem = icommon.IsWrapperElem
-)
+import neturl "net/url"
 
 // UrlQuery adds query arguments (?arg1=value1&arg2=value2...)
-// specified in the given map args to a given url
+// specified in the given map args to a given url and returns the new result
 func UrlQuery(url string, args map[string][]string) string {
 	qs := neturl.Values(args).Encode()
 	if qs == "" {
@@ -19,35 +11,4 @@ func UrlQuery(url string, args map[string][]string) string {
 	}
 
 	return url + "?" + qs
-}
-
-type GetSetable interface {
-	Get(key string, v interface{}) (ok bool)
-	Set(key string, v interface{})
-	Delete(key string)
-}
-
-type Storage struct {
-	GetSetable
-}
-
-func (stg Storage) GetBool(key string) (v bool, ok bool) {
-	ok = stg.Get(key, &v)
-	return
-}
-
-func (stg Storage) GetStr(key string) (v string, ok bool) {
-	ok = stg.Get(key, &v)
-	return
-}
-
-func (stg Storage) GetInt(key string) (v int, ok bool) {
-	ok = stg.Get(key, &v)
-	return
-}
-
-// GetTo gets the stored value with key key and store it in v.
-// Typically used for struct values.
-func (stg Storage) GetTo(key string, v interface{}) bool {
-	return stg.Get(key, v)
 }
