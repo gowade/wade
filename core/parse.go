@@ -44,7 +44,7 @@ func isValidExprChar(c rune) bool {
 
 // tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making
 // it a little bit easier to parse
-func tokenize(spec string) (tokens []token, nwatches int, err error) {
+func tokenize(spec string) (tokens []token, err error) {
 	tokens = make([]token, 0)
 	err = nil
 	var tok string
@@ -67,11 +67,7 @@ func tokenize(spec string) (tokens []token, nwatches int, err error) {
 				flush()
 				tokens = append(tokens, token{PuncToken, string(c)})
 
-			case '@', '$':
-				if c == '$' {
-					nwatches++
-				}
-
+			case '@':
 				if tok != "" {
 					err = fmt.Errorf("Invalid %q", c)
 					return
@@ -117,8 +113,8 @@ func tokenize(spec string) (tokens []token, nwatches int, err error) {
 
 // parse parses the bind target string, populate information into a tree of Expr pointers.
 // Each helper call has a list arguments, each argument may be another helper call or an object expression.
-func parse(spec string) (calcTree *expr, nwatches int, err error) {
-	tokens, nwatches, err := tokenize(spec)
+func parse(spec string) (calcTree *expr, err error) {
+	tokens, err := tokenize(spec)
 	if err != nil {
 		return
 	}
@@ -196,10 +192,6 @@ func parseStr(tokens []token) (root *expr, err error) {
 				}
 
 				e.preque = exprOf[i-1]
-				if e.preque.name[0] == '$' {
-					e.preque.name = e.preque.name[1:]
-					e.name = "$" + e.name
-				}
 
 				if len(stack) > 0 {
 					parent := stack[len(stack)-1]
@@ -223,29 +215,6 @@ func parseStr(tokens []token) (root *expr, err error) {
 		return
 	}
 
-	return
-}
-
-func parseDollarExpr(expr string, watches []token) (realExpr string, err error) {
-	e := string(expr[1:])
-	var num int
-	_, err = fmt.Sscan(e, &num)
-	if err != nil {
-		err = fmt.Errorf(`Invalid expression "%v"`, e)
-		return
-	}
-
-	if num < 1 {
-		err = fmt.Errorf(`Only numbers greater than 1 can be used with $ expression, $%v used`, e, num)
-		return
-	}
-
-	if num > len(watches) {
-		err = fmt.Errorf(`Error: usage of "$%v" when only %v values are watched`, e, len(watches))
-		return
-	}
-
-	realExpr = watches[num-1].v
 	return
 }
 

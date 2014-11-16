@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"reflect"
 	. "github.com/phaikawl/wade/scope"
 )
@@ -10,29 +9,14 @@ type (
 	bindScope struct {
 		scope *Scope
 	}
-
-	barray struct {
-		slice []Bindable
-		size  int
-	}
 )
 
-func (a *barray) add(value Bindable) {
-	a.slice[a.size] = value
-	a.size++
-}
-
-func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interface{}) (v interface{}, err error) {
+func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
 	err = nil
 
 	wrapped := false
-	watch := false
 
 	switch e.name[0] {
-	case '$':
-		e.name = e.name[1:]
-		watch = true
-
 	case '@':
 		wrapped = true
 		e.name = e.name[1:]
@@ -52,7 +36,7 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 	var sym ScopeSymbol
 	if e.preque != nil {
 		var preVal interface{}
-		preVal, err = b.evaluateRec(e.preque, blist, old, repl)
+		preVal, err = b.evaluateRec(e.preque)
 		if err != nil {
 			return
 		}
@@ -70,21 +54,13 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 	switch e.typ {
 	case ValueExpr:
 		rv, err = sym.Value()
-		if old != 0 && old == rv.UnsafeAddr() {
-			v = repl
-		} else {
-			v = rv.Interface()
-		}
-
-		if watch && blist != nil {
-			blist.add(sym.(Bindable))
-		}
+		v = rv.Interface()
 
 	case CallExpr:
 		args := make([]reflect.Value, len(e.args))
 		for i, e := range e.args {
 			var av interface{}
-			av, err = b.evaluateRec(e, blist, old, repl)
+			av, err = b.evaluateRec(e)
 			args[i] = reflect.ValueOf(av)
 			if err != nil {
 				return
@@ -106,11 +82,6 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 		if rv.IsValid() && rv.CanInterface() {
 			v = rv.Interface()
 		}
-
-		if watch {
-			err = fmt.Errorf("Watching a function call is not supported")
-			return
-		}
 	}
 
 	if err != nil {
@@ -121,20 +92,18 @@ func (b *bindScope) evaluateRec(e *expr, blist *barray, old uintptr, repl interf
 }
 
 // evaluate evaluates the bind string, returns the needed information for binding
-func (b *bindScope) evaluate(bstr string) (calcRoot *expr, blist *barray, value interface{}, err error) {
-	var nwatches int
-	calcRoot, nwatches, err = parse(bstr)
+func (b bindScope) evaluate(bstr string) (calcRoot *expr, value interface{}, err error) {
+	calcRoot, err = parse(bstr)
 	if err != nil {
 		return
 	}
 
-	blist, value, err = b.evaluatePart(calcRoot, nwatches)
+	value, err = b.evaluatePart(calcRoot)
 	return
 }
 
-func (b *bindScope) evaluatePart(calcRoot *expr, nwatches int) (blist *barray, value interface{}, err error) {
-	blist = &barray{make([]Bindable, nwatches), 0}
-	value, err = b.evaluateRec(calcRoot, blist, 0, nil)
+func (b bindScope) evaluatePart(calcRoot *expr) (value interface{}, err error) {
+	value, err = b.evaluateRec(calcRoot)
 	if err != nil {
 		return
 	}
@@ -142,7 +111,7 @@ func (b *bindScope) evaluatePart(calcRoot *expr, nwatches int) (blist *barray, v
 	return
 }
 
-func (b *bindScope) clone() *bindScope {
+func (b bindScope) clone() *bindScope {
 	scope := NewScope([]SymbolTable{})
 	scope.Merge(b.scope)
 	return &bindScope{scope}

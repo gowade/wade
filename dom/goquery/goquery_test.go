@@ -28,10 +28,7 @@ func TestEverything(t *testing.T) {
 
 	s = s.First()
 
-	tag, err := s.TagName()
-	if err != nil {
-		t.Fatal(err)
-	}
+	tag := s.TagName()
 
 	require.Equal(t, tag, "div")
 
@@ -60,7 +57,7 @@ func TestEverything(t *testing.T) {
 	a, _ = haint.Attr(Aw50m3n355)
 	require.Equal(t, a, "over 9000")
 
-	tn, _ := haint.Next().TagName()
+	tn := haint.Next().TagName()
 	require.Equal(t, tn, "p")
 
 	haint.Before(d.NewFragment(`<input value="NTH"></a>`))

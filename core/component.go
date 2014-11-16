@@ -1,4 +1,4 @@
-package com
+package core
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	CompInnerTagName = "w-inner"
+	CompInner = "w-inner"
 )
 
 var (
@@ -28,22 +28,22 @@ type (
 	}
 
 	TemplateProvider interface {
-		Template(container dom.Selection) dom.Selection
+		Template(container dom.Selection) VNode
 	}
 
 	ComponentView struct {
 		Name      string // The tag name for the component
-		Prototype Prototype
+		Prototype ComponentPrototype
 		Template  TemplateProvider
 	}
 
-	ViewManager struct {
+	ComManager struct {
 		compViews       map[string]*componentView
 		sourceContainer dom.Selection
 	}
 
 	componentInstance struct {
-		model    Prototype
+		model    ComponentPrototype
 		origNode VNode
 		realNode VNode
 	}
@@ -54,10 +54,9 @@ type (
 	ComponentPrototype interface {
 		// Init is called on each instantiation of a component.
 		//
-		// You can return a VNode, it will replace the actual node displayed,
-		// the new inner contents of the returned VNode will also be used
-		// to replace "<w-inner>" nodes instead of the original.
-		Init(VNode) (VNode, error)
+		// You can modify the node's tree, the modified inner contents of the node
+		// will be used to replace "<w-inner>" nodes instead of the original.
+		Init(VNode) error
 
 		// Update is called whenever the virtual DOM is rerendered
 		Update(VNode) error
@@ -73,33 +72,35 @@ type (
 	HTMLTemplate struct {
 		Id string
 	}
+
+	VNodeTemplate VNode
 )
 
-func (t HTMLTemplate) Template(container dom.Selection) dom.Selection {
-	tpl := container.Find("template#" + t.Id)
-	tpl.Remove()
+//func (t HTMLTemplate) Template(container dom.Selection) VNode {
+//	tpl := container.Find("template#" + t.Id)
+//	tpl.Remove()
 
-	return tpl
+//	return tpl.ToVNode()
+//}
+
+//func (t StringTemplate) Template(container dom.Selection) VNode {
+//	node := container.NewFragment("<node></node>")
+//	node.Append(container.NewFragment(string(t)))
+//	return node.ToVNode()
+//}
+
+func (t VNodeTemplate) Template(container dom.Selection) VNode {
+	return VNode(t)
 }
 
-func (t StringTemplate) Template(container dom.Selection) dom.Selection {
-	node := container.NewFragment("<node></node>")
-	node.Append(container.NewFragment(string(t)))
-	return node
-}
-
-func (b BaseProto) Init(node VNode) (VNode, error) { return node, nil }
-func (b BaseProto) Update(node VNode) error        { return nil }
+func (b BaseProto) Init(node VNode) error   { return nil }
+func (b BaseProto) Update(node VNode) error { return nil }
 
 func (c *componentInstance) Model() interface{} {
 	return c.model
 }
 
-func (c *componentInstance) Update() error {
-	return c.model.Update(c)
-}
-
-func dePtr(proto Prototype) reflect.Type {
+func dePtr(proto ComponentPrototype) reflect.Type {
 	if proto == nil {
 		return reflect.TypeOf(Empty{})
 	}
@@ -126,28 +127,28 @@ func (cv *componentView) prepareAttributes(prototype reflect.Type) error {
 }
 
 func (cv *componentView) HasAttr(attr string) (has bool, fieldName string) {
-	fieldName, has = cv.attrs[attr]
+	fieldName, has = cv.attrs[strings.ToLower(attr)]
 
 	return
 }
 
-func (ci *componentInstance) PrepareInner(outerScope *scope.Scope, bindFn func(VNode, *scope.Scope)) (err error) {
-	NodeWalk(&ci.realNode, func(parent *VNode, i int) {
-		node := parent.Children[i]
+func (ci *componentInstance) prepareInner(outerScope *scope.Scope) {
+	NodeWalk(&ci.realNode, func(node *VNode) {
 		// replace <w-inner> elements with inner content
-		if node.Type == ElementNoder && node.Data == CompInnerTagName {
+		if node.Type == ElementNode && node.Data == CompInner {
 			ci.origNode.Type = GhostNode
 			ci.origNode.scope = outerScope
-			parent.Children[i] = NodeClone(ci.origNode)
+			*node = ci.origNode.Clone()
 		}
 	})
 
-	ci.realNode.rerenderCb = func(node VNode) {
-		ci.model.Update(ci.realNode)
-	}
+	ci.realNode.addCallback(func() (err error) {
+		err = ci.model.Update(ci.realNode)
+		return
+	})
 }
 
-func (t *componentView) NewModel(node VNode) Prototype {
+func (t *componentView) NewModel(node *VNode) ComponentPrototype {
 	if t.Prototype == nil {
 		return nil
 	}
@@ -157,14 +158,14 @@ func (t *componentView) NewModel(node VNode) Prototype {
 	clone := cptr.Elem()
 	if t.attrs != nil {
 		for attr, fieldName := range t.attrs {
-			if val, ok := node.Attrs[attr]; ok {
+			if val, ok := node.Attr(attr); ok {
 				field := clone.FieldByName(fieldName)
 				if _, ok := field.Interface().(string); ok {
-					field.Set(val)
+					field.Set(reflect.ValueOf(val.(string)))
 					continue
 				}
 
-				n, err := fmt.Sscan(val, field.Interface())
+				n, err := fmt.Sscan(val.(string), field.Addr().Interface())
 
 				if n != 1 || err != nil {
 					panic(fmt.Sprintf(`Cannot parse value "%v" to type "%v" for attribute "%v" of component "%v". Error: %v.`,
@@ -174,25 +175,27 @@ func (t *componentView) NewModel(node VNode) Prototype {
 		}
 	}
 
-	return cptr.Interface().(Prototype)
+	return cptr.Interface().(ComponentPrototype)
 }
 
-func (t *componentView) NewInstance(node VNode, outerScope *scope.Scope) (inst *componentInstance, err error) {
+func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err error) {
 	model := t.NewModel(node)
-	realNode := NodeClone(t.template)
-	newOrig := model.Init(node)
-	return &componentInstance{
+	orig := *node
+	node.Children = t.template.Clone().Children
+	err = model.Init(orig)
+
+	inst = &componentInstance{
 		model:    model,
-		origNode: newOrig,
-		realNode: realNode,
+		origNode: orig,
+		realNode: *node,
 	}
 
 	return
 }
 
-func NewManager(sourceContainer dom.Selection) *Manager {
-	return &Manager{
-		components:      make(map[string]*Component),
+func NewComManager(sourceContainer dom.Selection) *ComManager {
+	return &ComManager{
+		compViews:       make(map[string]*componentView),
 		sourceContainer: sourceContainer,
 	}
 }
@@ -207,9 +210,9 @@ func isForbiddenAttr(attr string) bool {
 	return false
 }
 
-func (tm *Manager) RegisterComponents(specs []ComponentView) (ret error) {
+func (tm *ComManager) Register(specs ...ComponentView) (ret error) {
 	for _, ht := range specs {
-		ct := &Component{
+		ct := &componentView{
 			ComponentView: ht,
 			attrs:         map[string]string{},
 		}
@@ -218,7 +221,7 @@ func (tm *Manager) RegisterComponents(specs []ComponentView) (ret error) {
 			panic(fmt.Errorf("No template available for component %v", ht.Name))
 		}
 
-		ct.template = ht.Template.Template(tm.sourceContainer).ToVNode()
+		ct.template = ht.Template.Template(tm.sourceContainer)
 		ct.template.Data = ht.Name
 
 		prototype := ct.Prototype
@@ -240,20 +243,14 @@ func (tm *Manager) RegisterComponents(specs []ComponentView) (ret error) {
 			continue
 		}
 
-		tm.components[strings.ToLower(ct.Name)] = ct
+		tm.compViews[strings.ToLower(ct.Name)] = ct
 	}
 
 	return ret
 }
 
 // GetHtmlTag checks if the element's tag is of a registered component
-func (tm *Manager) GetComponent(elem dom.Selection) (ct *Component, ok bool) {
-	tagname, err := elem.TagName()
-	if err != nil {
-		ok = false
-		return
-	}
-
-	ct, ok = tm.components[tagname]
+func (tm *ComManager) GetComponent(tagName string) (ct *componentView, ok bool) {
+	ct, ok = tm.compViews[tagName]
 	return
 }

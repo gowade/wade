@@ -43,7 +43,7 @@ type (
 
 	Selection interface {
 		Dom
-		TagName() (string, error)
+		TagName() string
 		Filter(selector string) Selection
 		Children() Selection
 		Contents() Selection
@@ -88,11 +88,10 @@ type (
 		IsTextNode() bool
 		SetText(text string)
 		Add(element Selection) Selection
-		Prop(prop string) (interface{}, bool)
-		SetProp(prop string, value interface{})
+		//Prop(prop string) (interface{}, bool)
+		//SetProp(prop string, value interface{})
 		Underlying() js.Object
 		Each(EachFn)
-		BEach(EachFn)
 	}
 )
 
@@ -100,7 +99,7 @@ type (
 // tag name, id and parent tree
 func DebugInfo(sel Selection) string {
 	sel = sel.First()
-	tagname, _ := sel.TagName()
+	tagname := sel.TagName()
 	str := tagname
 	if id, ok := sel.Attr("id"); ok {
 		str += "#" + id
@@ -108,10 +107,8 @@ func DebugInfo(sel Selection) string {
 	str += fmt.Sprintf(":%v", sel.ElemIndex()) + " ("
 	parents := sel.Parents().Elements()
 	for j := len(parents) - 1; j >= 0; j-- {
-		t, err := parents[j].TagName()
-		if err == nil {
-			str += t + fmt.Sprintf(":%v", parents[j].ElemIndex()) + "/"
-		}
+		t := parents[j].TagName()
+		str += t + fmt.Sprintf(":%v", parents[j].ElemIndex()) + "/"
 	}
 	str += ")"
 

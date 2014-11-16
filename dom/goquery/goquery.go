@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"code.google.com/p/go.net/html"
-	"code.google.com/p/go.net/html/atom"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gopherjs/gopherjs/js"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 
 	"github.com/phaikawl/wade/dom"
 )
@@ -141,17 +141,13 @@ func (s Selection) IsElement() bool {
 	return s.firstNode().Type == html.ElementNode
 }
 
-func (s Selection) TagName() (string, error) {
-	if len(s.Nodes) == 0 {
-		return "", dom.ErrorNoElementSelected
-	}
-
+func (s Selection) TagName() string {
 	node := s.firstNode()
 	if !s.IsElement() {
-		return "", dom.ErrorCantGetTagName
+		return ""
 	}
 
-	return strings.ToLower(node.Data), nil
+	return strings.ToLower(node.Data)
 }
 
 func (s Selection) Find(selector string) dom.Selection {
@@ -471,17 +467,11 @@ func (s Selection) Each(fn dom.EachFn) {
 	})
 }
 
-func (s Selection) BEach(fn dom.EachFn) {
-	s.Each(fn)
-}
-
 func (s Selection) Underlying() js.Object {
 	return nil
 }
 
 func (s Selection) On(eventname string, handler dom.EventHandler) {
-	s.AddClass("w-incomplete")
-
 	// Save to EventHandlers for event simulation
 	node := s.Nodes[0]
 	if _, ok := EventHandlers[node]; !ok {

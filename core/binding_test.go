@@ -3,15 +3,12 @@ package core
 import (
 	"testing"
 
-	"github.com/phaikawl/wade/com"
-	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/stretchr/testify/require"
 )
 
 type (
 	Model struct {
-		com.BaseProto
+		BaseProto
 		Name  string
 		Value int
 		Test  *TestModel
@@ -30,113 +27,109 @@ type (
 		Num  int
 		Test *TestModel
 	}
+
+	TextBinder struct {
+		BaseBinder
+	}
 )
+
+func (b *TextBinder) Update(d DomBind) (err error) {
+	d.Node.Children = []VNode{VText(toString(d.Value))}
+	return
+}
+
+func (b *TextBinder) BindInstance() Binder { return b }
 
 func TestBinding(t *testing.T) {
 	b := NewTestBindEngine()
 	sc := &Sc{"a", 9000, &TestModel{A{true}}}
-	bs := &bindScope{b.newModelScope(sc)}
+	b.RegisterBinder("text", &TextBinder{})
+	bs := b.newModelScope(sc)
 
-	testct := com.Spec{
+	testct := ComponentView{
 		Name: "test",
-		Template: com.StringTemplate(`
-			<div><wcontents></wcontents></div>
-			<span #html="$Name"></span>
-			<p #html="$Value"></p>
-			<div #html="$Test.A.B"></div>
-			<div><wcontents></wcontents></div>
-			`),
+		Template: VNodeTemplate(
+			VElem("div", NoAttr(), NoBind(), []VNode{
+				VElem("div", NoAttr(), NoBind(), []VNode{
+					VElem(CompInner, NoAttr(), NoBind(), []VNode{}),
+				}),
+				VElem("span", NoAttr(), []Bindage{BindBinder("text", "Name")}, []VNode{}),
+				VElem("div", NoAttr(), []Bindage{BindBinder("text", "Test.A.B")}, []VNode{}),
+			})),
 		Prototype: &Model{},
 	}
-	b.tm.RegisterComponents([]com.Spec{
-		testct,
-	})
 
-	binder, args, err := parseBinderLHS("if")
-	require.Equal(t, binder, "if")
+	b.tm.Register(testct)
+
+	binder, args, err := parseBinderLHS("text")
+	require.Equal(t, binder, "text")
 	require.Equal(t, len(args), 0)
 	require.Equal(t, err, nil)
 
-	binder, args, err = parseBinderLHS("each(_,val)")
-	require.Equal(t, binder, "each")
+	binder, args, err = parseBinderLHS("text(_,val)")
+	require.Equal(t, binder, "text")
 	require.Equal(t, len(args), 2)
 	require.Equal(t, args[0], "_")
 	require.Equal(t, args[1], "val")
 	require.Equal(t, err, nil)
 
-	binder, args, err = parseBinderLHS("ech(_,val")
+	binder, args, err = parseBinderLHS("unregistered(_,val")
 	require.NotEqual(t, err, nil)
 
 	//test processDomBind
-	elem := goquery.GetDom().NewFragment("<div></div>")
+	elem := NodeRoot(VElem("test", NoAttr(), NoBind(), []VNode{}))
 
-	b.processBinderBind("html", "$Name", elem, bs, false)
-	require.Equal(t, elem.Html(), "a")
+	b.processBinderBind("text", "Name", elem, bs)
+	elem.Update()
+	require.Equal(t, elem.Text(), "a")
 	sc.Name = "b"
-	b.watcher.Digest(&sc.Name)
-	require.Equal(t, elem.Html(), "b")
+
+	elem.Update()
+	require.Equal(t, elem.Text(), "b")
 
 	//test processFieldBind
-	elem = goquery.GetDom().NewFragment("<test></test>")
-	tct, _ := b.tm.GetComponent(elem)
-	ct, _ := tct.NewElem(elem, nil, nil)
-	model := ct.Model().(*Model)
-	b.processFieldBind("Name", "':Hai;'", elem, bs, false, ct)
-	b.processFieldBind("Value", "$Num", elem, bs, false, ct)
-	require.Equal(t, model.Name, ":Hai;")
-	require.Equal(t, model.Value, 9000)
-
-	sc.Num = 9999
-	b.watcher.Digest(&sc.Num)
-	require.Equal(t, model.Value, 9999)
-
-	//full test
-	src := `
-		<wroot>
-			<ww @title="$Name" #class(awesome)="true">
-				<div id="0">da{{ $Num }}n</div>
-				<test @Value="$Num" Name="abc" @Test="$Test" id="1">{{ $Name }}<!-- --></test>
-				<div id="2">{{ $Test.A.B }}</div>
-			</ww>
-		</wroot>
-	`
-	sc.Name = "scope"
-	root := goquery.GetDom().NewFragment(src)
-	b.Bind(root, sc, false)
-	getAttr := func(elem dom.Selection, attr string) string {
-		a, _ := elem.Attr(attr)
-		return a
-	}
-	require.Equal(t, getAttr(root.Find("#0"), "title"), sc.Name)
-	require.Equal(t, getAttr(root.Find("#1"), "title"), sc.Name)
-	require.Equal(t, root.Find("#0").HasClass("awesome"), true)
-	require.Equal(t, root.Find("#1").Length(), 1)
-	require.Equal(t, root.Find("#1").HasClass("awesome"), true)
-	require.Equal(t, root.Find("#2").Html(), "true")
-
-	felems := root.Find("#1").Children().Elements()
-	require.Equal(t, felems[0].Text(), sc.Name)
-	require.Equal(t, felems[1].Html(), "abc")
-	require.Equal(t, felems[2].Html(), "9999")
-	require.Equal(t, felems[3].Html(), "true")
-
-	require.Equal(t, root.Find("#0").Html(), "da9999n")
-	sc.Num = 6666
-	b.Watcher().Digest(&sc.Num)
-	require.Equal(t, root.Find("#0").Html(), "da6666n")
-
-	ok := b.Watcher().Observe(sc.Test, "A", func(ov, nv interface{}) {
-		require.Equal(t, ov.(A).B, true)
-		require.Equal(t, nv.(A).B, false)
-		root.Find("#2").AddClass("obs")
-	})
+	tct, ok := b.tm.GetComponent("test")
 	if !ok {
 		t.FailNow()
 	}
 
-	sc.Test.A = A{false}
+	ct, _ := tct.NewInstance(elem)
+	model := ct.model.(*Model)
+	b.processFieldBind("Name", "':Hai;'", elem, bs, ct)
+	b.processFieldBind("Value", "Num", elem, bs, ct)
+	elem.Update()
+	require.Equal(t, model.Name, ":Hai;")
+	require.Equal(t, model.Value, 9000)
 
-	b.Watcher().Digest(&sc.Test.A)
+	sc.Num = 9999
+	elem.Update()
+	require.Equal(t, model.Value, 9999)
 
-	require.Equal(t, root.Find("#2").HasClass("obs"), true)
+	elem = NodeRoot(V(GhostNode, "div", NoAttr(), []Bindage{BindAttr("title", "Name")}, []VNode{
+		VElem("test", map[string]interface{}{"name": "abc"}, []Bindage{
+			BindAttr("Value", "Num"),
+			BindAttr("Test", "Test"),
+		}, []VNode{
+			VMustache("Name"),
+		}),
+
+		VElem("div", NoAttr(), NoBind(), []VNode{
+			VMustache("Test.A.B"),
+		}),
+	}))
+
+	sc.Name = "scope"
+	b.Bind(elem, sc)
+	elem.Update()
+
+	first := &elem.Children[0]
+	second := &elem.Children[1]
+	require.Equal(t, first.Attrs["title"].(string), sc.Name)
+	require.Equal(t, second.Attrs["title"].(string), sc.Name)
+	require.Equal(t, second.Text(), "true")
+
+	fChildren := first.Children
+	require.Equal(t, fChildren[0].Text(), sc.Name)
+	require.Equal(t, fChildren[1].Text(), "abc")
+	require.Equal(t, fChildren[2].Text(), "true")
 }

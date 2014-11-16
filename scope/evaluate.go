@@ -67,7 +67,7 @@ func EvaluateObjField(query string, model reflect.Value) (oe *ObjEval, ok bool, 
 // or a map
 func GetReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, err error) {
 	if o.Kind() == reflect.Ptr && o.IsNil() {
-		err = fmt.Errorf("Accessing field of a nil pointer")
+		err = fmt.Errorf("Accessing field of a nil pointer.")
 		return
 	}
 
