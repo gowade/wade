@@ -32,8 +32,8 @@ func TestComponent(t *testing.T) {
 		Name:      "test",
 		Prototype: &Test{},
 		Template: VNodeTemplate(
-			VElem("span", NoAttr(), NoBind(), []VNode{
-				VElem(CompInner, NoAttr(), NoBind(), []VNode{}),
+			VWrap("span", []VNode{
+				VEmpty(CompInner),
 			})),
 	})
 
@@ -51,9 +51,9 @@ func TestComponent(t *testing.T) {
 			"fnum": "699.69",
 			"tf":   "true",
 		}, NoBind(), []VNode{
-			VElem("smile", NoAttr(), NoBind(), []VNode{}),
+			VEmpty("smile"),
 			VText("_"),
-			VElem("smile", NoAttr(), NoBind(), []VNode{}),
+			VEmpty("smile"),
 		}))
 	cv, ok := tm.GetComponent("test")
 	require.Equal(t, ok, true)

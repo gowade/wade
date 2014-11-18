@@ -1,6 +1,9 @@
 package utils
 
-import "unicode"
+import (
+	"fmt"
+	"unicode"
+)
 
 func WithoutSpaces(src string) string {
 	r := ""
@@ -11,4 +14,11 @@ func WithoutSpaces(src string) string {
 	}
 
 	return r
+}
+
+func ToString(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", value)
 }

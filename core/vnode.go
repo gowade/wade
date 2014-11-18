@@ -86,6 +86,14 @@ func NoBind() []Bindage {
 	return []Bindage{}
 }
 
+func VEmpty(tagName string) VNode {
+	return VElem(tagName, NoAttr(), NoBind(), []VNode{})
+}
+
+func VWrap(tagName string, children []VNode) VNode {
+	return VElem(tagName, NoAttr(), NoBind(), children)
+}
+
 func VText(text string) VNode {
 	return VNode{
 		Type:     TextNode,
@@ -99,7 +107,7 @@ func VText(text string) VNode {
 func VMustache(expr string) VNode {
 	return VNode{
 		Type:  MustacheNode,
-		Data:  expr,
+		Data:  "",
 		Attrs: NoAttr(),
 		Binds: []Bindage{Bindage{
 			Type: AttrBind,

@@ -3,6 +3,7 @@ package core
 import (
 	"testing"
 
+	"github.com/phaikawl/wade/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ type (
 )
 
 func (b *TextBinder) Update(d DomBind) (err error) {
-	d.Node.Children = []VNode{VText(toString(d.Value))}
+	d.Node.Children = []VNode{VText(utils.ToString(d.Value))}
 	return
 }
 
@@ -49,9 +50,9 @@ func TestBinding(t *testing.T) {
 	testct := ComponentView{
 		Name: "test",
 		Template: VNodeTemplate(
-			VElem("div", NoAttr(), NoBind(), []VNode{
-				VElem("div", NoAttr(), NoBind(), []VNode{
-					VElem(CompInner, NoAttr(), NoBind(), []VNode{}),
+			VWrap("div", []VNode{
+				VWrap("div", []VNode{
+					VEmpty(CompInner),
 				}),
 				VElem("span", NoAttr(), []Bindage{BindBinder("text", "Name")}, []VNode{}),
 				VElem("div", NoAttr(), []Bindage{BindBinder("text", "Test.A.B")}, []VNode{}),
@@ -113,7 +114,7 @@ func TestBinding(t *testing.T) {
 			VMustache("Name"),
 		}),
 
-		VElem("div", NoAttr(), NoBind(), []VNode{
+		VWrap("div", []VNode{
 			VMustache("Test.A.B"),
 		}),
 	}))

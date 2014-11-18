@@ -7,11 +7,15 @@ import (
 	"strings"
 
 	. "github.com/phaikawl/wade/scope"
+	"github.com/phaikawl/wade/utils"
 )
 
 const (
-	AttrBindPrefix   = '@'
-	BinderBindPrefix = '#'
+	AttrBindPrefix    = '@'
+	BinderBindPrefix  = '#'
+	SpecialAttrPrefix = "!"
+	BelongAttrName    = SpecialAttrPrefix + "belong"
+	GhostAttrName     = SpecialAttrPrefix + "ghost"
 )
 
 type (
@@ -119,11 +123,11 @@ func (b *Binding) processAttrBind(attr, bstr string, node *VNode, scope *Scope) 
 func (b *Binding) processMustache(node *VNode, scope *Scope) (err error) {
 	bs := bindScope{scope}
 	_, v, err := bs.evaluate(node.Binds[0].Expr)
-	node.Data = toString(v)
+	node.Data = utils.ToString(v)
 
 	node.addCallback(func() (err error) {
 		_, v, err := bs.evaluate(node.Binds[0].Expr)
-		node.Data = toString(v)
+		node.Data = utils.ToString(v)
 		return
 	})
 
@@ -300,58 +304,6 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 
 	return
 }
-
-//var (
-//	MustacheRegex = regexp.MustCompile("{{([^{}]+)}}")
-//)
-
-//func (b *Binding) processMustaches(elem dom.Selection, once bool, bs *bindScope) error {
-//	text := elem.Text()
-//	if strings.Index(text, "{{") == -1 {
-//		return nil
-//	}
-
-//	matches := MustacheRegex.FindAllStringSubmatch(text, -1)
-//	if matches != nil {
-//		splitted := MustacheRegex.Split(text, -1)
-
-//		textNodes := elem.NewEmptySelection()
-//		for i, m := range matches {
-//			cr, blist, v, err := bs.evaluate(m[1])
-//			if err != nil {
-//				return err
-//			}
-
-//			node := elem.NewTextNode(toString(v))
-
-//			if !once {
-//				err = b.watchModel(v, blist, cr, bs, func(val interface{}) {
-//					node.SetText(toString(val))
-//				})
-
-//				if err != nil {
-//					return err
-//				}
-//			}
-
-//			if splitted[i] != "" {
-//				bf := elem.NewTextNode(splitted[i])
-//				textNodes = textNodes.Add(bf)
-//			}
-
-//			textNodes = textNodes.Add(node)
-//		}
-
-//		if splitted[len(splitted)-1] != "" {
-//			bf := elem.NewTextNode(splitted[len(splitted)-1])
-//			textNodes = textNodes.Add(bf)
-//		}
-
-//		elem.ReplaceWith(textNodes)
-//	}
-
-//	return nil
-//}
 
 func (b *Binding) bindRec(node *VNode,
 	scope *Scope,

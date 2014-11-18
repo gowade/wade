@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/phaikawl/wade/utils"
 )
 
 type PageManager interface {
@@ -60,6 +62,6 @@ func defaultHelpers() map[string]interface{} {
 			return str == ""
 		},
 
-		"toStr": toString,
+		"toStr": utils.ToString,
 	}
 }
