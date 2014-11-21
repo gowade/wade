@@ -3,6 +3,7 @@ package gonet
 import (
 	"bytes"
 	"regexp"
+	"strings"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -11,12 +12,8 @@ import (
 	"github.com/phaikawl/wade/utils"
 )
 
-type Converter struct {
-	Dom *html.Node
-}
-
 func parseHtml(src string) (*html.Node, error) {
-	nodes, err := html.ParseFragment(bytes.NewBufferString(src), &html.Node{
+	nodes, err := html.ParseFragment(bytes.NewBufferString(strings.TrimSpace(src)), &html.Node{
 		Type:     html.ElementNode,
 		Data:     "body",
 		DataAtom: atom.Body,
@@ -56,7 +53,7 @@ func renderRec(v core.VNode) []*html.Node {
 		}
 	}
 
-	if v.Type == core.GhostNode {
+	if v.Type == core.GroupNode {
 		return children
 	}
 
@@ -66,7 +63,7 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createTextNode(v.Data)
 	case core.ElementNode:
 		n = createElement(v.Data)
-		for name, val := range v.Attrs {
+		for name, val := range v.Attrs() {
 			var value string
 
 			switch v := val.(type) {
@@ -104,9 +101,9 @@ func renderRec(v core.VNode) []*html.Node {
 	return []*html.Node{n}
 }
 
-func (c Converter) Render(v core.VNode) {
+func Render(r *html.Node, v core.VNode) {
 	n := renderRec(v)
-	*c.Dom = *n[0]
+	*r = *n[0]
 }
 
 func getAttr(n *html.Node, attrName string) *html.Attribute {
@@ -155,8 +152,8 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 
 		n := core.VElem(node.Data, attrs, binds, []core.VNode{})
 
-		if getAttr(node, core.GhostAttrName) != nil { // has "!ghost" attribute
-			n.Type = core.GhostNode
+		if getAttr(node, core.GroupAttrName) != nil { // has "!group" attribute
+			n.Type = core.GroupNode
 		}
 
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -169,8 +166,8 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 	return []core.VNode{}
 }
 
-func (c Converter) ToVNode() core.VNode {
-	return tovnodeRec(c.Dom)[0]
+func ToVNode(r *html.Node) core.VNode {
+	return tovnodeRec(r)[0]
 }
 
 var (

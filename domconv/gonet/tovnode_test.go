@@ -17,7 +17,7 @@ func TestConversion(t *testing.T) {
 		core.VElem("a", map[string]interface{}{
 			"w": 123.4,
 		}, core.NoBind(), []core.VNode{}),
-		core.V(core.GhostNode, "span", core.NoAttr(), core.NoBind(), []core.VNode{
+		core.V(core.GroupNode, "span", core.NoAttr(), core.NoBind(), []core.VNode{
 			core.VText("("),
 			core.VMustache("empty"),
 			core.VElem("div", map[string]interface{}{
@@ -31,9 +31,8 @@ func TestConversion(t *testing.T) {
 		core.VText("t"),
 	})
 
-	conv := Converter{node}
 	buf := bytes.NewBufferString("")
-	conv.Render(root)
+	Render(node, root)
 	html.Render(buf, node)
 	src := `<div>
 			<a w="123.4"></a>
@@ -44,12 +43,12 @@ func TestConversion(t *testing.T) {
 			t
 		</div>
 	`
-	require.Equal(t, utils.WithoutSpaces(buf.String()), utils.WithoutSpaces(src))
+	require.Equal(t, utils.NoSp(buf.String()), utils.NoSp(src))
 
 	// From real to virtual
 	pnode, err := parseHtml(`
 		<div>
-			<div !ghost>
+			<div !group>
 				<a w="123.4"></a>
 				(<div disabled>)</div>
 				<!--data-->
@@ -57,11 +56,16 @@ func TestConversion(t *testing.T) {
 			</div>
 		</div>
 	`)
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	vnode := Converter{pnode}.ToVNode()
-	conv.Render(vnode)
-	require.Equal(t, utils.WithoutSpaces(buf.String()), utils.WithoutSpaces(src))
+	vnode := ToVNode(pnode)
+	target := createElement("zz")
+	Render(target, vnode)
+
+	b := bytes.NewBufferString("")
+	html.Render(b, target)
+	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src))
 }

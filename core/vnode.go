@@ -10,7 +10,7 @@ const (
 	TextNode NodeType = 1 << iota
 	MustacheNode
 	ElementNode
-	GhostNode
+	GroupNode
 	DataNode
 	DeadNode
 )
@@ -36,20 +36,11 @@ type (
 		Type      NodeType
 		Data      string
 		Children  []VNode
-		Attrs     map[string]interface{}
+		attrs     map[string]interface{}
 		Binds     []Bindage
+		classes   map[string]bool
 		scope     *scope.Scope
 		callbacks []cbFunc
-	}
-
-	Document struct {
-		Root VNode
-		RealDom
-	}
-
-	RealDom interface {
-		Render(VNode)
-		ToVNode() VNode
 	}
 )
 
@@ -98,7 +89,7 @@ func VText(text string) VNode {
 	return VNode{
 		Type:     TextNode,
 		Data:     text,
-		Attrs:    NoAttr(),
+		attrs:    NoAttr(),
 		Binds:    NoBind(),
 		Children: []VNode{},
 	}
@@ -108,7 +99,7 @@ func VMustache(expr string) VNode {
 	return VNode{
 		Type:  MustacheNode,
 		Data:  "",
-		Attrs: NoAttr(),
+		attrs: NoAttr(),
 		Binds: []Bindage{Bindage{
 			Type: AttrBind,
 			Expr: expr,
@@ -127,7 +118,7 @@ func V(typ NodeType, data string, attrs map[string]interface{}, binds []Bindage,
 	return VNode{
 		Type:     typ,
 		Data:     data,
-		Attrs:    attrs,
+		attrs:    attrs,
 		Binds:    binds,
 		Children: children,
 	}
@@ -138,7 +129,7 @@ func VElem(data string, attrs map[string]interface{}, binds []Bindage, children 
 }
 
 func (node VNode) TagName() string {
-	if !(node.Type == ElementNode || node.Type == GhostNode) {
+	if !(node.Type == ElementNode || node.Type == GroupNode) {
 		return ""
 	}
 
@@ -175,8 +166,36 @@ func (node *VNode) Update() {
 }
 
 func (node VNode) Attr(attr string) (v interface{}, ok bool) {
-	v, ok = node.Attrs[strings.ToLower(attr)]
+	v, ok = node.attrs[strings.ToLower(attr)]
 	return
+}
+
+func (node *VNode) SetAttr(attr string, value interface{}) {
+	node.attrs[strings.ToLower(attr)] = value
+}
+
+func (node *VNode) SetClass(className string, on bool) {
+	if node.classes == nil {
+		node.classes = map[string]bool{}
+	}
+
+	node.classes[className] = on
+}
+
+func (node VNode) HasClass(className string) bool {
+	if node.classes == nil {
+		return false
+	}
+
+	if has, ok := node.classes[className]; ok && has {
+		return true
+	}
+
+	return false
+}
+
+func (node VNode) Attrs() map[string]interface{} {
+	return node.attrs
 }
 
 func NodeWalkX(node *VNode, fn func(*VNode, int)) {
@@ -200,9 +219,16 @@ func (node VNode) Clone() (clone VNode) {
 		clone.Children[i] = node.Children[i].Clone()
 	}
 
-	clone.Attrs = make(map[string]interface{})
-	for k, v := range node.Attrs {
-		clone.Attrs[k] = v
+	clone.attrs = make(map[string]interface{})
+	for k, v := range node.attrs {
+		clone.attrs[k] = v
+	}
+
+	if node.classes != nil {
+		clone.classes = make(map[string]bool)
+		for k, v := range node.classes {
+			clone.classes[k] = v
+		}
 	}
 
 	return

@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/scope"
 )
 
@@ -27,19 +26,14 @@ type (
 		template VNode
 	}
 
-	TemplateProvider interface {
-		Template(container dom.Selection) VNode
-	}
-
 	ComponentView struct {
 		Name      string // The tag name for the component
 		Prototype ComponentPrototype
-		Template  TemplateProvider
+		Template  VNode
 	}
 
 	ComManager struct {
-		compViews       map[string]*componentView
-		sourceContainer dom.Selection
+		compViews map[string]*componentView
 	}
 
 	componentInstance struct {
@@ -72,26 +66,7 @@ type (
 	HTMLTemplate struct {
 		Id string
 	}
-
-	VNodeTemplate VNode
 )
-
-//func (t HTMLTemplate) Template(container dom.Selection) VNode {
-//	tpl := container.Find("template#" + t.Id)
-//	tpl.Remove()
-
-//	return tpl.ToVNode()
-//}
-
-//func (t StringTemplate) Template(container dom.Selection) VNode {
-//	node := container.NewFragment("<node></node>")
-//	node.Append(container.NewFragment(string(t)))
-//	return node.ToVNode()
-//}
-
-func (t VNodeTemplate) Template(container dom.Selection) VNode {
-	return VNode(t)
-}
 
 func (b BaseProto) Init(node VNode) error   { return nil }
 func (b BaseProto) Update(node VNode) error { return nil }
@@ -132,11 +107,69 @@ func (cv *componentView) HasAttr(attr string) (has bool, fieldName string) {
 	return
 }
 
+func (t *componentView) NewModel(node *VNode) (ComponentPrototype, error) {
+	if t.Prototype == nil {
+		return nil, nil
+	}
+
+	prototype := dePtr(t.Prototype)
+	cptr := reflect.New(prototype)
+	clone := cptr.Elem()
+	if t.attrs != nil {
+		for attr, fieldName := range t.attrs {
+			if val, ok := node.Attr(attr); ok {
+				field := clone.FieldByName(fieldName)
+				if strVal, ok := val.(string); ok {
+					if _, ok = field.Interface().(string); ok {
+						field.Set(reflect.ValueOf(strVal))
+						continue
+					}
+
+					n, err := fmt.Sscan(strVal, field.Addr().Interface())
+
+					if n != 1 || err != nil {
+						return nil, fmt.Errorf(`Cannot parse value "%v" to type "%v" for attribute "%v" of component "%v". Error: %v.`,
+							val, field.Type().String(), attr, t.Name, err)
+					}
+				} else {
+					if reflect.TypeOf(val).AssignableTo(field.Type()) {
+						field.Set(reflect.ValueOf(val))
+					} else {
+						return nil, fmt.Errorf(`Incompatible type in prototype field assignment.`)
+					}
+				}
+			}
+		}
+	}
+
+	return cptr.Interface().(ComponentPrototype), nil
+}
+
+func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err error) {
+	model, err := t.NewModel(node)
+	if err != nil {
+		return
+	}
+
+	orig := *node
+	node.Children = t.template.Clone().Children
+	err = model.Init(orig)
+	orig.Data = "div"
+	orig.Type = GroupNode
+
+	inst = &componentInstance{
+		model:    model,
+		origNode: orig,
+		realNode: *node,
+	}
+
+	return
+}
+
 func (ci *componentInstance) prepareInner(outerScope *scope.Scope) {
 	NodeWalk(&ci.realNode, func(node *VNode) {
 		// replace <w-inner> elements with inner content
 		if node.Type == ElementNode && node.Data == CompInner {
-			ci.origNode.Type = GhostNode
 			ci.origNode.scope = outerScope
 			*node = ci.origNode.Clone()
 		}
@@ -148,55 +181,9 @@ func (ci *componentInstance) prepareInner(outerScope *scope.Scope) {
 	})
 }
 
-func (t *componentView) NewModel(node *VNode) ComponentPrototype {
-	if t.Prototype == nil {
-		return nil
-	}
-
-	prototype := dePtr(t.Prototype)
-	cptr := reflect.New(prototype)
-	clone := cptr.Elem()
-	if t.attrs != nil {
-		for attr, fieldName := range t.attrs {
-			if val, ok := node.Attr(attr); ok {
-				field := clone.FieldByName(fieldName)
-				if _, ok := field.Interface().(string); ok {
-					field.Set(reflect.ValueOf(val.(string)))
-					continue
-				}
-
-				n, err := fmt.Sscan(val.(string), field.Addr().Interface())
-
-				if n != 1 || err != nil {
-					panic(fmt.Sprintf(`Cannot parse value "%v" to type "%v" for attribute "%v" of component "%v". Error: %v.`,
-						val, field.Type().String(), attr, t.Name, err))
-				}
-			}
-		}
-	}
-
-	return cptr.Interface().(ComponentPrototype)
-}
-
-func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err error) {
-	model := t.NewModel(node)
-	orig := *node
-	node.Children = t.template.Clone().Children
-	err = model.Init(orig)
-
-	inst = &componentInstance{
-		model:    model,
-		origNode: orig,
-		realNode: *node,
-	}
-
-	return
-}
-
-func NewComManager(sourceContainer dom.Selection) *ComManager {
+func NewComManager() *ComManager {
 	return &ComManager{
-		compViews:       make(map[string]*componentView),
-		sourceContainer: sourceContainer,
+		compViews: make(map[string]*componentView),
 	}
 }
 
@@ -217,11 +204,7 @@ func (tm *ComManager) Register(specs ...ComponentView) (ret error) {
 			attrs:         map[string]string{},
 		}
 
-		if ht.Template == nil {
-			panic(fmt.Errorf("No template available for component %v", ht.Name))
-		}
-
-		ct.template = ht.Template.Template(tm.sourceContainer)
+		ct.template = ht.Template
 		ct.template.Data = ht.Name
 
 		prototype := ct.Prototype

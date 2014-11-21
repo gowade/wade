@@ -2,27 +2,22 @@ package core
 
 import (
 	"fmt"
-	. "github.com/phaikawl/wade/scope"
+
+	"github.com/phaikawl/wade/scope"
 )
 
 type ModelUpdateFn func(value string)
 
 // Binder is the common interface for binders.
 type Binder interface {
-	ArgsFn() interface{}
+	// Check the number of arguments and return whether it's legal or not
+	CheckArgsNo(argsNo int) (bool, string)
 
-	// Update is called whenever the model's field changes, to perform
-	// dom updating, like setting the html content or setting
-	// an html attribute for the elem
+	// Update is called whenever the DOM is rendered/rerendered
 	Update(DomBind) error
 
-	// Bind is similar to Update, but is called only once at the start, when
-	// the bind is being processed
+	// Bind is called once when a bind is executed
 	Bind(DomBind) error
-
-	// BindInstance is useful for binders that need to save some data for each
-	// separate element. This method returns an instance of the binder to be used.
-	BindInstance() Binder
 }
 
 type TwoWayBinder interface {
@@ -32,21 +27,30 @@ type TwoWayBinder interface {
 }
 
 type DomBind struct {
-	Node     *VNode
-	OldValue interface{}
-	Value    interface{}
-	Args     []string
+	Node  *VNode
+	Value interface{}
+	Args  []string
 
-	binding *Binding
-	scope   *Scope
+	BindName string
+	binding  *Binding
+	scope    *scope.Scope
 }
 
 // Bind performs a bind.
 func (d DomBind) Bind(node *VNode, m map[string]interface{}) {
-	s := NewModelScope(m)
+	s := scope.NewModelScope(m)
 	s.Merge(d.scope)
 
 	d.binding.bindWithScope(node, s)
+}
+
+func (d DomBind) RemoveBind(node *VNode) {
+	for i := range node.Binds {
+		if node.Binds[i].Name == d.BindName {
+			node.Binds = append(node.Binds[:i], node.Binds[i+1:]...)
+			return
+		}
+	}
 }
 
 // ProduceOutputs is a convenient method which performs call Bind on the element,
@@ -61,7 +65,7 @@ func (d DomBind) ProduceOutputs(node *VNode, names []string, outputs ...interfac
 
 		d.Bind(node, m)
 	} else {
-		return fmt.Errorf("name list length is %v but %v outputs are specified.", len(names), len(outputs))
+		return fmt.Errorf("name list length is %v but %v outputs are given.", len(names), len(outputs))
 	}
 
 	return nil
@@ -83,6 +87,6 @@ func (b BaseBinder) Listen(d DomBind, ufn ModelUpdateFn) error {
 	return nil
 }
 
-func (b BaseBinder) ArgsFn() interface{} {
-	return func() {}
+func (b BaseBinder) CheckArgsNo(n int) (bool, string) {
+	return n == 0, "0"
 }

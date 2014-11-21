@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gopherjs/gopherjs/js"
+	"github.com/phaikawl/wade/core"
 )
 
 type (
@@ -88,10 +89,12 @@ type (
 		IsTextNode() bool
 		SetText(text string)
 		Add(element Selection) Selection
-		//Prop(prop string) (interface{}, bool)
-		//SetProp(prop string, value interface{})
+		Prop(prop string) (interface{}, bool)
+		SetProp(prop string, value interface{})
 		Underlying() js.Object
 		Each(EachFn)
+		Render(core.VNode)
+		ToVNode() core.VNode
 	}
 )
 

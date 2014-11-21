@@ -49,14 +49,13 @@ func TestBinding(t *testing.T) {
 
 	testct := ComponentView{
 		Name: "test",
-		Template: VNodeTemplate(
+		Template: VWrap("div", []VNode{
 			VWrap("div", []VNode{
-				VWrap("div", []VNode{
-					VEmpty(CompInner),
-				}),
-				VElem("span", NoAttr(), []Bindage{BindBinder("text", "Name")}, []VNode{}),
-				VElem("div", NoAttr(), []Bindage{BindBinder("text", "Test.A.B")}, []VNode{}),
-			})),
+				VEmpty(CompInner),
+			}),
+			VElem("span", NoAttr(), []Bindage{BindBinder("text", "Name")}, []VNode{}),
+			VElem("div", NoAttr(), []Bindage{BindBinder("text", "Test.A.B")}, []VNode{}),
+		}),
 		Prototype: &Model{},
 	}
 
@@ -106,7 +105,7 @@ func TestBinding(t *testing.T) {
 	elem.Update()
 	require.Equal(t, model.Value, 9999)
 
-	elem = NodeRoot(V(GhostNode, "div", NoAttr(), []Bindage{BindAttr("title", "Name")}, []VNode{
+	elem = NodeRoot(VElem("div", NoAttr(), NoBind(), []VNode{
 		VElem("test", map[string]interface{}{"name": "abc"}, []Bindage{
 			BindAttr("Value", "Num"),
 			BindAttr("Test", "Test"),
@@ -114,7 +113,7 @@ func TestBinding(t *testing.T) {
 			VMustache("Name"),
 		}),
 
-		VWrap("div", []VNode{
+		V(GroupNode, "div", NoAttr(), NoBind(), []VNode{
 			VMustache("Test.A.B"),
 		}),
 	}))
@@ -125,8 +124,6 @@ func TestBinding(t *testing.T) {
 
 	first := &elem.Children[0]
 	second := &elem.Children[1]
-	require.Equal(t, first.Attrs["title"].(string), sc.Name)
-	require.Equal(t, second.Attrs["title"].(string), sc.Name)
 	require.Equal(t, second.Text(), "true")
 
 	fChildren := first.Children

@@ -5,7 +5,8 @@ import (
 	"unicode"
 )
 
-func WithoutSpaces(src string) string {
+// NoSp returns returns the string without space characters (space, newline, tabs...)
+func NoSp(src string) string {
 	r := ""
 	for _, c := range src {
 		if !unicode.IsSpace(c) {

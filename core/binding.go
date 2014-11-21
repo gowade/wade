@@ -15,7 +15,7 @@ const (
 	BinderBindPrefix  = '#'
 	SpecialAttrPrefix = "!"
 	BelongAttrName    = SpecialAttrPrefix + "belong"
-	GhostAttrName     = SpecialAttrPrefix + "ghost"
+	GroupAttrName     = SpecialAttrPrefix + "group"
 )
 
 type (
@@ -49,7 +49,7 @@ func (da DummyApp) ErrChanPut(err error) {
 }
 
 func NewTestBindEngine() *Binding {
-	return NewBindEngine(DummyApp{}, NewComManager(nil))
+	return NewBindEngine(DummyApp{}, NewComManager())
 }
 
 func NewBindEngine(app Application, tm *ComManager) *Binding {
@@ -110,10 +110,10 @@ func reportError(err error, bstr string, elem *VNode) {
 
 func (b *Binding) processAttrBind(attr, bstr string, node *VNode, scope *Scope) (err error) {
 	bs := bindScope{scope}
-	_, node.Attrs[attr], err = bs.evaluate(bstr)
+	_, node.attrs[attr], err = bs.evaluate(bstr)
 
 	node.addCallback(func() (err error) {
-		_, node.Attrs[attr], err = bs.evaluate(bstr)
+		_, node.attrs[attr], err = bs.evaluate(bstr)
 		return
 	})
 
@@ -181,10 +181,9 @@ func (b *Binding) bindComponent(node *VNode, scope *Scope, cv *componentView) (e
 			//bindinfo += fmt.Sprintf("{%v: [%v]} ", hattr.Name, hattr.Value)
 
 			field := strings.Split(bind.Name, ".")[0]
+			b.processAttrBind(bind.Name, bind.Expr, node, scope)
 			if ok, fieldName := cv.HasAttr(field); ok {
 				b.processFieldBind(fieldName, bind.Expr, node, scope, ci)
-			} else {
-				b.processAttrBind(bind.Name, bind.Expr, node, scope)
 			}
 		}
 	}
@@ -247,7 +246,10 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 		return
 	}
 
-	binder = binder.BindInstance()
+	ok, required := binder.CheckArgsNo(len(args))
+	if !ok {
+		err = fmt.Errorf(`Invalid number of arguments for the "%v" binder. Given %v, required %v.`, required)
+	}
 
 	bs := bindScope{scope}
 	roote, v, err2 := bs.evaluate(bstr)
@@ -257,11 +259,12 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 	}
 
 	domBind := DomBind{
-		Node:    node,
-		Value:   v,
-		Args:    args,
-		binding: b,
-		scope:   bs.scope,
+		Node:     node,
+		Value:    v,
+		Args:     args,
+		BindName: astr,
+		binding:  b,
+		scope:    bs.scope,
 	}
 
 	if tw, ok := binder.(TwoWayBinder); ok {
@@ -306,8 +309,7 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 }
 
 func (b *Binding) bindRec(node *VNode,
-	scope *Scope,
-	additionalBinds []Bindage) {
+	scope *Scope) {
 	if node.Type == DeadNode {
 		return
 	}
@@ -327,13 +329,6 @@ func (b *Binding) bindRec(node *VNode,
 		cv, isComponent = b.tm.GetComponent(tagName)
 	}
 
-	if node.Type == GhostNode {
-		for i, _ := range node.Children {
-			b.bindRec(&node.Children[i], scope, node.Binds)
-		}
-		return
-	}
-
 	if node.Type == MustacheNode {
 		err := b.processMustache(node, scope)
 		if err != nil {
@@ -345,11 +340,15 @@ func (b *Binding) bindRec(node *VNode,
 
 	// perform binding
 	var err error
-	for _, bind := range append(additionalBinds, node.Binds...) {
+	for _, bind := range node.Binds {
 		astr, bstr := bind.Name, bind.Expr
 
 		switch bind.Type {
 		case AttrBind:
+			if isComponent {
+				continue
+			}
+
 			err = b.processAttrBind(astr, bstr, node, scope)
 
 		case BinderBind:
@@ -377,7 +376,7 @@ func (b *Binding) bindRec(node *VNode,
 	}
 
 	for i, _ := range node.Children {
-		b.bindRec(&node.Children[i], scope, []Bindage{})
+		b.bindRec(&node.Children[i], scope)
 	}
 
 	return
@@ -412,5 +411,5 @@ func (b *Binding) Bind(rootNode *VNode, model interface{}) {
 }
 
 func (b *Binding) bindWithScope(rootNode *VNode, s *Scope) {
-	b.bindRec(rootNode, s, []Bindage{})
+	b.bindRec(rootNode, s)
 }

@@ -27,14 +27,13 @@ func (t *Test) Init(node VNode) error {
 }
 
 func TestComponent(t *testing.T) {
-	tm := NewComManager(nil)
+	tm := NewComManager()
 	err := tm.Register(ComponentView{
 		Name:      "test",
 		Prototype: &Test{},
-		Template: VNodeTemplate(
-			VWrap("span", []VNode{
-				VEmpty(CompInner),
-			})),
+		Template: VWrap("span", []VNode{
+			VEmpty(CompInner),
+		}),
 	})
 
 	if err != nil {

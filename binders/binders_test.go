@@ -1,11 +1,14 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/phaikawl/wade/com"
-	"github.com/phaikawl/wade/dom/goquery"
 	"github.com/stretchr/testify/require"
+
+	"github.com/phaikawl/wade/core"
+	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/utils"
 )
 
 type (
@@ -28,7 +31,7 @@ type (
 	}
 
 	ceModel struct {
-		com.BaseProto
+		core.BaseProto
 		A *aStr
 	}
 
@@ -41,116 +44,109 @@ type (
 	}
 )
 
+var (
+	gq = goquery.Dom{}
+	b  = core.NewTestBindEngine()
+)
+
+func init() {
+	for name, binder := range Binders {
+		b.RegisterBinder(name, binder)
+	}
+}
+
 func TestEach(t *testing.T) {
 	// Test with slice
-	b := NewTestBindEngine()
-	b.tm.RegisterComponents([]com.Spec{
-		com.Spec{
-			Name:      "test",
-			Prototype: &ceModel{},
-			Template:  com.StringTemplate(`<span #html="$A.B"></span>`),
-		},
+	b.ComponentManager().Register(core.ComponentView{
+		Name:      "test",
+		Prototype: &ceModel{},
+		Template:  gq.NewFragment(`<span>{{ A.B }}</span>`).ToVNode(),
 	})
 
-	m1 := &sliceModel{[]*okScope{&okScope{true, "a", &aStr{"a"}}, &okScope{false, "b", &aStr{"b"}}, &okScope{true, "c", &aStr{"c"}}}}
-	src := `<wroot>
-		<ul>
-			<ww #each(key,item,Mode_S)="$List">
-				<li>#<span #html="key"></span><span #html="$item.A"></span><test @A="$item.B"></test></li>
-			</ww>
-		</ul>
-	</wroot>
-	`
-	root := goquery.GetDom().NewFragment(src)
-	elem := root.Find("ul")
-	b.Bind(root, m1, false)
-	lis := elem.Children().Filter("li").Elements()
-	require.Equal(t, lis[0].Text(), "#0aa")
-	require.Equal(t, lis[1].Text(), "#1bb")
-	require.Equal(t, lis[2].Text(), "#2cc")
-
-	ol := m1.List
-	m1.List = m1.List[1:]
-	b.Watcher().Digest(&m1.List)
-	lis = elem.Children().Filter("li").Elements()
-	require.Equal(t, lis[0].Text(), "#1bb")
-	require.Equal(t, lis[1].Text(), "#2cc")
-
-	m1.List = ol
-	b.Watcher().Digest(&m1.List)
-	lis = elem.Children().Filter("li").Elements()
-	require.Equal(t, lis[0].Text(), "#0aa")
-	require.Equal(t, lis[1].Text(), "#1bb")
-	require.Equal(t, lis[2].Text(), "#2cc")
-
-	// Test with map
-	m2 := &mapModel{map[string]string{
-		"0": "a",
-		"1": "b",
-		"2": "c",
-	}}
-
-	src = `<wroot>
-		<ul>
-			<li #each(key,value)="$Map">#<span #html="key"></span><span #html="value"></span></li>
-		</ul>
-	</wroot>
-	`
-
-	elem = goquery.GetDom().NewFragment(src).Find("ul")
-	b.Bind(elem, m2, false)
-	lis = elem.Children().Filter("li").Elements()
-	consists := func(txt string) bool {
-		for _, li := range lis {
-			if li.Text() == txt {
-				return true
-			}
-		}
-
-		return false
+	m1 := &sliceModel{[]*okScope{
+		&okScope{true, "a", &aStr{"a"}},
+		&okScope{false, "b", &aStr{"b"}},
+		&okScope{true, "c", &aStr{"c"}}},
 	}
 
-	require.Equal(t, consists("#0a"), true)
-	require.Equal(t, consists("#1b"), true)
-	require.Equal(t, consists("#2c"), true)
+	src := `<ul>
+			<div !group #range(key,item)="List">
+				<li>
+					#<span>{{ key }}</span>
+					<span>{{ item.A }}</span>
+					<test @A="item.B"></test>
+				</li>
+			</div>
+		</ul>`
 
-	delete(m2.Map, "0")
-	m2.Map["1"] = "bb"
-	b.Watcher().Digest(&m2.Map)
-	lis = elem.Children().Filter("li").Elements()
-	require.Equal(t, consists("#0a"), false)
-	require.Equal(t, consists("#1bb"), true)
-	require.Equal(t, consists("#2c"), true)
+	rRoot := gq.NewFragment(src)
+	vRoot := core.NodeRoot(rRoot.ToVNode())
+	b.Bind(vRoot, m1)
+
+	vRoot.Update()
+	fmt.Printf("START!")
+	//n := vRoot.Children[1].Children[1]
+	//fmt.Printf("%v %v %v", n.Type, n.Data, n.Attrs())
+	rRoot.Render(*vRoot)
+
+	list := rRoot.Children().Filter("li").Elements()
+	require.Equal(t, utils.NoSp(list[0].Text()), "#0aa")
+	require.Equal(t, utils.NoSp(list[1].Text()), "#1bb")
+	require.Equal(t, utils.NoSp(list[2].Text()), "#2cc")
+
+	m1.List = m1.List[1:]
+
+	vRoot.Update()
+	rRoot.Render(*vRoot)
+
+	list = rRoot.Children().Filter("li").Elements()
+	require.Equal(t, utils.NoSp(list[0].Text()), "#0bb")
+	require.Equal(t, utils.NoSp(list[1].Text()), "#1cc")
 
 	m3 := &nestedModel{[]Nest{Nest{[]string{"a", "b"}}, Nest{[]string{"b"}}}}
-	src = `<wroot>
-		<ul>
-			<ww #each(key,item)="$List">
-				<li><ww #each(_,subitem)="item.List"><span #html="subitem"></span></ww></li>
-			</ww>
+	src = `<ul>
+			<div !group #range(key,item)="List">
+				<li>
+					<div !group #range(_,subitem)="item.List">
+						{{ subitem }}
+					</div>
+				</li>
+			</div>
 		</ul>
-	</wroot>
-	`
-	root = goquery.GetDom().NewFragment(src)
-	elem = root.Find("ul")
-	b.Bind(elem, m3, false)
-	lis = elem.Find("li").Elements()
-	require.Equal(t, lis[0].Text(), "ab")
-	require.Equal(t, lis[1].Text(), "b")
+	</ul>`
+
+	rRoot = gq.NewFragment(src)
+	vRoot = core.NodeRoot(rRoot.ToVNode())
+	b.Bind(vRoot, m3)
+
+	vRoot.Update()
+	rRoot.Render(*vRoot)
+
+	list = rRoot.Children().Filter("li").Elements()
+	require.Equal(t, utils.NoSp(list[0].Text()), "ab")
+	require.Equal(t, utils.NoSp(list[1].Text()), "b")
 }
 
 func TestIf(t *testing.T) {
-	b := NewTestBindEngine()
 	s := &okScope{
 		Ok: false,
 		A:  ":D",
 	}
-	root := goquery.GetDom().NewFragment(`<wroot>
-		<div #if="$Ok"><span #html="$A"></span></div>
-	</wroot>`)
-	b.Bind(root, s, false)
-	require.Equal(t, root.Find("div").Length(), 0)
+	rRoot := gq.NewFragment(`<div><span #if="Ok">{{ A }}</span><span #ifn="Ok">ZZZ</span></div>`)
+	vRoot := core.NodeRoot(rRoot.ToVNode())
+	b.Bind(vRoot, s)
+
+	vRoot.Update()
+	rRoot.Render(*vRoot)
+
+	require.Equal(t, rRoot.Children().Length(), 1)
+
+	require.Equal(t, rRoot.Find("span").Text(), "ZZZ")
+
 	s.Ok = true
-	b.Watcher().Digest(&s.Ok)
-	require.Equal(t, root.Find("div span").Text(), ":D")
+
+	vRoot.Update()
+	rRoot.Render(*vRoot)
+
+	require.Equal(t, rRoot.Find("span").Text(), ":D")
 }

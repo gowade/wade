@@ -11,7 +11,9 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 
+	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/domconv/gonet"
 )
 
 const (
@@ -483,6 +485,14 @@ func (s Selection) On(eventname string, handler dom.EventHandler) {
 	}
 
 	EventHandlers[node][eventname] = append(EventHandlers[node][eventname], handler)
+}
+
+func (sel Selection) Render(vn core.VNode) {
+	gonet.Render(sel.Nodes[0], vn)
+}
+
+func (sel Selection) ToVNode() core.VNode {
+	return gonet.ToVNode(sel.Nodes[0])
 }
 
 func TriggerEvent(selection dom.Selection, event dom.Event) {
