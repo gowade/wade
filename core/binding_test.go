@@ -3,8 +3,10 @@ package core
 import (
 	"testing"
 
-	"github.com/phaikawl/wade/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/phaikawl/wade/scope"
+	"github.com/phaikawl/wade/utils"
 )
 
 type (
@@ -34,7 +36,7 @@ type (
 	}
 )
 
-func (b *TextBinder) Update(d DomBind) (err error) {
+func (b *TextBinder) Update(d DomBind) {
 	d.Node.Children = []VNode{VText(utils.ToString(d.Value))}
 	return
 }
@@ -42,10 +44,10 @@ func (b *TextBinder) Update(d DomBind) (err error) {
 func (b *TextBinder) BindInstance() Binder { return b }
 
 func TestBinding(t *testing.T) {
-	b := NewTestBindEngine()
+	b := NewBindEngine(map[string]interface{}{})
 	sc := &Sc{"a", 9000, &TestModel{A{true}}}
 	b.RegisterBinder("text", &TextBinder{})
-	bs := b.newModelScope(sc)
+	bs := bindScope{scope.NewScope(sc)}
 
 	testct := ComponentView{
 		Name: "test",

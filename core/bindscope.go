@@ -2,18 +2,17 @@ package core
 
 import (
 	"reflect"
+
 	. "github.com/phaikawl/wade/scope"
 )
 
 type (
 	bindScope struct {
-		scope *Scope
+		Scope
 	}
 )
 
 func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
-	err = nil
-
 	wrapped := false
 
 	switch e.name[0] {
@@ -41,9 +40,9 @@ func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
 			return
 		}
 
-		sym, err = NewModelScope(preVal).Lookup(e.name[1:])
+		sym, err = NewScope(preVal).Lookup(e.name[1:])
 	} else {
-		sym, err = b.scope.Lookup(e.name)
+		sym, err = b.Lookup(e.name)
 	}
 
 	if err != nil {
@@ -109,10 +108,4 @@ func (b bindScope) evaluatePart(calcRoot *expr) (value interface{}, err error) {
 	}
 
 	return
-}
-
-func (b bindScope) clone() *bindScope {
-	scope := NewScope([]SymbolTable{})
-	scope.Merge(b.scope)
-	return &bindScope{scope}
 }

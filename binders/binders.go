@@ -31,15 +31,15 @@ var (
 type ValueBinder struct{ core.BaseBinder }
 
 // Update sets the element's value attribute to a new value
-func (b ValueBinder) Update(d core.DomBind) (err error) {
+func (b ValueBinder) Update(d core.DomBind) {
 	d.Node.SetAttr("value", utils.ToString(d.Value))
 	return
 }
 
-func (b ValueBinder) Listen(d core.DomBind, ufn core.ModelUpdateFn) error {
+func (b ValueBinder) Listen(d core.DomBind, ufn core.ModelUpdateFn) {
 	tagname := d.Node.TagName()
 	if tagname != "input" && tagname != "textarea" && tagname != "select" {
-		return fmt.Errorf("Can only watch for changes on html input, textarea and select")
+		panic(fmt.Errorf("Can only watch for changes on html input, textarea and select"))
 	}
 
 	for _, event := range d.Args {
@@ -48,8 +48,6 @@ func (b ValueBinder) Listen(d core.DomBind, ufn core.ModelUpdateFn) error {
 			ufn(val.(string))
 		})
 	}
-
-	return nil
 }
 
 // ClassBinder toggles a class based on a boolean value.
@@ -62,11 +60,9 @@ func (b ClassBinder) CheckArgsNo(n int) (bool, string) {
 	return n == 1, "1"
 }
 
-func (b ClassBinder) Update(d core.DomBind) error {
+func (b ClassBinder) Update(d core.DomBind) {
 	class := d.Args[0]
 	d.Node.SetClass(class, d.Value.(bool))
-
-	return nil
 }
 
 // EventBinder binds an element's event to a function.
@@ -91,17 +87,21 @@ func (b EventBinder) CheckArgsNo(n int) (bool, string) {
 	return n == 1, "1"
 }
 
-func (b EventBinder) Bind(d core.DomBind) error {
+func (b EventBinder) Bind(d core.DomBind) {
 	fni := d.Value
 	if fni == nil {
-		return fmt.Errorf("Event must be bound to a handler function of type func(dom.Event), not a nil. Note that if you want to call a function, please wrap it or use the '@' syntax.")
+		panic(fmt.Errorf(`Event must be bound to a handler function of type
+		func(dom.Event), not a nil.
+		Note that if you want to call a function,
+		please wrap it or use the '@' syntax.`))
 	}
 
 	handler1, ok1 := fni.(func(dom.Event))
 
 	if !ok1 {
-		return fmt.Errorf("Wrong type %v for EventBinder's bind target, must be a function of type func(dom.Event)",
-			reflect.TypeOf(fni).String())
+		panic(fmt.Errorf(`Wrong type %v for EventBinder's bind target,
+		must be a function of type func(dom.Event)`,
+			reflect.TypeOf(fni).String()))
 	}
 
 	evtname := d.Args[0]
@@ -111,8 +111,6 @@ func (b EventBinder) Bind(d core.DomBind) error {
 			handler1(evt)
 		}()
 	})
-
-	return nil
 }
 
 // RangeBinder repeats an element according to a slice.
@@ -129,7 +127,7 @@ type RangeBinder struct {
 	prototype core.VNode
 }
 
-func (b *RangeBinder) Bind(d core.DomBind) (err error) {
+func (b *RangeBinder) Bind(d core.DomBind) {
 	b.prototype = *d.Node
 	d.RemoveBind(&b.prototype)
 
@@ -138,21 +136,17 @@ func (b *RangeBinder) Bind(d core.DomBind) (err error) {
 	return
 }
 
-func (b RangeBinder) Update(d core.DomBind) (err error) {
+func (b RangeBinder) Update(d core.DomBind) {
 	val := reflect.ValueOf(d.Value)
 	if val.Kind() != reflect.Slice {
-		err = fmt.Errorf(`Wrong type of expression for "range" binder, it must be a slice.`)
-		return
+		panic(fmt.Errorf(`Wrong type of expression for "range" binder, it must be a slice.`))
 	}
 
 	d.Node.Children = make([]core.VNode, val.Len())
 	for i := 0; i < val.Len(); i++ {
 		d.Node.Children[i] = b.prototype.Clone()
 
-		err = d.ProduceOutputs(&d.Node.Children[i], d.Args[:2], i, val.Index(i).Interface())
-		if err != nil {
-			return
-		}
+		d.ProduceOutputs(&d.Node.Children[i], d.Args[:2], i, val.Index(i).Interface())
 	}
 
 	return
@@ -167,12 +161,12 @@ type IfBinder struct {
 	nodeType core.NodeType
 }
 
-func (b *IfBinder) Bind(d core.DomBind) (err error) {
+func (b *IfBinder) Bind(d core.DomBind) {
 	b.nodeType = d.Node.Type
 	return
 }
 
-func (b IfBinder) Update(d core.DomBind) (err error) {
+func (b IfBinder) Update(d core.DomBind) {
 	if !d.Value.(bool) {
 		d.Node.Type = core.DeadNode
 	} else {
@@ -190,7 +184,7 @@ type IfnBinder struct {
 	*IfBinder
 }
 
-func (b IfnBinder) Update(d core.DomBind) (err error) {
+func (b IfnBinder) Update(d core.DomBind) {
 	d.Value = !(d.Value.(bool))
 	b.IfBinder.Update(d)
 

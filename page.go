@@ -2,21 +2,34 @@ package wade
 
 import "fmt"
 
+var (
+	GlobalDisplayScope = &globalDisplayScope{}
+)
+
+type (
+	Page struct {
+		Id         string
+		Title      string
+		Controller ControllerFunc
+	}
+
+	PageGroup struct {
+		Id         string
+		Children   []string
+		Controller ControllerFunc
+	}
+)
+
 type (
 	handlable struct {
-		controllers []PageControllerFunc
+		controllers []ControllerFunc
 	}
 
 	displayScope interface {
 		hasPage(id string) bool
-		addController(fn PageControllerFunc)
 		addParent(parent *pageGroup)
-		Controllers() []PageControllerFunc
-	}
-
-	Page struct {
-		Id    string
-		Title string
+		AddController(fn ControllerFunc)
+		Controllers() []ControllerFunc
 	}
 
 	page struct {
@@ -34,14 +47,14 @@ type (
 	}
 )
 
-func (h *handlable) addController(fn PageControllerFunc) {
+func (h *handlable) AddController(fn ControllerFunc) {
 	if h.controllers == nil {
-		h.controllers = make([]PageControllerFunc, 0)
+		h.controllers = make([]ControllerFunc, 0)
 	}
 	h.controllers = append(h.controllers, fn)
 }
 
-func (h *handlable) Controllers() []PageControllerFunc {
+func (h *handlable) Controllers() []ControllerFunc {
 	return h.controllers
 }
 
@@ -100,14 +113,14 @@ func (p Page) Register(pm *pageManager, route string) RouteHandler {
 		groups: []*pageGroup{},
 	}
 
+	pg.AddController(p.Controller)
 	pm.displayScopes[p.Id] = pg
 
 	return pg
 }
 
-func (p *page) UpdatePage(pm *pageManager, pu pageUpdate) (err error, found bool) {
-	found = true
+func (p *page) UpdatePage(pm *pageManager, pu pageUpdate) (found bool) {
 	pm.updatePage(p, pu)
 
-	return
+	return true
 }

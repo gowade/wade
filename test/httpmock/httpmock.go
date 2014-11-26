@@ -9,6 +9,7 @@ import (
 	"path"
 
 	urlrouter "github.com/naoina/kocha-urlrouter"
+	_ "github.com/phaikawl/regrouter"
 	"github.com/phaikawl/wade/libs/http"
 )
 

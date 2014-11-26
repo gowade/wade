@@ -166,11 +166,11 @@ func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err e
 	return
 }
 
-func (ci *componentInstance) prepareInner(outerScope *scope.Scope) {
+func (ci *componentInstance) prepareInner(outerScope scope.Scope) {
 	NodeWalk(&ci.realNode, func(node *VNode) {
 		// replace <w-inner> elements with inner content
 		if node.Type == ElementNode && node.Data == CompInner {
-			ci.origNode.scope = outerScope
+			ci.origNode.scope = &outerScope
 			*node = ci.origNode.Clone()
 		}
 	})

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	. "github.com/phaikawl/wade/scope"
+	"github.com/phaikawl/wade/scope"
 	"github.com/phaikawl/wade/utils"
 )
 
@@ -19,18 +19,10 @@ const (
 )
 
 type (
-	Application interface {
-		ErrChanPut(error)
-	}
-
 	Binding struct {
-		app     Application
-		tm      *ComManager
-		binders map[string]Binder
-		helpers HelpersSymbolTable
-
-		scope     *Scope
-		pageModel interface{}
+		tm                *ComManager
+		binders           map[string]Binder
+		UniversalSymtable map[string]interface{}
 	}
 
 	BindingError struct {
@@ -42,26 +34,20 @@ func (be BindingError) Error() string {
 	return be.Err.Error()
 }
 
-type DummyApp struct {
-}
-
-func (da DummyApp) ErrChanPut(err error) {
-}
-
-func NewTestBindEngine() *Binding {
-	return NewBindEngine(DummyApp{}, NewComManager())
-}
-
-func NewBindEngine(app Application, tm *ComManager) *Binding {
+func NewBindEngine(universalSymtable map[string]interface{}) *Binding {
 	b := &Binding{
-		app:     app,
-		tm:      tm,
-		binders: map[string]Binder{},
-		helpers: NewHelpersSymbolTable(defaultHelpers()),
+		tm:                NewComManager(),
+		binders:           map[string]Binder{},
+		UniversalSymtable: universalSymtable,
 	}
 
-	b.scope = NewScope([]SymbolTable{b.helpers})
 	return b
+}
+
+func (b *Binding) NewScope(models ...interface{}) scope.Scope {
+	return scope.NewScope(append(models, map[string]interface{}{
+		"$": b.UniversalSymtable,
+	})...)
 }
 
 //RegisterBinder registers a binder
@@ -77,29 +63,8 @@ func (b *Binding) ComponentManager() *ComManager {
 	return b.tm
 }
 
-// RegisterHelper registers a function as a helper with the given name.
-// Helpers are global.
-func (b *Binding) RegisterHelper(name string, fn interface{}) {
-	typ := reflect.TypeOf(fn)
-	if typ.Kind() != reflect.Func {
-		panic(fmt.Sprintf("Invalid helper %v, must be a function.", name))
-	}
-
-	if typ.NumOut() == 0 {
-		panic(fmt.Sprintf("Invalid helper %v, a helper must return something.", name))
-	}
-
-	if _, exist, _ := b.helpers.Lookup(name); !exist {
-		b.helpers.RegisterFunc(name, fn)
-		return
-	}
-
-	panic(fmt.Sprintf("Helper with name %v already exists.", name))
-	return
-}
-
 func bstrPanic(mess, bindstring string, node *VNode) {
-	panic(fmt.Sprintf(mess+` While processing bind string "%v".`, bindstring))
+	panic(fmt.Sprintf(mess+` - while processing bind string "%v".`, bindstring))
 }
 
 func reportError(err error, bstr string, elem *VNode) {
@@ -108,8 +73,7 @@ func reportError(err error, bstr string, elem *VNode) {
 	}
 }
 
-func (b *Binding) processAttrBind(attr, bstr string, node *VNode, scope *Scope) (err error) {
-	bs := bindScope{scope}
+func (b *Binding) processAttrBind(attr, bstr string, node *VNode, bs bindScope) (err error) {
 	_, node.attrs[attr], err = bs.evaluate(bstr)
 
 	node.addCallback(func() (err error) {
@@ -120,8 +84,7 @@ func (b *Binding) processAttrBind(attr, bstr string, node *VNode, scope *Scope) 
 	return
 }
 
-func (b *Binding) processMustache(node *VNode, scope *Scope) (err error) {
-	bs := bindScope{scope}
+func (b *Binding) processMustache(node *VNode, bs bindScope) (err error) {
 	_, v, err := bs.evaluate(node.Binds[0].Expr)
 	node.Data = utils.ToString(v)
 
@@ -134,13 +97,13 @@ func (b *Binding) processMustache(node *VNode, scope *Scope) (err error) {
 	return
 }
 
-func (b *Binding) processFieldBind(field string, bstr string, node *VNode, scope *Scope, ci *componentInstance) (err error) {
-	_, v, err := bindScope{scope}.evaluate(bstr)
+func (b *Binding) processFieldBind(field string, bstr string, node *VNode, bs bindScope, ci *componentInstance) (err error) {
+	_, v, err := bs.evaluate(bstr)
 	if err != nil {
 		return
 	}
 
-	oe, ok, err := EvaluateObjField(field, reflect.ValueOf(ci.model))
+	oe, ok, err := scope.EvaluateObjField(field, reflect.ValueOf(ci.model))
 	if err != nil {
 		return
 	}
@@ -157,7 +120,7 @@ func (b *Binding) processFieldBind(field string, bstr string, node *VNode, scope
 
 	oe.FieldRefl.Set(reflect.ValueOf(v))
 	node.addCallback(func() (err error) {
-		_, v, err := bindScope{scope}.evaluate(bstr)
+		_, v, err := bs.evaluate(bstr)
 		if err != nil {
 			return
 		}
@@ -170,7 +133,7 @@ func (b *Binding) processFieldBind(field string, bstr string, node *VNode, scope
 	return
 }
 
-func (b *Binding) bindComponent(node *VNode, scope *Scope, cv *componentView) (err error) {
+func (b *Binding) bindComponent(node *VNode, bs bindScope, cv *componentView) (err error) {
 	ci, err := cv.NewInstance(node)
 	if err != nil {
 		return fmt.Errorf(`Failed initialization of the component instance, error in its Init(). Error: %v.`, err.Error())
@@ -181,21 +144,21 @@ func (b *Binding) bindComponent(node *VNode, scope *Scope, cv *componentView) (e
 			//bindinfo += fmt.Sprintf("{%v: [%v]} ", hattr.Name, hattr.Value)
 
 			field := strings.Split(bind.Name, ".")[0]
-			b.processAttrBind(bind.Name, bind.Expr, node, scope)
+			b.processAttrBind(bind.Name, bind.Expr, node, bs)
 			if ok, fieldName := cv.HasAttr(field); ok {
-				b.processFieldBind(fieldName, bind.Expr, node, scope, ci)
+				b.processFieldBind(fieldName, bind.Expr, node, bs, ci)
 			}
 		}
 	}
 
-	ci.prepareInner(scope)
+	ci.prepareInner(bs.Scope)
 
 	if err != nil {
 		return
 	}
 
 	for i, _ := range node.Children {
-		b.bindWithScope(&node.Children[i], b.newModelScope(ci.model))
+		b.Bind(&node.Children[i], ci.model)
 	}
 	return
 }
@@ -234,7 +197,7 @@ func parseBinderLHS(astr string) (binder string, args []string, err error) {
 	return
 }
 
-func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope) (err error) {
+func (b *Binding) processBinderBind(astr, bstr string, node *VNode, bs bindScope) (err error) {
 	binderName, args, err := parseBinderLHS(astr)
 	if err != nil {
 		return
@@ -251,7 +214,6 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 		err = fmt.Errorf(`Invalid number of arguments for the "%v" binder. Given %v, required %v.`, required)
 	}
 
-	bs := bindScope{scope}
 	roote, v, err2 := bs.evaluate(bstr)
 	if err2 != nil {
 		err = err2
@@ -264,7 +226,7 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 		Args:     args,
 		BindName: astr,
 		binding:  b,
-		scope:    bs.scope,
+		scope:    bs.Scope,
 	}
 
 	if tw, ok := binder.(TwoWayBinder); ok {
@@ -273,49 +235,44 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, scope *Scope
 			return
 		}
 
-		var sym ScopeSymbol
-		sym, err = scope.Lookup(roote.name)
+		var sym scope.ScopeSymbol
+		sym, err = bs.Lookup(roote.name)
 		if err != nil {
 			return
 		}
 
-		err = tw.Listen(domBind, func(newVal string) {
-			bdb, ok := sym.(Bindable)
+		tw.Listen(domBind, func(newVal string) {
+			bdb, ok := sym.(scope.Bindable)
 			if !ok {
 				bstrPanic("2-way data binding on unchangable field", bstr, node)
 			}
 
 			bdb.BindObj().FieldRefl.Set(reflect.ValueOf(newVal))
 		})
-
-		if err != nil {
-			return
-		}
 	}
 
 	//gopherjs:blocking
-	err = binder.Bind(domBind)
-	if err != nil {
-		return
-	}
+	binder.Bind(domBind)
 
 	node.addCallback(func() (err error) {
 		//gopherjs:blocking
 		_, domBind.Value, _ = bs.evaluate(bstr)
-		return binder.Update(domBind)
+		binder.Update(domBind)
+		return
 	})
 
 	return
 }
 
 func (b *Binding) bindRec(node *VNode,
-	scope *Scope) {
+	scope scope.Scope) {
+
 	if node.Type == DeadNode {
 		return
 	}
 
 	if node.scope != nil {
-		scope = node.scope
+		scope = *node.scope
 	}
 
 	tagName := node.TagName()
@@ -329,8 +286,10 @@ func (b *Binding) bindRec(node *VNode,
 		cv, isComponent = b.tm.GetComponent(tagName)
 	}
 
+	bs := bindScope{scope}
+
 	if node.Type == MustacheNode {
-		err := b.processMustache(node, scope)
+		err := b.processMustache(node, bs)
 		if err != nil {
 			bstrPanic(err.Error(), node.Data, node)
 		}
@@ -349,10 +308,10 @@ func (b *Binding) bindRec(node *VNode,
 				continue
 			}
 
-			err = b.processAttrBind(astr, bstr, node, scope)
+			err = b.processAttrBind(astr, bstr, node, bs)
 
 		case BinderBind:
-			err = b.processBinderBind(astr, bstr, node, scope)
+			err = b.processBinderBind(astr, bstr, node, bs)
 		default:
 			panic("Invalid bind type.")
 		}
@@ -367,7 +326,7 @@ func (b *Binding) bindRec(node *VNode,
 	}
 
 	if isComponent {
-		err := b.bindComponent(node, scope, cv)
+		err := b.bindComponent(node, bindScope{scope}, cv)
 		if err != nil {
 			panic(err)
 		}
@@ -382,34 +341,10 @@ func (b *Binding) bindRec(node *VNode,
 	return
 }
 
-func (b *Binding) newModelScope(model interface{}) *Scope {
-	s := NewModelScope(model)
-	s.Merge(b.scope)
-	return s
+func (b *Binding) Bind(rootElem *VNode, models ...interface{}) {
+	b.bindWithScope(rootElem, b.NewScope(models...))
 }
 
-func ScopeFromModels(models []interface{}) (s *Scope) {
-	s = NewScope([]SymbolTable{})
-	for _, model := range models {
-		if model != nil {
-			s.AddSymTables(NewModelSymbolTable(model))
-		}
-	}
-
-	return
-}
-
-func (b *Binding) BindModels(rootElem *VNode, models []interface{}) {
-	s := ScopeFromModels(models)
-	s.Merge(b.scope)
-
-	b.bindWithScope(rootElem, s)
-}
-
-func (b *Binding) Bind(rootNode *VNode, model interface{}) {
-	b.BindModels(rootNode, []interface{}{model})
-}
-
-func (b *Binding) bindWithScope(rootNode *VNode, s *Scope) {
+func (b *Binding) bindWithScope(rootNode *VNode, s scope.Scope) {
 	b.bindRec(rootNode, s)
 }

@@ -14,16 +14,16 @@ type Binder interface {
 	CheckArgsNo(argsNo int) (bool, string)
 
 	// Update is called whenever the DOM is rendered/rerendered
-	Update(DomBind) error
+	Update(DomBind)
 
 	// Bind is called once when a bind is executed
-	Bind(DomBind) error
+	Bind(DomBind)
 }
 
 type TwoWayBinder interface {
 	// Listen is used in 2-way binders, here we perform listening the html element for changes
 	// and updates the model field accordingly
-	Listen(DomBind, ModelUpdateFn) error
+	Listen(DomBind, ModelUpdateFn)
 }
 
 type DomBind struct {
@@ -33,15 +33,12 @@ type DomBind struct {
 
 	BindName string
 	binding  *Binding
-	scope    *scope.Scope
+	scope    scope.Scope
 }
 
 // Bind performs a bind.
-func (d DomBind) Bind(node *VNode, m map[string]interface{}) {
-	s := scope.NewModelScope(m)
-	s.Merge(d.scope)
-
-	d.binding.bindWithScope(node, s)
+func (d DomBind) Bind(node *VNode, m interface{}) {
+	d.binding.bindWithScope(node, scope.NewScope(m).Merge(d.scope))
 }
 
 func (d DomBind) RemoveBind(node *VNode) {
@@ -56,7 +53,7 @@ func (d DomBind) RemoveBind(node *VNode) {
 // ProduceOutputs is a convenient method which performs call Bind on the element,
 // producing values with name specified in names
 // and values specified in outputs accordingly
-func (d DomBind) ProduceOutputs(node *VNode, names []string, outputs ...interface{}) error {
+func (d DomBind) ProduceOutputs(node *VNode, names []string, outputs ...interface{}) {
 	m := make(map[string]interface{})
 	if len(outputs) == len(names) {
 		for i, output := range names {
@@ -65,26 +62,24 @@ func (d DomBind) ProduceOutputs(node *VNode, names []string, outputs ...interfac
 
 		d.Bind(node, m)
 	} else {
-		return fmt.Errorf("name list length is %v but %v outputs are given.", len(names), len(outputs))
+		panic(fmt.Errorf("name list length is %v but %v outputs are given.",
+			len(names), len(outputs)))
 	}
 
-	return nil
+	return
 }
 
 // BaseBinder provides a base to be embedded so that we will not have to write empty
 // implementation for the unneeded methods
 type BaseBinder struct{}
 
-func (b BaseBinder) Bind(d DomBind) error {
-	return nil
+func (b BaseBinder) Bind(d DomBind) {
 }
 
-func (b BaseBinder) Update(d DomBind) error {
-	return nil
+func (b BaseBinder) Update(d DomBind) {
 }
 
-func (b BaseBinder) Listen(d DomBind, ufn ModelUpdateFn) error {
-	return nil
+func (b BaseBinder) Listen(d DomBind, ufn ModelUpdateFn) {
 }
 
 func (b BaseBinder) CheckArgsNo(n int) (bool, string) {

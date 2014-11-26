@@ -39,7 +39,7 @@ type expr struct {
 }
 
 func isValidExprChar(c rune) bool {
-	return strings.ContainsRune("._'", c) || unicode.IsLetter(c) || unicode.IsDigit(c)
+	return strings.ContainsRune("._$'", c) || unicode.IsLetter(c) || unicode.IsDigit(c)
 }
 
 // tokenize simply splits the bind target string syntax into expressions (SomeObject.SomeField) and punctuations (().,), making

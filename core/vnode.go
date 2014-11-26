@@ -42,6 +42,8 @@ type (
 		scope     *scope.Scope
 		callbacks []cbFunc
 	}
+
+	CondFn func(node VNode) bool
 )
 
 func (node *VNode) addCallback(cb cbFunc) {
@@ -213,6 +215,14 @@ func NodeWalk(node *VNode, fn func(*VNode)) {
 }
 
 func (node VNode) Clone() (clone VNode) {
+	return node.CloneWithCond(nil)
+}
+
+func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
+	if cond != nil && !cond(node) {
+		return
+	}
+
 	clone = node
 	clone.Children = make([]VNode, len(node.Children))
 	for i, _ := range node.Children {

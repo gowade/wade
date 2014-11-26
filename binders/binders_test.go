@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,7 +83,6 @@ func TestEach(t *testing.T) {
 	b.Bind(vRoot, m1)
 
 	vRoot.Update()
-	fmt.Printf("START!")
 	//n := vRoot.Children[1].Children[1]
 	//fmt.Printf("%v %v %v", n.Type, n.Data, n.Attrs())
 	rRoot.Render(*vRoot)

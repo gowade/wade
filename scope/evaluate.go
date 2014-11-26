@@ -91,6 +91,10 @@ func GetReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, 
 	case reflect.Slice:
 		var num int
 		_, err = fmt.Sscan(field, &num)
+		if err != nil {
+			err = fmt.Errorf("%v - illegal field %v for a slice", err.Error(), field)
+		}
+
 		rv = o.Index(num)
 
 	default:

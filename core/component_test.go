@@ -3,6 +3,7 @@ package core
 import (
 	"testing"
 
+	"github.com/phaikawl/wade/scope"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,6 +55,7 @@ func TestComponent(t *testing.T) {
 			VText("_"),
 			VEmpty("smile"),
 		}))
+
 	cv, ok := tm.GetComponent("test")
 	require.Equal(t, ok, true)
 
@@ -64,6 +66,6 @@ func TestComponent(t *testing.T) {
 	require.Equal(t, model.Fnum, 699.69)
 	require.Equal(t, model.Tf, true)
 
-	ci.prepareInner(nil)
+	ci.prepareInner(scope.NewScope())
 	require.Equal(t, re.Text(), ":D_:D")
 }

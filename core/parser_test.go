@@ -2,10 +2,11 @@ package core
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	. "github.com/phaikawl/wade/scope"
+	"github.com/phaikawl/wade/scope"
 )
 
 type TestUser struct {
@@ -26,7 +27,13 @@ func TestParser(t *testing.T) {
 	model.Data.Password = "Pk"
 	model.Test = "Nt"
 
-	helpers := map[string]interface{}{
+	bs := bindScope{scope.NewScope(model, map[string]interface{}{
+		"toUpper": func(str string) string {
+			return strings.ToUpper(str)
+		},
+		"strJoin": func(a, b string) string {
+			return a + b
+		},
 		"addInt": func(a, b int) int {
 			return a + b
 		},
@@ -39,28 +46,26 @@ func TestParser(t *testing.T) {
 		"model": func() *TestUser {
 			return model
 		},
-	}
+	})}
 
-	hst := NewHelpersSymbolTable(helpers)
-	dhst := NewHelpersSymbolTable(defaultHelpers())
-	bs := bindScope{NewScope([]SymbolTable{dhst, hst, NewModelSymbolTable(model)})}
 	tests := map[string]interface{}{
 		"Test":                                                    "Nt",
 		"Data.Username":                                           "Hai",
 		"toUpper(Data.Username)":                                  "HAI",
 		"strJoin(Data.Username, Data.Password)":                   "HaiPk",
 		"strJoin(Data.Username, 'Pk|')":                           "HaiPk|",
-		"strJoin(toUpper(Data.Username), toLower(Data.Password))": "HAIpk",
+		"strJoin(toUpper(Data.Username), toUpper(Data.Password))": "HAIPK",
 		"addInt(-1, 2)":                                           1,
 		"addFloat(-1.0, 2.0)":                                     float32(1.0),
 		"fooAdd('bar*|-,')":                                       "foobar*|-,",
 		"strJoin(model().Test, 'a')":                              "Nta",
 	}
 
+	i := 0
 	for bstr, result := range tests {
 		_, v, err := bs.evaluate(bstr)
 		if err != nil {
-			t.Fatalf(`Error {%v"} on bind string "%v".`, err.Error(), bstr)
+			t.Fatalf(`Error {%v"} on bind string "%v", test #%v.`, err.Error(), bstr, i)
 		}
 		switch v.(type) {
 		case string, int, float32:
@@ -68,6 +73,7 @@ func TestParser(t *testing.T) {
 				t.Errorf("Expected %v, got %v.", result, v)
 			}
 		}
+		i++
 	}
 
 	_, v, err := bs.evaluate("@TestConcat(Data.Username)")

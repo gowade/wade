@@ -7,7 +7,7 @@ import (
 
 type (
 	RouteHandler interface {
-		UpdatePage(pm *pageManager, update pageUpdate) (err error, found bool)
+		UpdatePage(pm *pageManager, update pageUpdate) (found bool)
 	}
 
 	RouteEntry interface {
@@ -30,7 +30,7 @@ func (r Redirecter) Register(pm *pageManager, route string) RouteHandler {
 	return r
 }
 
-func (r Redirecter) UpdatePage(pm *pageManager, update pageUpdate) (err error, found bool) {
+func (r Redirecter) UpdatePage(pm *pageManager, update pageUpdate) (found bool) {
 	return pm.updateUrl(r.Url, update.pushState, update.firstLoad)
 }
 

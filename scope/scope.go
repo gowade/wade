@@ -19,15 +19,6 @@ type (
 		Lookup(symbol string) (ScopeSymbol, bool, error)
 	}
 
-	HelpersSymbolTable struct {
-		m map[string]ScopeSymbol
-	}
-
-	FuncSymbol struct {
-		name string
-		fn   reflect.Value
-	}
-
 	ModelSymbolTable struct {
 		model reflect.Value
 	}
@@ -38,11 +29,7 @@ type (
 	}
 )
 
-func NewScope(symtables []SymbolTable) *Scope {
-	return &Scope{symtables}
-}
-
-func (s *Scope) Lookup(symbol string) (sym ScopeSymbol, err error) {
+func (s Scope) Lookup(symbol string) (sym ScopeSymbol, err error) {
 	for _, st := range s.symTables {
 		var ok bool
 		sym, ok, err = st.Lookup(symbol)
@@ -59,7 +46,7 @@ func (s *Scope) Lookup(symbol string) (sym ScopeSymbol, err error) {
 	return
 }
 
-func (s *Scope) LookupValue(symbol string) (value interface{}, err error) {
+func (s Scope) LookupValue(symbol string) (value interface{}, err error) {
 	sym, err := s.Lookup(symbol)
 	if err != nil {
 		return
@@ -74,72 +61,8 @@ func (s *Scope) LookupValue(symbol string) (value interface{}, err error) {
 	return
 }
 
-func (s *Scope) Merge(target *Scope) {
-	s.symTables = append(s.symTables, target.symTables...)
-}
-
-func (s *Scope) AddSymTables(tables ...SymbolTable) {
-	s.symTables = append(s.symTables, tables...)
-}
-
-func (st HelpersSymbolTable) Lookup(symbol string) (sym ScopeSymbol, ok bool, err error) {
-	sym, ok = st.m[symbol]
-	return
-}
-
-func (st HelpersSymbolTable) RegisterFunc(name string, fn interface{}) {
-	st.m[name] = newFuncSymbol(name, fn)
-}
-
-func newFuncSymbol(name string, fn interface{}) FuncSymbol {
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func {
-		panic(fmt.Sprintf(`Can't create FuncSymbol "%v" from a non-function.`, name))
-	}
-
-	if fnType.NumOut() > 1 {
-		panic(fmt.Sprintf(`"%v": FuncSymbol cannot have more than 1 return value.`, name))
-	}
-
-	return FuncSymbol{name, reflect.ValueOf(fn)}
-}
-
-func (fs FuncSymbol) Value() (reflect.Value, error) {
-	return fs.fn, nil
-}
-
-func (fs FuncSymbol) Call(args []reflect.Value, async bool) (v reflect.Value, err error) {
-	if async {
-		go func() {
-			fs.fn.Call(args)
-		}()
-		return
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			str, ok := r.(string)
-			err = fmt.Errorf(str)
-			if !ok {
-				err = r.(error)
-			}
-		}
-	}()
-
-	v, err = callFunc(fs.fn, args)
-	if err != nil {
-		err = fmt.Errorf(`"%v": %v`, fs.name, err.Error())
-	}
-	return
-}
-
-func NewHelpersSymbolTable(helpers map[string]interface{}) HelpersSymbolTable {
-	m := make(map[string]ScopeSymbol)
-	for name, helper := range helpers {
-		m[name] = newFuncSymbol(name, helper)
-	}
-
-	return HelpersSymbolTable{m}
+func (s Scope) Merge(target Scope) Scope {
+	return Scope{append(s.symTables, target.symTables...)}
 }
 
 func (fs FieldSymbol) BindObj() *ObjEval {
@@ -151,6 +74,13 @@ func (fs FieldSymbol) Value() (v reflect.Value, err error) {
 }
 
 func (fs FieldSymbol) Call(args []reflect.Value, async bool) (v reflect.Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in sym.Call()", r)
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
 	if fs.eval.FieldRefl.Kind() != reflect.Func {
 		err = fmt.Errorf(`Cannot call "%v", it's not a method or a function.`, fs.name)
 		return
@@ -184,12 +114,18 @@ func (st ModelSymbolTable) Lookup(symbol string) (sym ScopeSymbol, ok bool, err 
 	return
 }
 
-func NewModelScope(model interface{}) *Scope {
+func NewScope(models ...interface{}) Scope {
 	stl := []SymbolTable{}
-	if model != nil {
-		stl = append(stl, ModelSymbolTable{reflect.ValueOf(model)})
+	for _, model := range models {
+		if model != nil {
+			stl = append(stl, ModelSymbolTable{reflect.ValueOf(model)})
+		}
 	}
-	return &Scope{stl}
+	return Scope{stl}
+}
+
+func (s Scope) Len() int {
+	return len(s.symTables)
 }
 
 func NewModelSymbolTable(model interface{}) ModelSymbolTable {

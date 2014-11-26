@@ -7,19 +7,10 @@ var (
 )
 
 type (
-	// AppFunc is the main application func
-	AppFunc func(*Application)
+	Map map[string]interface{}
 
 	// PageControllerFunc is the functiong to be run on the load of a page or page scope
-	PageControllerFunc func(Page) error
-
-	//
-	Page interface {
-		PageManager
-		App() *Application
-		FormatTitle(params ...interface{})
-		AddValue(string, interface{})
-	}
+	ControllerFunc func(Context) Map
 
 	//AppServices is the struct to contain basic services
 	AppServices struct {
@@ -34,15 +25,10 @@ type (
 		GoToPage(page string, params ...interface{}) (found bool)
 		GoToUrl(string) (found bool)
 		BasePath() string
-		CurrentPage() PageScope //Get the current page scope
+		Context() Context // Get the Context for current page
+		CurrentPage() Page
 		FullPath(string) string
-		PageUrl(page string, namedParams ...interface{}) (string, error) //Get url of a page with the given namedParams
-	}
-
-	// AppConfig is app configurations, used at the start
-	AppConfig struct {
-		BasePath   string
-		ServerBase string
+		PageUrl(page string, namedParams ...interface{}) string //Get url of a page with the given namedParams
 	}
 
 	Storage interface {
