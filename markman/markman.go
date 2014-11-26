@@ -21,15 +21,15 @@ type (
 		document  dom.Selection
 		fetcher   SrcFetcher
 		container dom.Selection
+		origVdom  core.VNode
 		vdom      core.VNode
 	}
 )
 
-func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager, err error) {
-	c := mm.document.Find("[" + AppViewAttr + "]")
+func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager) {
+	c := document.Find("[\\" + AppViewAttr + "]")
 	if c.Length() == 0 {
-		err = fmt.Errorf("No view container (element with !appview attribute found.")
-		return
+		panic(fmt.Errorf(`No view container (element with "%v" attribute found.`, AppViewAttr))
 	}
 	c = c.First()
 
@@ -39,32 +39,53 @@ func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager, err err
 		container: c,
 	}
 
-	err = mm.loadView()
-
 	return
 }
 
-func (mm *MarkupManager) loadView() (err error) {
+func (mm MarkupManager) Container() dom.Selection {
+	return mm.container
+}
+
+func (mm MarkupManager) Render() {
+	mm.container.Render(mm.vdom)
+}
+
+func (mm *MarkupManager) RenderPage(title string, condFn core.CondFn) {
+	mm.vdom = mm.origVdom.CloneWithCond(condFn)
+	mm.Render()
+}
+
+func (mm *MarkupManager) VirtualDOM() core.VNode {
+	return mm.vdom
+}
+
+func (mm *MarkupManager) LoadView() (err error) {
 	file, ok := mm.container.Attr(AppViewAttr)
 	if !ok {
-		panic("WTF?")
+		panic("WTF? who changed it?")
 	}
 
-	importCtn := mm.container.Clone()
+	importCtn := mm.container
 
-	src, err := mm.fetcher.FetchFile(file)
-	if err != nil {
-		return
+	if file != "" {
+		importCtn = mm.container.Clone()
+
+		var src string
+		src, err = mm.fetcher.FetchFile(file)
+		if err != nil {
+			return
+		}
+
+		importCtn.Append(importCtn.NewFragment(src))
 	}
-
-	importCtn.Append(importCtn.NewFragment(src))
 
 	err = mm.htmlImports(importCtn)
 	if err != nil {
 		return
 	}
 
-	mm.vdom = importCtn.ToVNode()
+	mm.origVdom = importCtn.ToVNode()
+	mm.vdom = mm.origVdom
 	return
 }
 

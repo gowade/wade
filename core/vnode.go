@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	TextNode NodeType = 1 << iota
+	UnsetNode NodeType = iota
+	TextNode
 	MustacheNode
 	ElementNode
 	GroupNode
@@ -16,7 +17,7 @@ const (
 )
 
 const (
-	AttrBind BindType = 1 << iota
+	AttrBind BindType = iota
 	BinderBind
 )
 
@@ -219,14 +220,13 @@ func (node VNode) Clone() (clone VNode) {
 }
 
 func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
-	if cond != nil && !cond(node) {
-		return
-	}
-
 	clone = node
-	clone.Children = make([]VNode, len(node.Children))
-	for i, _ := range node.Children {
-		clone.Children[i] = node.Children[i].Clone()
+	clone.Children = make([]VNode, 0)
+	for i := range node.Children {
+		if cond == nil || cond(node.Children[i]) {
+			clone.Children = append(clone.Children,
+				node.Children[i].CloneWithCond(cond))
+		}
 	}
 
 	clone.attrs = make(map[string]interface{})

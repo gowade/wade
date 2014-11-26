@@ -115,6 +115,10 @@ func (st ModelSymbolTable) Lookup(symbol string) (sym ScopeSymbol, ok bool, err 
 }
 
 func NewScope(models ...interface{}) Scope {
+	if len(models) == 1 && reflect.TypeOf(models[0]).Kind() == reflect.Slice {
+		fmt.Println(`Probably bug missing "..." when calling scope.NewScope()`)
+	}
+
 	stl := []SymbolTable{}
 	for _, model := range models {
 		if model != nil {

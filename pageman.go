@@ -33,31 +33,37 @@ type (
 	}
 
 	OutputManager interface {
-		RenderPage(title string, models []interface{}, condFn core.CondFn)
+		RenderPage(title string, condFn core.CondFn)
+		VirtualDOM() core.VNode
 	}
 
 	pageManager struct {
 		output         OutputManager
+		binding        bindEngine
 		basePath       string
 		router         *Router
 		currentPage    *page
 		ctx            Context
 		formattedTitle string
 
-		binding       bindEngine
 		displayScopes map[string]displayScope
 		history       History
 	}
 )
 
-func NewPageManager(basePath string, history History, bindEngine bindEngine, output OutputManager) PageManager {
-	return &pageManager{
+func NewPageManager(basePath string, history History,
+	output OutputManager, bindEngine bindEngine) *pageManager {
+	pm := &pageManager{
 		output:        output,
 		basePath:      basePath,
 		history:       history,
-		displayScopes: map[string]displayScope{},
 		binding:       bindEngine,
+		router:        newRouter(nil),
+		displayScopes: map[string]displayScope{},
 	}
+
+	pm.router.pm = pm
+	return pm
 }
 
 func (pm *pageManager) Context() Context {
@@ -180,10 +186,13 @@ func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 		pm.history.PushState(page.Title, pm.FullPath(pu.url.Path))
 	}
 
+	pm.currentPage = page
 	pm.formattedTitle = page.Title
-	models := pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)
 
-	pm.output.RenderPage(pm.formattedTitle, models,
+	pm.binding.Bind(pm.output.VirtualDOM(),
+		pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)...)
+
+	pm.output.RenderPage(pm.formattedTitle,
 		func(vnode core.VNode) bool {
 			if belongstr, ok := vnode.Attr(core.BelongAttrName); ok {
 				belongs := strings.Split(belongstr.(string), " ")
@@ -203,38 +212,19 @@ func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 
 			return true
 		})
-
-	//pm.realContainer.Listen("click", "a", func(e dom.Event) {
-	//	href, ok := e.Target().Attr("href")
-	//	if !ok {
-	//		return
-	//	}
-
-	//	if !strings.HasPrefix(href, pm.BasePath()) {
-	//		// not a wade page link, let the browser do its job
-	//		return
-	//	}
-
-	//	idx := strings.Index(href, "#")
-	//	if idx != -1 && !strings.Contains(href[idx+1:], "/") {
-	//		// hash url, tap out too
-	//		return
-	//	}
-
-	//	e.PreventDefault()
-
-	//	go func() {
-	//		pm.updateUrl(href, true, false)
-	//	}()
-	//})
 }
 
 // PageUrl returns the url for the page with the given parameters
 func (pm *pageManager) PageUrl(pageId string, params ...interface{}) string {
-	return pm.FullPath(pm.pageUrl(pageId, params))
+	u, err := pm.pageUrl(pageId, params)
+	if err != nil {
+		panic(err)
+	}
+
+	return pm.FullPath(u)
 }
 
-func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string) {
+func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, err error) {
 	page := pm.page(pageId)
 
 	k, i := 0, 0
@@ -258,8 +248,8 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string) {
 	}
 
 	if k != len(params) || k != len(routeparams) {
-		panic(fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,
-			pageId, len(routeparams), len(params)))
+		err = fmt.Errorf(`Wrong number of parameters for the route of %v. Expected %v, got %v.`,
+			pageId, len(routeparams), len(params))
 	}
 
 	return
@@ -286,12 +276,13 @@ func (pm *pageManager) runControllers(namedParams *http.NamedParams, url *gourl.
 		}
 	}
 
-	add(GlobalDisplayScope)
+	add(pm.currentPage)
+
 	for _, grp := range pm.currentPage.groups {
 		add(grp)
 	}
 
-	add(pm.currentPage)
+	add(GlobalDisplayScope)
 
 	models := []interface{}{}
 

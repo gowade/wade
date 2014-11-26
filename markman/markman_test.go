@@ -12,15 +12,17 @@ import (
 )
 
 const (
-	Src = `<div>
-<w-include src="/a"></w-include>
-<w-include src="/b"></w-include>
-<div>
-	<w-include src="/c"></w-include>
-</div>
-</div>`
+	Index = `<html><head></head>
+	<body>
+		<div !appview="/index">
+		</div>
+	</body>`
 
-	NoSrc = `<div><w-include></w-include></div>`
+	Src = `	<w-include src="/a"></w-include>
+			<w-include src="/b"></w-include>
+			<div>
+				<w-include src="/c"></w-include>
+			</div>`
 
 	SrcA = `<w-include src="/d"></w-include>`
 	SrcB = `b`
@@ -38,28 +40,22 @@ func (f fetcher) FetchFile(src string) (html string, err error) {
 	return
 }
 
-func TestHtmlImport(t *testing.T) {
+func TestMarkMgr(t *testing.T) {
 	mb := hm.NewMock(map[string]hm.Responder{
-		"/a": hm.NewListResponder([]hm.Responder{hm.NewOKResponse(SrcA), hm.NewOKResponse(SrcB)}),
-		"/b": hm.NewOKResponse(SrcB),
-		"/c": hm.NewOKResponse(SrcC),
-		"/d": hm.NewOKResponse(SrcD),
+		"/a":     hm.NewListResponder([]hm.Responder{hm.NewOKResponse(SrcA), hm.NewOKResponse(SrcB)}),
+		"/b":     hm.NewOKResponse(SrcB),
+		"/c":     hm.NewOKResponse(SrcC),
+		"/d":     hm.NewOKResponse(SrcD),
+		"/index": hm.NewOKResponse(Src),
 	})
 
 	client := http.NewClient(mb)
-
-	root := goquery.GetDom().NewFragment(Src)
 	fetcher := fetcher{client}
-	err := HTMLImports(fetcher, root)
-	return
+
+	root := goquery.GetDom().NewDocument(Index)
+	markman := New(root, fetcher)
+	err := markman.LoadView()
 	require.Equal(t, err, nil)
+	markman.Render()
 	require.Equal(t, utils.NoSp(root.Text()), `abc`)
-	root = goquery.GetDom().NewFragment(Src)
-
-	HTMLImports(fetcher, root)
-	require.Equal(t, utils.NoSp(root.Text()), `bbc`)
-
-	root = root.NewFragment(NoSrc)
-	err = HTMLImports(fetcher, root)
-	require.NotEqual(t, err, nil)
 }

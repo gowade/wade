@@ -2,6 +2,7 @@ package gonet
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -57,6 +58,8 @@ func renderRec(v core.VNode) []*html.Node {
 		return children
 	}
 
+	// fmt.Printf("%v %v {%v}\n", utils.NoSp(v.Data), v.Type, v.Attrs())
+
 	var n *html.Node
 	switch v.Type {
 	case core.TextNode, core.MustacheNode:
@@ -94,8 +97,10 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createNode()
 		n.Type = html.CommentNode
 		n.Data = v.Data
+	case core.UnsetNode:
+		panic(fmt.Errorf("nodeType not set for this node (nodeType=0)."))
 	default:
-		panic("Invalid type of node")
+		panic(fmt.Errorf("Invalid node type %v", v.Type))
 	}
 
 	return []*html.Node{n}
@@ -161,6 +166,9 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 		}
 
 		return []core.VNode{n}
+	default:
+		panic(fmt.Errorf(`Unhandled node type %v when
+		converting HTML to VNode", node.Type`))
 	}
 
 	return []core.VNode{}
