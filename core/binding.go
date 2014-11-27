@@ -74,10 +74,10 @@ func reportError(err error, bstr string, elem *VNode) {
 }
 
 func (b *Binding) processAttrBind(attr, bstr string, node *VNode, bs bindScope) (err error) {
-	_, node.attrs[attr], err = bs.evaluate(bstr)
+	_, node.Attrs[attr], err = bs.evaluate(bstr)
 
 	node.addCallback(func() (err error) {
-		_, node.attrs[attr], err = bs.evaluate(bstr)
+		_, node.Attrs[attr], err = bs.evaluate(bstr)
 		return
 	})
 

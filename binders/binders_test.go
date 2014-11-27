@@ -45,7 +45,7 @@ type (
 
 var (
 	gq = goquery.Dom{}
-	b  = core.NewTestBindEngine()
+	b  = core.NewBindEngine(make(map[string]interface{}))
 )
 
 func init() {
@@ -79,7 +79,7 @@ func TestEach(t *testing.T) {
 		</ul>`
 
 	rRoot := gq.NewFragment(src)
-	vRoot := core.NodeRoot(rRoot.ToVNode())
+	vRoot := rRoot.ToVNode().Ptr()
 	b.Bind(vRoot, m1)
 
 	vRoot.Update()
@@ -114,7 +114,7 @@ func TestEach(t *testing.T) {
 	</ul>`
 
 	rRoot = gq.NewFragment(src)
-	vRoot = core.NodeRoot(rRoot.ToVNode())
+	vRoot = rRoot.ToVNode().Ptr()
 	b.Bind(vRoot, m3)
 
 	vRoot.Update()
@@ -131,7 +131,7 @@ func TestIf(t *testing.T) {
 		A:  ":D",
 	}
 	rRoot := gq.NewFragment(`<div><span #if="Ok">{{ A }}</span><span #ifn="Ok">ZZZ</span></div>`)
-	vRoot := core.NodeRoot(rRoot.ToVNode())
+	vRoot := rRoot.ToVNode().Ptr()
 	b.Bind(vRoot, s)
 
 	vRoot.Update()

@@ -58,7 +58,7 @@ func renderRec(v core.VNode) []*html.Node {
 		return children
 	}
 
-	// fmt.Printf("%v %v {%v}\n", utils.NoSp(v.Data), v.Type, v.Attrs())
+	//fmt.Printf("%v %v {%v}\n", utils.NoSp(v.Data), v.Type, v.Attrs)
 
 	var n *html.Node
 	switch v.Type {
@@ -66,7 +66,7 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createTextNode(v.Data)
 	case core.ElementNode:
 		n = createElement(v.Data)
-		for name, val := range v.Attrs() {
+		for name, val := range v.Attrs {
 			var value string
 
 			switch v := val.(type) {
@@ -97,8 +97,8 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createNode()
 		n.Type = html.CommentNode
 		n.Data = v.Data
-	case core.UnsetNode:
-		panic(fmt.Errorf("nodeType not set for this node (nodeType=0)."))
+	case core.NotsetNode:
+		panic(fmt.Errorf("node type not set for this node (nodeType=0)."))
 	default:
 		panic(fmt.Errorf("Invalid node type %v", v.Type))
 	}
@@ -107,7 +107,7 @@ func renderRec(v core.VNode) []*html.Node {
 }
 
 func Render(r *html.Node, v core.VNode) {
-	n := renderRec(v)
+	n := renderRec(core.VPrep(v))
 	*r = *n[0]
 }
 
@@ -131,7 +131,7 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 		return parseMustaches(node.Data)
 	case html.CommentNode:
 		return []core.VNode{
-			core.V(core.DataNode, node.Data, core.NoAttr(), core.NoBind(), []core.VNode{}),
+			core.VPrep(core.VNode{Type: core.DataNode, Data: node.Data}),
 		}
 	case html.ElementNode:
 		attrs := map[string]interface{}{}
@@ -155,7 +155,13 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 			})
 		}
 
-		n := core.VElem(node.Data, attrs, binds, []core.VNode{})
+		n := core.VNode{
+			Data:     node.Data,
+			Type:     core.ElementNode,
+			Attrs:    attrs,
+			Binds:    binds,
+			Children: []core.VNode{},
+		}
 
 		if getAttr(node, core.GroupAttrName) != nil { // has "!group" attribute
 			n.Type = core.GroupNode

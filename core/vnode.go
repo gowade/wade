@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	UnsetNode NodeType = iota
+	NotsetNode NodeType = iota
 	TextNode
 	MustacheNode
 	ElementNode
@@ -22,6 +22,8 @@ const (
 )
 
 type (
+	Attributes map[string]interface{}
+
 	Bindage struct {
 		Type BindType
 		Name string
@@ -37,7 +39,7 @@ type (
 		Type      NodeType
 		Data      string
 		Children  []VNode
-		attrs     map[string]interface{}
+		Attrs     Attributes
 		Binds     []Bindage
 		classes   map[string]bool
 		scope     *scope.Scope
@@ -56,6 +58,30 @@ func (node *VNode) addCallback(cb cbFunc) {
 	node.callbacks = append(node.callbacks, cb)
 }
 
+func PreprocessVNode(v *VNode) {
+	if v.Type == NotsetNode {
+		if v.Data == "" {
+			panic("Uninitialized node detected, no node type and node data.")
+		}
+
+		v.Type = ElementNode
+	}
+
+	if v.Type != TextNode && v.Type != MustacheNode {
+		if v.Attrs == nil {
+			v.Attrs = make(map[string]interface{})
+		}
+
+		if v.Binds == nil {
+			v.Binds = []Bindage{}
+		}
+
+		if v.Children == nil {
+			v.Children = []VNode{}
+		}
+	}
+}
+
 func BindBinder(name, expr string) Bindage {
 	return Bindage{
 		Type: BinderBind,
@@ -72,28 +98,12 @@ func BindAttr(name, expr string) Bindage {
 	}
 }
 
-func NoAttr() map[string]interface{} {
-	return map[string]interface{}{}
-}
-
-func NoBind() []Bindage {
-	return []Bindage{}
-}
-
-func VEmpty(tagName string) VNode {
-	return VElem(tagName, NoAttr(), NoBind(), []VNode{})
-}
-
-func VWrap(tagName string, children []VNode) VNode {
-	return VElem(tagName, NoAttr(), NoBind(), children)
-}
-
 func VText(text string) VNode {
 	return VNode{
 		Type:     TextNode,
 		Data:     text,
-		attrs:    NoAttr(),
-		Binds:    NoBind(),
+		Attrs:    make(map[string]interface{}),
+		Binds:    []Bindage{},
 		Children: []VNode{},
 	}
 }
@@ -102,7 +112,7 @@ func VMustache(expr string) VNode {
 	return VNode{
 		Type:  MustacheNode,
 		Data:  "",
-		attrs: NoAttr(),
+		Attrs: make(map[string]interface{}),
 		Binds: []Bindage{Bindage{
 			Type: AttrBind,
 			Expr: expr,
@@ -111,24 +121,23 @@ func VMustache(expr string) VNode {
 	}
 }
 
-func NodeRoot(node VNode) (np *VNode) {
+func (node VNode) Ptr() (np *VNode) {
 	np = new(VNode)
 	*np = node
 	return np
 }
 
-func V(typ NodeType, data string, attrs map[string]interface{}, binds []Bindage, children []VNode) VNode {
-	return VNode{
-		Type:     typ,
-		Data:     data,
-		attrs:    attrs,
-		Binds:    binds,
-		Children: children,
-	}
+func VPrep(node VNode) (r VNode) {
+	r = node
+	prepRec(&r)
+	return
 }
 
-func VElem(data string, attrs map[string]interface{}, binds []Bindage, children []VNode) VNode {
-	return V(ElementNode, data, attrs, binds, children)
+func prepRec(node *VNode) {
+	PreprocessVNode(node)
+	for i := range node.Children {
+		prepRec(&node.Children[i])
+	}
 }
 
 func (node VNode) TagName() string {
@@ -169,12 +178,12 @@ func (node *VNode) Update() {
 }
 
 func (node VNode) Attr(attr string) (v interface{}, ok bool) {
-	v, ok = node.attrs[strings.ToLower(attr)]
+	v, ok = node.Attrs[strings.ToLower(attr)]
 	return
 }
 
 func (node *VNode) SetAttr(attr string, value interface{}) {
-	node.attrs[strings.ToLower(attr)] = value
+	node.Attrs[strings.ToLower(attr)] = value
 }
 
 func (node *VNode) SetClass(className string, on bool) {
@@ -197,10 +206,6 @@ func (node VNode) HasClass(className string) bool {
 	return false
 }
 
-func (node VNode) Attrs() map[string]interface{} {
-	return node.attrs
-}
-
 func NodeWalkX(node *VNode, fn func(*VNode, int)) {
 	for i, _ := range node.Children {
 		fn(node, i)
@@ -209,6 +214,7 @@ func NodeWalkX(node *VNode, fn func(*VNode, int)) {
 }
 
 func NodeWalk(node *VNode, fn func(*VNode)) {
+	PreprocessVNode(node)
 	fn(node)
 	for i, _ := range node.Children {
 		NodeWalk(&node.Children[i], fn)
@@ -221,6 +227,7 @@ func (node VNode) Clone() (clone VNode) {
 
 func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
 	clone = node
+	PreprocessVNode(&clone)
 	clone.Children = make([]VNode, 0)
 	for i := range node.Children {
 		if cond == nil || cond(node.Children[i]) {
@@ -229,9 +236,9 @@ func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
 		}
 	}
 
-	clone.attrs = make(map[string]interface{})
-	for k, v := range node.attrs {
-		clone.attrs[k] = v
+	clone.Attrs = make(map[string]interface{})
+	for k, v := range node.Attrs {
+		clone.Attrs[k] = v
 	}
 
 	if node.classes != nil {

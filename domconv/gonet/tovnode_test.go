@@ -13,22 +13,36 @@ import (
 func TestConversion(t *testing.T) {
 	// From virtual to real
 	node := createElement("zz")
-	root := core.VWrap("div", []core.VNode{
-		core.VElem("a", map[string]interface{}{
-			"w": 123.4,
-		}, core.NoBind(), []core.VNode{}),
-		core.V(core.GroupNode, "span", core.NoAttr(), core.NoBind(), []core.VNode{
-			core.VText("("),
-			core.VMustache("empty"),
-			core.VElem("div", map[string]interface{}{
-				"disabled": true,
-			}, []core.Bindage{core.BindAttr("test", "test")}, []core.VNode{
-				core.VText(")"),
-			}),
-		}),
-		core.V(core.DataNode, "data", core.NoAttr(), core.NoBind(), []core.VNode{}),
-		core.V(core.DeadNode, "dead", core.NoAttr(), core.NoBind(), []core.VNode{}),
-		core.VText("t"),
+
+	root := core.VPrep(core.VNode{
+		Data: "div",
+		Children: []core.VNode{
+			core.VNode{
+				Data:  "a",
+				Attrs: core.Attributes{"w": 123.4},
+			},
+			core.VNode{
+				Type: core.GroupNode,
+				Children: []core.VNode{
+					core.VText("("),
+					core.VMustache("empty"),
+					{
+						Data:     "div",
+						Attrs:    core.Attributes{"disabled": true},
+						Binds:    []core.Bindage{core.BindAttr("test", "test")},
+						Children: []core.VNode{core.VText(")")},
+					},
+				},
+			},
+			core.VNode{
+				Type: core.DataNode,
+				Data: "data",
+			},
+			core.VNode{
+				Type: core.DeadNode,
+			},
+			core.VText("t"),
+		},
 	})
 
 	buf := bytes.NewBufferString("")

@@ -7,16 +7,23 @@ import (
 )
 
 func TestVNode(t *testing.T) {
-	vn := VWrap("div", []VNode{
-		VWrap("div", []VNode{
-			VText("ABCD"),
-		}),
-		VWrap("div", []VNode{
-			VWrap("hidden", []VNode{VText("<This should not display>")}),
-			VText("hidden"),
-			VText("EFGH"),
-		}),
-	})
+	vn := VNode{
+		Data: "div",
+		Children: []VNode{
+			{
+				Data:     "div",
+				Children: []VNode{VText("ABCD")},
+			},
+			{
+				Type: GroupNode,
+				Children: []VNode{
+					{Data: "hidden", Children: []VNode{VText("<Should not display>")}},
+					VText("hidden"),
+					VText("EFGH"),
+				},
+			},
+		},
+	}
 
 	nn := vn.CloneWithCond(func(node VNode) bool {
 		if node.Data == "hidden" {
@@ -27,7 +34,7 @@ func TestVNode(t *testing.T) {
 	})
 
 	NodeWalk(&nn, func(n *VNode) {
-		require.NotEqual(t, n.Type, UnsetNode)
+		require.NotEqual(t, n.Type, NotsetNode)
 	})
 
 	require.Equal(t, nn.Text(), "ABCDEFGH")

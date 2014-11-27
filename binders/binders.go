@@ -131,7 +131,10 @@ func (b *RangeBinder) Bind(d core.DomBind) {
 	b.prototype = *d.Node
 	d.RemoveBind(&b.prototype)
 
-	*d.Node = core.V(core.GroupNode, "range", core.NoAttr(), core.NoBind(), []core.VNode{})
+	*d.Node = core.VPrep(core.VNode{
+		Type: core.GroupNode,
+		Data: "range",
+	})
 
 	return
 }

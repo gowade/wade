@@ -32,8 +32,9 @@ func TestComponent(t *testing.T) {
 	err := tm.Register(ComponentView{
 		Name:      "test",
 		Prototype: &Test{},
-		Template: VWrap("span", []VNode{
-			VEmpty(CompInner),
+		Template: VPrep(VNode{
+			Data:     "span",
+			Children: []VNode{{Data: CompInner}},
 		}),
 	})
 
@@ -44,17 +45,20 @@ func TestComponent(t *testing.T) {
 	_, ok := tm.GetComponent("div")
 	require.Equal(t, ok, false)
 
-	re := NodeRoot(
-		VElem("test", map[string]interface{}{
+	re := VPrep(VNode{
+		Data: "test",
+		Attrs: Attributes{
 			"str":  "Awesome!",
 			"num":  "69",
 			"fnum": "699.69",
 			"tf":   "true",
-		}, NoBind(), []VNode{
-			VEmpty("smile"),
+		},
+		Children: []VNode{
+			{Data: "smile"},
 			VText("_"),
-			VEmpty("smile"),
-		}))
+			{Data: "smile"},
+		},
+	}).Ptr()
 
 	cv, ok := tm.GetComponent("test")
 	require.Equal(t, ok, true)

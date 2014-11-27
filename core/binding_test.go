@@ -51,12 +51,22 @@ func TestBinding(t *testing.T) {
 
 	testct := ComponentView{
 		Name: "test",
-		Template: VWrap("div", []VNode{
-			VWrap("div", []VNode{
-				VEmpty(CompInner),
-			}),
-			VElem("span", NoAttr(), []Bindage{BindBinder("text", "Name")}, []VNode{}),
-			VElem("div", NoAttr(), []Bindage{BindBinder("text", "Test.A.B")}, []VNode{}),
+		Template: VPrep(VNode{
+			Data: "div",
+			Children: []VNode{
+				{
+					Data:     "div",
+					Children: []VNode{{Data: CompInner}},
+				},
+				{
+					Data:  "span",
+					Binds: []Bindage{BindBinder("text", "Name")},
+				},
+				{
+					Data:  "div",
+					Binds: []Bindage{BindBinder("text", "Test.A.B")},
+				},
+			},
 		}),
 		Prototype: &Model{},
 	}
@@ -79,7 +89,7 @@ func TestBinding(t *testing.T) {
 	require.NotEqual(t, err, nil)
 
 	//test processDomBind
-	elem := NodeRoot(VElem("test", NoAttr(), NoBind(), []VNode{}))
+	elem := VPrep(VNode{Data: "test"}).Ptr()
 
 	b.processBinderBind("text", "Name", elem, bs)
 	elem.Update()
@@ -107,18 +117,25 @@ func TestBinding(t *testing.T) {
 	elem.Update()
 	require.Equal(t, model.Value, 9999)
 
-	elem = NodeRoot(VElem("div", NoAttr(), NoBind(), []VNode{
-		VElem("test", map[string]interface{}{"name": "abc"}, []Bindage{
-			BindAttr("Value", "Num"),
-			BindAttr("Test", "Test"),
-		}, []VNode{
-			VMustache("Name"),
-		}),
-
-		V(GroupNode, "div", NoAttr(), NoBind(), []VNode{
-			VMustache("Test.A.B"),
-		}),
-	}))
+	elem = VPrep(VNode{
+		Data: "div",
+		Children: []VNode{
+			{
+				Data:  "test",
+				Attrs: Attributes{"name": "abc"},
+				Binds: []Bindage{
+					BindAttr("Value", "Num"),
+					BindAttr("Test", "Test"),
+				},
+				Children: []VNode{VMustache("Name")},
+			},
+			{
+				Type:     GroupNode,
+				Data:     "div",
+				Children: []VNode{VMustache("Test.A.B")},
+			},
+		},
+	}).Ptr()
 
 	sc.Name = "scope"
 	b.Bind(elem, sc)
