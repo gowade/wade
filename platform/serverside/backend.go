@@ -6,14 +6,15 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"runtime"
 	"strings"
 
-	"code.google.com/p/go.net/html"
-	"github.com/phaikawl/wade"
-	"github.com/phaikawl/wade/bind"
 	gqdom "github.com/phaikawl/wade/dom/goquery"
+	"golang.org/x/net/html"
+
+	"github.com/phaikawl/wade"
+	"github.com/phaikawl/wade/app"
+	"github.com/phaikawl/wade/dom"
 	wadehttp "github.com/phaikawl/wade/libs/http"
 	gohttp "github.com/phaikawl/wade/libs/http/serverside"
 )
@@ -29,15 +30,26 @@ type (
 		Records []wadehttp.HttpRecord
 	}
 
-	JsBackend struct {
-		bind.BasicWatchBackend
-		JsHistory wade.History
-	}
-
-	storage struct {
-		values map[string]interface{}
+	Backend struct {
+		history     wade.History
+		httpBackend *serverCacheHttpBackend
+		document    dom.Selection
 	}
 )
+
+func (b Backend) History() wade.History {
+	return b.history
+}
+
+func (b Backend) Bootstrap(app *app.Application) {}
+
+func (b Backend) Document() dom.Selection {
+	return b.document
+}
+
+func (b Backend) HttpBackend() wadehttp.Backend {
+	return b.httpBackend
+}
 
 func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	err = b.ServerBackend.Do(r)
@@ -53,7 +65,15 @@ func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	return
 }
 
-func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io.Reader, server http.Handler, request *http.Request, cachePrefix string) (err error) {
+func RenderApp(
+	server http.Handler,
+	request *http.Request,
+	w io.Writer,
+	conf app.Config,
+	appMain app.Main,
+	document io.Reader,
+	cachePrefix string) (err error) {
+
 	defer func() {
 		if r := recover(); r != nil {
 			trace := make([]byte, 1024)
@@ -74,20 +94,13 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 	}
 
 	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
-	app, err := wade.NewApp(conf, appFn, wade.RenderBackend{
-		JsBackend: &JsBackend{
-			BasicWatchBackend: bind.BasicWatchBackend{},
-			JsHistory:         wade.NewNoopHistory(request.URL.Path),
-		},
-		Document:    doc,
-		HttpBackend: cacheb,
+	app := app.New(conf, Backend{
+		history:     wade.NewNoopHistory(request.URL.Path),
+		document:    doc,
+		httpBackend: cacheb,
 	})
 
-	if err != nil {
-		return
-	}
-
-	app.Start()
+	app.Start(appMain)
 
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
@@ -105,36 +118,4 @@ func RenderApp(w io.Writer, conf wade.AppConfig, appFn wade.AppFunc, document io
 
 	err = html.Render(w, doc.(gqdom.Selection).Nodes[0])
 	return
-}
-
-func newStorage() storage {
-	return storage{make(map[string]interface{})}
-}
-
-func (s storage) Get(key string, v interface{}) (ok bool) {
-	val, ok := s.values[key]
-	if ok {
-		reflect.ValueOf(v).Elem().Set(reflect.ValueOf(val))
-	}
-	return
-}
-
-func (s storage) Delete(key string) {
-	delete(s.values, key)
-}
-
-func (s storage) Set(key string, v interface{}) {
-	s.values[key] = v
-}
-
-func (b *JsBackend) CheckJsDep(symbol string) bool {
-	return true
-}
-
-func (b *JsBackend) History() wade.History {
-	return b.JsHistory
-}
-
-func (b *JsBackend) WebStorages() (wade.Storage, wade.Storage) {
-	return wade.Storage{newStorage()}, wade.Storage{newStorage()}
 }

@@ -14,12 +14,12 @@ import (
 
 type (
 	bindEngine interface {
-		Bind(root core.VNode, models ...interface{})
+		Bind(root *core.VNode, models ...interface{})
 	}
 
 	// Context provides access to the page data and operations inside a controller func
 	Context struct {
-		*pageManager
+		*PageManager
 		NamedParams *http.NamedParams
 		URL         *gourl.URL
 	}
@@ -34,14 +34,14 @@ type (
 
 	OutputManager interface {
 		RenderPage(title string, condFn core.CondFn)
-		VirtualDOM() core.VNode
+		VirtualDOM() *core.VNode
 	}
 
-	pageManager struct {
+	PageManager struct {
 		output         OutputManager
 		binding        bindEngine
 		basePath       string
-		router         *Router
+		router         *router
 		currentPage    *page
 		ctx            Context
 		formattedTitle string
@@ -52,31 +52,37 @@ type (
 )
 
 func NewPageManager(basePath string, history History,
-	output OutputManager, bindEngine bindEngine) *pageManager {
-	pm := &pageManager{
+	output OutputManager, bindEngine bindEngine) *PageManager {
+	pm := &PageManager{
 		output:        output,
 		basePath:      basePath,
 		history:       history,
 		binding:       bindEngine,
-		router:        newRouter(nil),
+		router:        newRouter(),
 		displayScopes: map[string]displayScope{},
 	}
 
-	pm.router.pm = pm
 	return pm
 }
 
-func (pm *pageManager) Context() Context {
+func (pm *PageManager) RouteMgr() Router {
+	return Router{
+		router: pm.router,
+		pm:     pm,
+	}
+}
+
+func (pm *PageManager) Context() Context {
 	return pm.ctx
 }
 
 // FormatTitle formats the page's title with the given param values
-func (pm *pageManager) FormatTitle(params ...interface{}) string {
+func (pm *PageManager) FormatTitle(params ...interface{}) string {
 	pm.formattedTitle = fmt.Sprintf(pm.currentPage.Title, params...)
 	return pm.formattedTitle
 }
 
-func (pm *pageManager) CurrentPage() Page {
+func (pm *PageManager) CurrentPage() Page {
 	if pm.currentPage == nil {
 		panic("the page manager has not been started")
 	}
@@ -84,7 +90,7 @@ func (pm *pageManager) CurrentPage() Page {
 	return pm.currentPage.Page
 }
 
-func (pm *pageManager) cutPath(spath string) string {
+func (pm *PageManager) cutPath(spath string) string {
 	if strings.HasPrefix(spath, pm.basePath) {
 		spath = spath[len(pm.basePath):]
 		if !strings.HasPrefix(spath, "/") {
@@ -94,7 +100,7 @@ func (pm *pageManager) cutPath(spath string) string {
 	return spath
 }
 
-func (pm *pageManager) page(id string) *page {
+func (pm *PageManager) page(id string) *page {
 	if ds, hasDs := pm.displayScopes[id]; hasDs {
 		if page, ok := ds.(*page); ok {
 			return page
@@ -105,17 +111,17 @@ func (pm *pageManager) page(id string) *page {
 }
 
 // Url returns the full path
-func (pm *pageManager) FullPath(pa string) string {
+func (pm *PageManager) FullPath(pa string) string {
 	return path.Join(pm.basePath, pa)
 }
 
-func (pm *pageManager) GoToPage(page string, params ...interface{}) (found bool) {
+func (pm *PageManager) GoToPage(page string, params ...interface{}) (found bool) {
 	url := pm.PageUrl(page, params...)
 	found = pm.updateUrl(url, true, false)
 	return
 }
 
-func (pm *pageManager) GoToUrl(url string) (found bool) {
+func (pm *PageManager) GoToUrl(url string) (found bool) {
 	if strings.HasPrefix(url, pm.BasePath()) {
 		found = pm.updateUrl(url, true, false)
 	} else {
@@ -126,8 +132,8 @@ func (pm *pageManager) GoToUrl(url string) (found bool) {
 	return
 }
 
-func (pm *pageManager) Start() {
-	pm.router.Build()
+func (pm *PageManager) Start() {
+	pm.router.build()
 
 	pm.history.OnPopState(func() {
 		go func() {
@@ -149,7 +155,7 @@ type pageUpdate struct {
 	firstLoad   bool
 }
 
-func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) bool {
+func (pm *PageManager) updateUrl(url string, pushState bool, firstLoad bool) bool {
 	u, err := gourl.Parse(pm.cutPath(url))
 	if err != nil {
 		panic(err)
@@ -180,7 +186,7 @@ func (pm *pageManager) updateUrl(url string, pushState bool, firstLoad bool) boo
 	return true
 }
 
-func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
+func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 
 	if pu.pushState {
 		pm.history.PushState(page.Title, pm.FullPath(pu.url.Path))
@@ -215,7 +221,7 @@ func (pm *pageManager) updatePage(page *page, pu pageUpdate) {
 }
 
 // PageUrl returns the url for the page with the given parameters
-func (pm *pageManager) PageUrl(pageId string, params ...interface{}) string {
+func (pm *PageManager) PageUrl(pageId string, params ...interface{}) string {
 	u, err := pm.pageUrl(pageId, params)
 	if err != nil {
 		panic(err)
@@ -224,7 +230,7 @@ func (pm *pageManager) PageUrl(pageId string, params ...interface{}) string {
 	return pm.FullPath(u)
 }
 
-func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, err error) {
+func (pm *PageManager) pageUrl(pageId string, params []interface{}) (u string, err error) {
 	page := pm.page(pageId)
 
 	k, i := 0, 0
@@ -255,13 +261,13 @@ func (pm *pageManager) pageUrl(pageId string, params []interface{}) (u string, e
 	return
 }
 
-func (pm *pageManager) BasePath() string {
+func (pm *PageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *pageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) []interface{} {
+func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) []interface{} {
 	pm.ctx = Context{
-		pageManager: pm,
+		PageManager: pm,
 		NamedParams: namedParams,
 		URL:         url,
 	}
@@ -296,7 +302,7 @@ func (pm *pageManager) runControllers(namedParams *http.NamedParams, url *gourl.
 	return models
 }
 
-func (pm *pageManager) AddPageGroup(pg PageGroup) {
+func (pm *PageManager) AddPageGroup(pg PageGroup) {
 	if _, exist := pm.displayScopes[pg.Id]; exist {
 		panic(fmt.Sprintf(`Page or page group with id "%v" has already been registered.`, pg.Id))
 	}

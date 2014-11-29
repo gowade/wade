@@ -32,16 +32,17 @@ func (f mockFetcher) FetchFile(file string) (string, error) {
 	return "", nil
 }
 
-func (b *mockBindEngine) Bind(_ core.VNode, models ...interface{}) {
+func (b *mockBindEngine) Bind(_ *core.VNode, models ...interface{}) {
 	b.models = models
 }
 
 func TestPageUrl(t *testing.T) {
-	pm := &pageManager{}
+	pm := &PageManager{}
 	pm.displayScopes = make(map[string]displayScope)
-	pm.router = newRouter(pm)
+	pm.router = newRouter()
 	route := "/:testparam/:testparam2/*testparam3"
-	pm.router.Handle(route,
+	r := pm.RouteMgr()
+	r.Handle(route,
 		Page{
 			Id: "test",
 		})
@@ -91,7 +92,7 @@ func TestPageManager(t *testing.T) {
 	err = markman.LoadView()
 	require.Equal(t, err, nil)
 
-	r := pm.router
+	r := pm.RouteMgr()
 	r.Handle("/", Redirecter{"/home"})
 	r.Handle("/home", Page{
 		Id: "pg-home",

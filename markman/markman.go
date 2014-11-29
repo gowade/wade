@@ -55,8 +55,8 @@ func (mm *MarkupManager) RenderPage(title string, condFn core.CondFn) {
 	mm.Render()
 }
 
-func (mm *MarkupManager) VirtualDOM() core.VNode {
-	return mm.vdom
+func (mm *MarkupManager) VirtualDOM() *core.VNode {
+	return &mm.vdom
 }
 
 func (mm *MarkupManager) LoadView() (err error) {

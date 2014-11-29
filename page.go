@@ -102,7 +102,7 @@ func (s *globalDisplayScope) addParent(parent *pageGroup) {
 	panic("Cannot add parent to global display scope")
 }
 
-func (p Page) Register(pm *pageManager, route string) RouteHandler {
+func (p Page) Register(pm *PageManager, route string) RouteHandler {
 	if _, exist := pm.displayScopes[p.Id]; exist {
 		panic(fmt.Sprintf(`Page or page group with id "%v" has already been registered.`, p.Id))
 	}
@@ -119,7 +119,7 @@ func (p Page) Register(pm *pageManager, route string) RouteHandler {
 	return pg
 }
 
-func (p *page) UpdatePage(pm *pageManager, pu pageUpdate) (found bool) {
+func (p *page) UpdatePage(pm *PageManager, pu pageUpdate) (found bool) {
 	pm.updatePage(p, pu)
 
 	return true
