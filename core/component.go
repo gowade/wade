@@ -26,50 +26,81 @@ type (
 		template VNode
 	}
 
+	VDomProvider interface {
+		ToVNode(templateConverter) VNode
+	}
+
 	ComponentView struct {
 		Name      string // The tag name for the component
 		Prototype ComponentPrototype
-		Template  VNode
+		Template  VDomProvider
 	}
 
 	ComManager struct {
-		compViews map[string]*componentView
+		templateConv templateConverter
+		compViews    map[string]*componentView
+	}
+
+	templateConverter interface {
+		FromString(html string) VNode
+		FromHTMLTemplate(templateId string) VNode
 	}
 
 	componentInstance struct {
 		model    ComponentPrototype
 		origNode VNode
-		realNode VNode
+		realNode *VNode
 	}
 
-	Empty struct{}
+	empty struct{}
 
 	// ComponentPrototype is the common interface for all component's prototypes
 	ComponentPrototype interface {
-		// Init is called on each instantiation of a component.
+		// ProcessInner is called before instantiation of a component to process
+		// the component's inner content (passed  in as a VNode).
 		//
-		// You can modify the node's tree, the modified inner contents of the node
+		// You can modify the node's tree, the modified inner content of the node
 		// will be used to replace "<w-inner>" nodes instead of the original.
-		Init(VNode) error
+		//
+		// Inner content is *moved* to the real node for the first <w-inner>,
+		// cloned for other <w-inner>.
+		ProcessInner(inner VNode)
+
+		// Inner is called on instantiation of a component to perform initializations
+		Init(realNode VNode)
 
 		// Update is called whenever the virtual DOM is rerendered
-		Update(VNode) error
+		Update(realNode VNode)
 	}
 
 	BaseProto struct{}
+)
 
-	// StringView satisfies the TemplateProvider interface for a plain string
-	StringTemplate string
+type (
+	StringTemplate struct {
+		HTML string
+	}
 
-	// HTMLTemplate is a TemplateProvider that gets the template HTML code
-	// from a <template> element with the given Id
 	HTMLTemplate struct {
-		Id string
+		TemplateId string
 	}
 )
 
-func (b BaseProto) Init(node VNode) error   { return nil }
-func (b BaseProto) Update(node VNode) error { return nil }
+func (t VNode) ToVNode(conv templateConverter) VNode {
+	return t
+}
+
+func (t StringTemplate) ToVNode(conv templateConverter) VNode {
+	return conv.FromString(t.HTML)
+}
+
+func (t HTMLTemplate) ToVNode(conv templateConverter) VNode {
+	return conv.FromHTMLTemplate(t.TemplateId)
+}
+
+func (b BaseProto) ProcessInner(node VNode) {}
+func (b BaseProto) Init(node VNode)         {}
+func (b BaseProto) Update(node VNode)       {}
 
 func (c *componentInstance) Model() interface{} {
 	return c.model
@@ -77,7 +108,7 @@ func (c *componentInstance) Model() interface{} {
 
 func dePtr(proto ComponentPrototype) reflect.Type {
 	if proto == nil {
-		return reflect.TypeOf(Empty{})
+		return reflect.TypeOf(empty{})
 	}
 
 	p := reflect.TypeOf(proto)
@@ -153,37 +184,47 @@ func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err e
 
 	orig := *node
 	node.Children = t.template.Clone().Children
-	err = model.Init(orig)
-	orig.Data = "div"
+	orig.Data = "group"
 	orig.Type = GroupNode
+	orig.Attrs = map[string]interface{}{}
 
 	inst = &componentInstance{
 		model:    model,
 		origNode: orig,
-		realNode: *node,
+		realNode: node,
 	}
 
 	return
 }
 
 func (ci *componentInstance) prepareInner(outerScope scope.Scope) {
-	NodeWalk(&ci.realNode, func(node *VNode) {
+	ci.model.ProcessInner(ci.origNode)
+
+	i := 0
+	NodeWalk(ci.realNode, func(node *VNode) {
 		// replace <w-inner> elements with inner content
 		if node.Type == ElementNode && node.Data == CompInner {
 			ci.origNode.scope = &outerScope
-			*node = ci.origNode.Clone()
+			if i > 0 {
+				*node = ci.origNode.Clone()
+			} else {
+				*node = ci.origNode
+				i++
+			}
 		}
 	})
 
+	ci.model.Init(*ci.realNode)
 	ci.realNode.addCallback(func() (err error) {
-		err = ci.model.Update(ci.realNode)
+		ci.model.Update(*ci.realNode)
 		return
 	})
 }
 
-func NewComManager() *ComManager {
+func NewComManager(tempConv templateConverter) *ComManager {
 	return &ComManager{
-		compViews: make(map[string]*componentView),
+		templateConv: tempConv,
+		compViews:    make(map[string]*componentView),
 	}
 }
 
@@ -204,7 +245,15 @@ func (tm *ComManager) Register(specs ...ComponentView) (ret error) {
 			attrs:         map[string]string{},
 		}
 
-		ct.template = ht.Template
+		ct.template = ht.Template.ToVNode(tm.templateConv)
+		if ct.template.Type != GroupNode {
+			ct.template = VNode{
+				Type:     GroupNode,
+				Data:     "component",
+				Children: []VNode{ct.template},
+			}
+		}
+
 		ct.template.Data = ht.Name
 
 		prototype := ct.Prototype

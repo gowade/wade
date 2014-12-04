@@ -18,6 +18,9 @@ func TestConversion(t *testing.T) {
 		Data: "div",
 		Children: []core.VNode{
 			core.VNode{
+				Data: "b",
+			},
+			core.VNode{
 				Data:  "a",
 				Attrs: core.Attributes{"w": 123.4},
 			},
@@ -49,6 +52,7 @@ func TestConversion(t *testing.T) {
 	Render(node, root)
 	html.Render(buf, node)
 	src := `<div>
+			<b></b>
 			<a w="123.4"></a>
 			(<div disabled="">
 				)
@@ -63,6 +67,7 @@ func TestConversion(t *testing.T) {
 	pnode, err := parseHtml(`
 		<div>
 			<div !group>
+				<b></b>
 				<a w="123.4"></a>
 				(<div disabled>)</div>
 				<!--data-->
@@ -82,4 +87,20 @@ func TestConversion(t *testing.T) {
 	b := bytes.NewBufferString("")
 	html.Render(b, target)
 	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src))
+
+	vnode.ChildElems()[0].ChildElems()[0].SetClass("done", true)
+	Render(target, vnode)
+	b = bytes.NewBufferString("")
+	html.Render(b, target)
+	src2 := `<div>
+			<b class="done"></b>
+			<a w="123.4"></a>
+			(<div disabled="">
+				)
+			</div>
+			<!--data-->
+			t
+		</div>`
+
+	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src2))
 }

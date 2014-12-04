@@ -1,4 +1,4 @@
-package wade
+package page
 
 import (
 	"fmt"

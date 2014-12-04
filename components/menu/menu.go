@@ -4,77 +4,64 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/phaikawl/wade"
-	"github.com/phaikawl/wade/com"
-	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/core"
 )
 
 type SwitchMenu struct {
-	com.BaseProto
-	Current     string
-	ActiveClass string
-	Choices     map[string]dom.Selection
+	core.BaseProto
+	Current         string
+	ActiveClassName string
+	Choices         map[string]*core.VNode
 }
 
-func (sm *SwitchMenu) ProcessContents(ctl com.ContentsData) error {
-	sm.Choices = make(map[string]dom.Selection)
-	sm.ActiveClass = strings.TrimSpace(sm.ActiveClass)
-	if sm.ActiveClass == "" {
-		sm.ActiveClass = "active"
+func (sm *SwitchMenu) Init(node core.VNode) {
+	sm.Choices = make(map[string]*core.VNode)
+	sm.ActiveClassName = strings.TrimSpace(sm.ActiveClassName)
+	if sm.ActiveClassName == "" {
+		sm.ActiveClassName = "active"
 	}
 
 	if sm.Current == "" {
-		return fmt.Errorf(`"Current" attribute must be set`)
+		panic(`Field "Current" has not been set.`)
 	}
 
-	cl := ctl.Contents()
-	ul := cl.Filter("ul")
-	if cl.Length() == 0 {
-		return fmt.Errorf("switchmenu must have 1 child which is an <ul> element.")
+	children := node.ChildElems()
+	if len(children) != 1 || children[0].Data != "ul" {
+		panic(`Must have 1 child and it must be an "ul" element.`)
 	}
 
-	for _, item := range ul.Children().Elements() {
-		if wade.IsWrapperElem(item) {
-			item = item.Children().Filter("li").First()
-		}
+	ul := children[0]
 
-		if !item.Is("li") {
-			return fmt.Errorf(`Direct children of the <ul> must be <li>.`)
+	for _, item := range ul.ChildElems() {
+		if item.TagName() != "li" {
+			continue
 		}
 
 		if casestr, ok := item.Attr("case"); ok {
-			cases := strings.Split(casestr, " ")
+			cases := strings.Split(casestr.(string), " ")
 			for _, id := range cases {
 				if _, exists := sm.Choices[id]; exists {
-					return fmt.Errorf("Switchmenu case %v is duplicated in multiple items.", id)
+					panic(fmt.Errorf("case %v is duplicated in multiple items.", id))
 				}
 
 				sm.Choices[strings.TrimSpace(id)] = item
 			}
-
-		} else {
-			return fmt.Errorf(`"case" attribute must be set for each <li>.`)
 		}
 	}
-
-	return nil
 }
 
-func (sm *SwitchMenu) Update(ctl com.ElemData) error {
-	ctl.Element().Find("li." + sm.ActiveClass).RemoveClass(sm.ActiveClass)
-	if item, ok := sm.Choices[sm.Current]; ok {
-		item.AddClass(sm.ActiveClass)
+func (sm *SwitchMenu) Update(node core.VNode) {
+	for key, item := range sm.Choices {
+		item.SetClass(sm.ActiveClassName, key == sm.Current)
 	}
-
-	return nil
 }
 
-func Components() []com.Spec {
-	return []com.Spec{
-		com.Spec{
-			Name:      "wSwitchMenu",
+func Components() []core.ComponentView {
+	return []core.ComponentView{
+		{
+			Name:      "w-switch-menu",
 			Prototype: &SwitchMenu{},
-			Template:  com.StringTemplate(`<wcontents></wcontents>`),
+			Template:  core.VNode{Data: core.CompInner},
 		},
 	}
 }

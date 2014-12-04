@@ -24,7 +24,39 @@ type (
 		origVdom  core.VNode
 		vdom      core.VNode
 	}
+
+	NopFetcher struct{}
+
+	TemplateConverter struct {
+		Doc dom.Selection
+	}
 )
+
+func (f NopFetcher) FetchFile(file string) (string, error) {
+	return "", nil
+}
+
+func (tc TemplateConverter) FromString(template string) core.VNode {
+	return tc.Doc.NewFragment(template).ToVNode()
+}
+
+func (tc TemplateConverter) FromHTMLTemplate(templateId string) core.VNode {
+	vn := core.VNode{
+		Type:     core.GroupNode,
+		Children: []core.VNode{},
+	}
+
+	children := tc.Doc.Find("template#" + templateId).Children().Elements()
+	for _, c := range children {
+		vn.Children = append(vn.Children, c.ToVNode())
+	}
+
+	return vn
+}
+
+func (m MarkupManager) Document() dom.Selection {
+	return m.document
+}
 
 func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager) {
 	c := document.Find("[\\" + AppViewAttr + "]")

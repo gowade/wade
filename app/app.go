@@ -3,14 +3,15 @@ package app
 import (
 	"fmt"
 	"path"
+	"runtime"
 
 	"github.com/gopherjs/gopherjs/js"
 
-	"github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 	"github.com/phaikawl/wade/markman"
+	"github.com/phaikawl/wade/page"
 )
 
 var (
@@ -29,8 +30,9 @@ func App() *Application {
 
 type (
 	RenderBackend interface {
-		History() wade.History
+		History() page.History
 		Bootstrap(*Application)
+		AfterReady(*Application)
 		HttpBackend() http.Backend
 		Document() dom.Selection
 	}
@@ -51,12 +53,13 @@ type (
 
 	// Application
 	Application struct {
-		Register   Registration
-		Config     Config
-		Http       *http.Client
-		PageMgr    *wade.PageManager
-		bindEngine *core.Binding
-		markupMgr  *markman.MarkupManager
+		Register      Registration
+		Config        Config
+		Http          *http.Client
+		PageMgr       *page.PageManager
+		bindEngine    *core.Binding
+		markupMgr     *markman.MarkupManager
+		renderBackend RenderBackend
 	}
 
 	fetcher struct {
@@ -64,6 +67,10 @@ type (
 		http       *http.Client
 	}
 )
+
+func (app *Application) Document() dom.Selection {
+	return app.markupMgr.Document()
+}
 
 func (fetcher fetcher) FetchFile(file string) (data string, err error) {
 	resp, err := fetcher.http.GET(path.Join(fetcher.serverBase, file))
@@ -80,13 +87,22 @@ func (app *Application) Render() {
 	app.markupMgr.Render()
 }
 
-func (app *Application) Router() wade.Router {
+func (app *Application) Router() page.Router {
 	return app.PageMgr.RouteMgr()
 }
 
 func (app *Application) Start(appMain Main) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			trace := make([]byte, 1024)
+			count := runtime.Stack(trace, true)
+			err = fmt.Errorf("Error while starting and rendering the app: %s\nStack of %d bytes: %s\n", r, count, trace)
+		}
+	}()
+
 	appMain.Main(app)
 	app.PageMgr.Start()
+	app.renderBackend.AfterReady(app)
 
 	go func() {
 		for {
@@ -102,7 +118,7 @@ func (app *Application) AddComponent(cv core.ComponentView) {
 	app.bindEngine.ComponentManager().Register(cv)
 }
 
-func (app *Application) AddPageGroup(pageGroup wade.PageGroup) {
+func (app *Application) AddPageGroup(pageGroup page.PageGroup) {
 	app.PageMgr.AddPageGroup(pageGroup)
 }
 
@@ -111,7 +127,7 @@ func New(config Config, rb RenderBackend) (app *Application) {
 	httpClient := http.NewClient(rb.HttpBackend())
 	http.SetDefaultClient(httpClient)
 
-	bindEngine := core.NewBindEngine(DefaultHelpers)
+	bindEngine := core.NewBindEngine(markman.TemplateConverter{rb.Document()}, DefaultHelpers)
 	markupMgr := markman.New(rb.Document(), fetcher{
 		http:       httpClient,
 		serverBase: config.ServerBase,
@@ -122,8 +138,9 @@ func New(config Config, rb RenderBackend) (app *Application) {
 		Http:       httpClient,
 		markupMgr:  markupMgr,
 		bindEngine: bindEngine,
-		PageMgr: wade.NewPageManager(config.BasePath, rb.History(),
+		PageMgr: page.NewPageManager(config.BasePath, rb.History(),
 			markupMgr, bindEngine),
+		renderBackend: rb,
 	}
 
 	rb.Bootstrap(app)

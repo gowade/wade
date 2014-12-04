@@ -1,41 +1,39 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
-	"testing"
 
-	"github.com/phaikawl/wade"
-	"github.com/phaikawl/wade/bind"
+	"github.com/phaikawl/wade/app"
+	//"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
-	gqdom "github.com/phaikawl/wade/dom/goquery"
 	"github.com/phaikawl/wade/libs/http"
-	"github.com/phaikawl/wade/rbackend/serverside"
+	"github.com/phaikawl/wade/platform/serverside"
 )
 
 type (
 	PageView struct {
-		Html dom.Selection
+		Document dom.Selection
 	}
 
 	TestApp struct {
-		*wade.Application
-		View    PageView
+		PageView
+		*app.Application
 		started bool
 	}
 )
 
 // Get the page's current title
 func (v PageView) Title() string {
-	return v.Html.Find("head title").Text()
+	return v.Document.Find("head title").Text()
 }
 
 // Find is simply a wrapper of v.Html.Find()
 func (v PageView) Find(queryStr string) dom.Selection {
-	return v.Html.Find(queryStr)
+	return v.Document.Find(queryStr)
 }
 
 // TriggerEvent triggers a given event on the selected elements
@@ -68,7 +66,7 @@ func (v PageView) CheckText(selection dom.Selection, textLists [][]string) (err 
 // TriggerEvent triggers an event with watcher.Apply()
 // this triggers a DigestAll() so that the view is updated with the changed data
 func (app *TestApp) TriggerEvent(selection dom.Selection, event Event) {
-	app.View.triggerEvent(selection, event)
+	app.PageView.triggerEvent(selection, event)
 }
 
 // GoTo navigates the app to the given path
@@ -77,68 +75,54 @@ func (app *TestApp) GoTo(path string) {
 		panic(fmt.Errorf("Application has not been started."))
 	}
 
-	found := app.Services.PageManager.GoToUrl(path)
+	found := app.PageMgr.GoToUrl(path)
 	if !found {
 		panic(fmt.Errorf(`Page not found for "%v"`, path))
 	}
 }
 
-func (app *TestApp) Start() {
+func (app *TestApp) Start(appMain app.Main) error {
 	app.started = true
-	app.Application.Start()
+	return app.Application.Start(appMain)
 }
 
-func (app *TestApp) Digest() {
-	app.CurrentPage().Watcher.DigestAll()
-}
-
-func NewTestApp(t *testing.T, conf wade.AppConfig,
-	appFn wade.AppFunc,
+func NewTestApp(conf app.Config,
+	initialPath string,
 	indexFile string,
-	httpMock http.Backend) (app *TestApp, err error) {
+	httpMock http.Backend) *TestApp {
 
-	sourcebytes := []byte{}
+	var document io.Reader
 	if indexFile != "" {
-		var iFile io.Reader
-		iFile, err = os.Open(indexFile)
+		var err error
+		document, err = os.Open(indexFile)
 		if err != nil {
-			return
-		}
-
-		sourcebytes, err = ioutil.ReadAll(iFile)
-		if err != nil {
-			return
+			panic(err)
 		}
 	} else {
-		sourcebytes = []byte(`<html>
+		document = bytes.NewReader([]byte(`<html>
 			<head></head>
 			<body w-app-container="">
 			</body>
-		</html>`)
+		</html>`))
 	}
 
-	document := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
-	wapp, err := wade.NewApp(conf, appFn, wade.RenderBackend{
-		JsBackend: &serverside.JsBackend{
-			BasicWatchBackend: bind.BasicWatchBackend{},
-			JsHistory:         wade.NewNoopHistory(conf.BasePath),
-		},
-		Document:    document,
-		HttpBackend: httpMock,
-	})
+	wapp := serverside.NewApp(conf, document, initialPath, httpMock)
 
-	app = &TestApp{
+	return &TestApp{
 		Application: wapp,
-		View: PageView{
-			Html: document,
+		PageView: PageView{
+			Document: wapp.Document(),
 		},
 	}
-
-	return
 }
 
-func NewDummyApp(t *testing.T, httpMock http.Backend) (app *TestApp, err error) {
-	app, err = NewTestApp(t, wade.AppConfig{}, func(app *wade.Application) {}, "", httpMock)
+type dummyMain struct{}
 
-	return
+func (dm dummyMain) Main(app *app.Application) {
+}
+
+func StartDummyApp(httpMock http.Backend) (*TestApp, error) {
+	app := NewTestApp(app.Config{}, "/", "", httpMock)
+	err := app.Start(dummyMain{})
+	return app, err
 }

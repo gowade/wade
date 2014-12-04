@@ -17,25 +17,24 @@ type (
 	}
 )
 
-func (t *Test) Init(node VNode) error {
+func (t *Test) ProcessInner(node VNode) {
 	NodeWalk(&node, func(node *VNode) {
 		if node.TagName() == "smile" {
 			*node = VText(":D")
 		}
 	})
+}
 
-	return nil
+func (t *Test) Update(node VNode) {
+	(&node.Children[0]).SetAttr("done", true)
 }
 
 func TestComponent(t *testing.T) {
-	tm := NewComManager()
+	tm := NewComManager(nil)
 	err := tm.Register(ComponentView{
 		Name:      "test",
 		Prototype: &Test{},
-		Template: VPrep(VNode{
-			Data:     "span",
-			Children: []VNode{{Data: CompInner}},
-		}),
+		Template:  VPrep(VNode{Data: CompInner}),
 	})
 
 	if err != nil {
@@ -72,4 +71,10 @@ func TestComponent(t *testing.T) {
 
 	ci.prepareInner(scope.NewScope())
 	require.Equal(t, re.Text(), ":D_:D")
+
+	re.Update()
+	//NodeDebug(*re, 0)
+	done, iok := re.Children[0].Attr("done")
+	require.Equal(t, iok, true)
+	require.Equal(t, done, true)
 }

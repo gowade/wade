@@ -45,6 +45,46 @@ func createTextNode(text string) *html.Node {
 	return node
 }
 
+func renderAttrs(v core.VNode, n *html.Node) {
+	var classAttr *html.Attribute
+	for name, val := range v.Attrs {
+		var value string
+
+		switch v := val.(type) {
+		case string:
+			value = v
+		case bool:
+			if !v {
+				continue
+			}
+
+			value = ""
+		default:
+			value = utils.ToString(val)
+		}
+
+		n.Attr = append(n.Attr, html.Attribute{
+			Key: name,
+			Val: value,
+		})
+
+		if name == "class" {
+			classAttr = &n.Attr[len(n.Attr)-1]
+		}
+	}
+
+	if clsStr := v.ClassStr(); clsStr != "" {
+		if classAttr != nil {
+			classAttr.Val += clsStr
+		} else {
+			n.Attr = append(n.Attr, html.Attribute{
+				Key: "class",
+				Val: clsStr,
+			})
+		}
+	}
+}
+
 func renderRec(v core.VNode) []*html.Node {
 	children := []*html.Node{}
 	for _, c := range v.Children {
@@ -66,27 +106,7 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createTextNode(v.Data)
 	case core.ElementNode:
 		n = createElement(v.Data)
-		for name, val := range v.Attrs {
-			var value string
-
-			switch v := val.(type) {
-			case string:
-				value = v
-			case bool:
-				if !v {
-					continue
-				}
-
-				value = ""
-			default:
-				value = utils.ToString(val)
-			}
-
-			n.Attr = append(n.Attr, html.Attribute{
-				Key: name,
-				Val: value,
-			})
-		}
+		renderAttrs(v, n)
 
 		for _, c := range children {
 			n.AppendChild(c)

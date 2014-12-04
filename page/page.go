@@ -1,9 +1,17 @@
-package wade
+package page
 
 import "fmt"
 
 var (
 	GlobalDisplayScope = &globalDisplayScope{}
+)
+
+type (
+	// Scope map returned by controller
+	Map map[string]interface{}
+
+	// PageControllerFunc is the functiong to be run on the load of a page or page scope
+	ControllerFunc func(Context) Map
 )
 
 type (

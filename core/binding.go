@@ -34,9 +34,9 @@ func (be BindingError) Error() string {
 	return be.Err.Error()
 }
 
-func NewBindEngine(universalSymtable map[string]interface{}) *Binding {
+func NewBindEngine(tempConv templateConverter, universalSymtable map[string]interface{}) *Binding {
 	b := &Binding{
-		tm:                NewComManager(),
+		tm:                NewComManager(tempConv),
 		binders:           map[string]Binder{},
 		UniversalSymtable: universalSymtable,
 	}

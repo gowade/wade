@@ -45,7 +45,7 @@ type (
 
 var (
 	gq = goquery.Dom{}
-	b  = core.NewBindEngine(make(map[string]interface{}))
+	b  = core.NewBindEngine(nil, make(map[string]interface{}))
 )
 
 func init() {

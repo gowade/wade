@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/phaikawl/wade/scope"
@@ -182,8 +183,35 @@ func (node VNode) Attr(attr string) (v interface{}, ok bool) {
 	return
 }
 
+func (node VNode) ChildElems() (l []*VNode) {
+	l = []*VNode{}
+	for i := range node.Children {
+		item := &node.Children[i]
+		if item.Type == ElementNode {
+			l = append(l, item)
+		}
+
+		if item.Type == GroupNode {
+			l = append(l, item.ChildElems()...)
+		}
+	}
+
+	return
+}
+
 func (node *VNode) SetAttr(attr string, value interface{}) {
 	node.Attrs[strings.ToLower(attr)] = value
+}
+
+func (node *VNode) ClassStr() (s string) {
+	for className, enabled := range node.classes {
+		if enabled {
+			s += className + " "
+		}
+	}
+
+	s = strings.TrimSpace(s)
+	return
 }
 
 func (node *VNode) SetClass(className string, on bool) {
@@ -204,6 +232,38 @@ func (node VNode) HasClass(className string) bool {
 	}
 
 	return false
+}
+
+func (node VNode) FindTag(tagName string) (result []*VNode) {
+	result = []*VNode{}
+	NodeWalk(&node, func(node *VNode) {
+		if node.Type == ElementNode && node.TagName() == tagName {
+			result = append(result, node)
+		}
+	})
+
+	return
+}
+
+func NodeDebug(node VNode, level int) {
+	sp := ""
+	for i := 0; i < level; i++ {
+		sp += "  "
+	}
+	fmt.Print(sp)
+	switch node.Type {
+	case TextNode:
+		fmt.Printf(`< "%v" >`, node.Data)
+	case MustacheNode:
+		fmt.Printf(`< {%v}"%v" >`, node.Binds[0].Name, node.Data)
+	default:
+		fmt.Printf("<%v:%v {%+v} [%v]>", node.Type, node.TagName(), node.Attrs, node.ClassStr())
+	}
+	fmt.Println()
+
+	for i, _ := range node.Children {
+		NodeDebug(node.Children[i], level+1)
+	}
 }
 
 func NodeWalkX(node *VNode, fn func(*VNode, int)) {

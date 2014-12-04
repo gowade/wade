@@ -2,21 +2,20 @@ package serverside
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
-	"runtime"
 	"strings"
 
 	gqdom "github.com/phaikawl/wade/dom/goquery"
 	"golang.org/x/net/html"
 
-	"github.com/phaikawl/wade"
 	"github.com/phaikawl/wade/app"
 	"github.com/phaikawl/wade/dom"
 	wadehttp "github.com/phaikawl/wade/libs/http"
 	gohttp "github.com/phaikawl/wade/libs/http/serverside"
+	"github.com/phaikawl/wade/page"
 )
 
 type (
@@ -30,25 +29,35 @@ type (
 		Records []wadehttp.HttpRecord
 	}
 
-	Backend struct {
-		history     wade.History
-		httpBackend *serverCacheHttpBackend
+	renderBackend struct {
+		history     page.History
+		httpBackend wadehttp.Backend
 		document    dom.Selection
+	}
+
+	finalizable interface {
+		AfterReady(*app.Application)
 	}
 )
 
-func (b Backend) History() wade.History {
+func (b renderBackend) History() page.History {
 	return b.history
 }
 
-func (b Backend) Bootstrap(app *app.Application) {}
+func (b renderBackend) Bootstrap(app *app.Application) {}
 
-func (b Backend) Document() dom.Selection {
+func (b renderBackend) Document() dom.Selection {
 	return b.document
 }
 
-func (b Backend) HttpBackend() wadehttp.Backend {
+func (b renderBackend) HttpBackend() wadehttp.Backend {
 	return b.httpBackend
+}
+
+func (b renderBackend) AfterReady(app *app.Application) {
+	if bkn, ok := b.httpBackend.(finalizable); ok {
+		bkn.AfterReady(app)
+	}
 }
 
 func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
@@ -65,57 +74,57 @@ func (b *serverCacheHttpBackend) Do(r *wadehttp.Request) (err error) {
 	return
 }
 
-func RenderApp(
-	server http.Handler,
-	request *http.Request,
-	w io.Writer,
-	conf app.Config,
-	appMain app.Main,
-	document io.Reader,
-	cachePrefix string) (err error) {
+func (b *serverCacheHttpBackend) requestPath() string {
+	return b.ClientReq.URL.Path
+}
 
-	defer func() {
-		if r := recover(); r != nil {
-			trace := make([]byte, 1024)
-			count := runtime.Stack(trace, true)
-			err = fmt.Errorf("Error while rendering the app: %s\nStack of %d bytes: %s\n", r, count, trace)
-		}
-	}()
-
-	sourcebytes, err := ioutil.ReadAll(document)
-	if err != nil {
-		return
-	}
-
-	cacheb := &serverCacheHttpBackend{
-		ServerBackend: gohttp.ServerBackend{server, request},
-		cache:         make(map[string]*requestList),
-		cachePrefix:   cachePrefix,
-	}
-
-	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
-	app := app.New(conf, Backend{
-		history:     wade.NewNoopHistory(request.URL.Path),
-		document:    doc,
-		httpBackend: cacheb,
-	})
-
-	app.Start(appMain)
-
+func (b *serverCacheHttpBackend) afterReady(app *app.Application) {
+	doc := app.Document()
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
 		head = doc.NewFragment("<head></head>")
 		doc.Prepend(head)
 	}
+
 	src := doc.NewFragment(`<script type="text/wadehttp"></script>`)
-	cbytes, err := json.Marshal(cacheb.cache)
+	cbytes, err := json.Marshal(b.cache)
 	if err != nil {
 		return
 	}
 
 	src.SetHtml(string(cbytes[:]))
 	head.Append(src)
+}
 
-	err = html.Render(w, doc.(gqdom.Selection).Nodes[0])
+func NewHttpBackend(server http.Handler, request *http.Request, cachePrefix string) wadehttp.Backend {
+	return &serverCacheHttpBackend{
+		ServerBackend: gohttp.ServerBackend{server, request},
+		cache:         make(map[string]*requestList),
+		cachePrefix:   cachePrefix,
+	}
+}
+
+func NewApp(conf app.Config, document io.Reader, startPath string, httpBackend wadehttp.Backend) *app.Application {
+	sourcebytes, err := ioutil.ReadAll(document)
+	if err != nil {
+		log.Println(`HTML parse error "%v".`, err.Error())
+	}
+
+	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
+
+	return app.New(conf, renderBackend{
+		history:     page.NewNoopHistory(startPath),
+		document:    doc,
+		httpBackend: httpBackend,
+	})
+}
+
+func StartRender(app *app.Application, appMain app.Main, w io.Writer) (err error) {
+	err = app.Start(appMain)
+	if err != nil {
+		return
+	}
+
+	err = html.Render(w, app.Document().(gqdom.Selection).Nodes[0])
 	return
 }
