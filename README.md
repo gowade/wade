@@ -6,53 +6,12 @@
 * Compiled, statically typed programming with Go (compiled to Javascript on client side by [gopherjs](https://github.com/gopherjs/gopherjs))
 * Client-centric web development model with HTML data binding (think AngularJs)
 * Hybrid rendering: Write code once, render on both client and server (think server-side ReactJS)
-* Instant functional testing with native `go test` (no browser needed)
 
 With the creation of Wade.Go, you can now write both client and server in a single programming language that is not Javascript. Go brings the best concurrency pattern (goroutines) and the static type system that makes maintenance a breeze.
 
-Although being a client-centric web framework, Wade.Go works even when Javascript is disabled and is SEO-friendly due to the ability to render the site with server-side Go. Wade.Go is built for web *sites*, not just *apps*, it is built for content-heavy sites like blog, forum as well as very dynamic web applications.
+Although being client-centric in approach, Wade.Go is independent and designed to work perfectly when Javascript is not available, the ability to render the site on the server is built in. It even has a **functional test** API that runs the app in native Go with `go test`.
 
-# Templating overview
-## Data binding
-Wade.Go's templating is HTML-based, the data binding mechanism is partly inspired by a design document from Angular 2.0 and Rivetsjs. It has very limited syntax composed of a few clearly defined rules, no learning effort, no surprises!
-
-A little example
-
-    <div #each(_,post)="Posts">
-        <div>
-          <a @href="GetLink(post)">{{ post.Title }}</a>
-        </div>
-        <div>
-            {{ len(post.Comments) }} comments
-        </div>
-        <div>
-            by {{ post.Author }}
-        </div>
-    </div>
-    
-## Reusable Components
-This feature is inspired by ReactJs and HTML Web Components. It's even better with the static type system from Go, prototype fields are all properly typed!
-
-Example component prototype
-
-    // VoteBoxModel is the prototype for the "votebox" custom element
-    VoteBoxModel struct {
-        *wade.BaseProto
-        Vote      *c.Score
-        VoteUrl   string
-    }
-    
-Example usage and property binding
-
-    <div #each(_,post)="Posts">
-      <div>
-        <!-- Here we assign value to the fields Vote and VoteUrl of the component instance-->
-        <VoteBox @Vote="post.Vote" @VoteUrl="GetVoteUrl(post)"></VoteBox>
-      </div>
-      <div>
-        {{ post.Content }}
-      </div>
-    </div>
+Wade.Go is made for web *sites*, not just *apps*, it is built for content-heavy sites like blog, forum as well as very dynamic web applications.
 
 # Getting started
 * [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Outdated)
