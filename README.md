@@ -1,5 +1,5 @@
 
->>> I'm happy to announce that Wade.Go is now in **Beta Testing** phase, from now on it's unlikely that the API and binding syntax will be changed drastically. No release yet though, the *iteration 3* is still being developed that brings necessary performance improvements
+>>> December 21, 2014: Wade.Go i3 on react-esque virtual DOM technique is underway (on the "vdom" branch). The internal API rewrite and code migration is done, it now passed the *wadereddi* functional test. The remaining task is Javascript adaptation, mainly integrating with a Javascript virtual DOM rendering library.
 
 # Wade.Go
 **Wade.Go** is a **client-centric** web framework like nothing you ever heard. It brings these awesome things together
@@ -10,23 +10,20 @@
 
 With the creation of Wade.Go, you can now write both client and server in a single programming language that is not Javascript. Go brings the best concurrency pattern (goroutines) and the static type system that makes maintenance a breeze.
 
-Although being a client-centric web framework, Wade.Go works even when Javascript is disabled and is SEO-friendly due to the ability to render the site with server-side Go. Wade.Go is built for web *sites*, not just *apps*, it works for content-heavy sites like blog, forum as well as very dynamic ones like Facebook.
+Although being a client-centric web framework, Wade.Go works even when Javascript is disabled and is SEO-friendly due to the ability to render the site with server-side Go. Wade.Go is built for web *sites*, not just *apps*, it is built for content-heavy sites like blog, forum as well as very dynamic web applications.
 
 # Templating overview
 ## Data binding
-Wade.Go's templating is HTML-based, the data binding mechanism is partly inspired by a design document from Angular 2.0 and Rivetsjs. Features
-  * Concise, strict and clear syntax, composed of a few clearly defined rules, no surprises!
-  * Optional watching: you can control what data is watched for changes and what don't need
+Wade.Go's templating is HTML-based, the data binding mechanism is partly inspired by a design document from Angular 2.0 and Rivetsjs. It has very limited syntax composed of a few clearly defined rules, no learning effort, no surprises!
 
 A little example
 
-    <!-- '$' means "watch this value" -->
-    <div #each(_,post)="$Posts">
+    <div #each(_,post)="Posts">
         <div>
           <a @href="GetLink(post)">{{ post.Title }}</a>
         </div>
         <div>
-            {{ len($post.Comments) }} comments
+            {{ len(post.Comments) }} comments
         </div>
         <div>
             by {{ post.Author }}
@@ -47,7 +44,7 @@ Example component prototype
     
 Example usage and property binding
 
-    <div #each(_,post)="$Posts">
+    <div #each(_,post)="Posts">
       <div>
         <!-- Here we assign value to the fields Vote and VoteUrl of the component instance-->
         <VoteBox @Vote="post.Vote" @VoteUrl="GetVoteUrl(post)"></VoteBox>
@@ -58,13 +55,9 @@ Example usage and property binding
     </div>
 
 # Getting started
-* [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide)
-* [godoc API reference](http://godoc.org/github.com/phaikawl/wade)
-* [Wadereddi](https://github.com/phaikawl/wadereddi) the demo app
-
-Wade.Go is currently in "Beta testing" phase, nothing is really finalized yet, so please give feedbacks via the [Issues](https://github.com/phaikawl/wade/issues) section, tell us what you think about the framework, what you want to change and improve. You can also post [here](https://groups.google.com/forum/#!forum/wadego).
-
-Pull requests are welcome. Contact me if you want to join the team.
+* [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Outdated)
+* [godoc API reference](http://godoc.org/github.com/phaikawl/wade) (Outdated)
+* [Wadereddi](https://github.com/phaikawl/wadereddi) the demo app (Test only)
 
 # License
 
