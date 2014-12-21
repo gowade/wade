@@ -9,7 +9,7 @@
 
 With the creation of Wade.Go, you can now write both client side and server side in a single programming language that is not Javascript. Go brings the best concurrency pattern (goroutines) and the static type system that makes maintenance a breeze.
 
-Although being client-centric in approach, Wade.Go is independent and designed to work perfectly when Javascript is not available, the ability to render the site on the server is built in. It even has a **functional test** API that runs the app in native Go with `go test`.
+Although being client-centric in approach, Wade.Go is independent and designed to work perfectly when Javascript is not available, the ability to render the site on the server is built in. It even has a **functional test** API that runs the app in native Go with `go test` (no browser).
 
 Wade.Go is made for web *sites*, not just *apps*, it can help build content-heavy sites like blog, forum as well as dynamic web applications.
 
