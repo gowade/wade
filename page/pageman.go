@@ -33,8 +33,8 @@ type (
 	}
 
 	OutputManager interface {
-		RenderPage(title string, condFn core.CondFn)
-		VirtualDOM() *core.VNode
+		MarkupPage(title string, condFn core.CondFn) *core.VNode
+		Render()
 	}
 
 	PageManager struct {
@@ -195,10 +195,7 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 	pm.currentPage = page
 	pm.formattedTitle = page.Title
 
-	pm.binding.Bind(pm.output.VirtualDOM(),
-		pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)...)
-
-	pm.output.RenderPage(pm.formattedTitle,
+	vdom := pm.output.MarkupPage(pm.formattedTitle,
 		func(vnode core.VNode) bool {
 			if belongstr, ok := vnode.Attr(core.BelongAttrName); ok {
 				belongs := strings.Split(belongstr.(string), " ")
@@ -218,6 +215,11 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 
 			return true
 		})
+
+	pm.binding.Bind(vdom,
+		pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)...)
+
+	pm.output.Render()
 }
 
 // PageUrl returns the url for the page with the given parameters
@@ -294,8 +296,13 @@ func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.
 
 	if len(controllers) > 0 {
 		for _, controller := range controllers {
-			//gopherjs:blocking
-			models = append(models, controller(pm.ctx))
+			if controller != nil {
+				//gopherjs:blocking
+				m := controller(pm.ctx)
+				if m != nil {
+					models = append(models, m)
+				}
+			}
 		}
 	}
 

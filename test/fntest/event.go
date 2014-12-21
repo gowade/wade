@@ -1,9 +1,11 @@
-package test
+package fntest
 
 import (
 	"github.com/gopherjs/gopherjs/js"
+	"golang.org/x/net/html"
+
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/domconv/gonet"
 )
 
 type (
@@ -77,12 +79,17 @@ func (e *MouseEvent) Pos() (int, int) {
 	return e.posX, e.posY
 }
 
-func triggerRec(selection dom.Selection, event Event) {
-	goquery.TriggerEvent(selection, event)
+func triggerRec(node *html.Node, event Event) {
+	vnode := gonet.GetVNode(node)
+
+	if i, ok := vnode.Attr("on" + event.Type()); ok {
+		handler := i.(func(dom.Event))
+		handler(event)
+	}
 
 	if !event.Event().propaStopped {
-		if parent := selection.Parent(); parent.Length() > 0 {
-			triggerRec(parent, event)
+		if node.Parent != nil {
+			triggerRec(node.Parent, event)
 		}
 	}
 }

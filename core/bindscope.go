@@ -12,6 +12,10 @@ type (
 	}
 )
 
+func (b *bindScope) AddValues(values map[string]interface{}) {
+	b.Scope = b.Scope.Merge(NewScope(values))
+}
+
 func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
 	wrapped := false
 

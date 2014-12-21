@@ -8,10 +8,10 @@ var (
 
 type (
 	// Scope map returned by controller
-	Map map[string]interface{}
+	Scope map[string]interface{}
 
 	// PageControllerFunc is the functiong to be run on the load of a page or page scope
-	ControllerFunc func(Context) Map
+	ControllerFunc func(Context) Scope
 )
 
 type (

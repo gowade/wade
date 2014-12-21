@@ -45,6 +45,7 @@ type (
 		classes   map[string]bool
 		scope     *scope.Scope
 		callbacks []cbFunc
+		Rendered  interface{} // data field to save the real rendered DOM element
 	}
 
 	CondFn func(node VNode) bool
@@ -59,7 +60,7 @@ func (node *VNode) addCallback(cb cbFunc) {
 	node.callbacks = append(node.callbacks, cb)
 }
 
-func PreprocessVNode(v *VNode) {
+func preprocessVNode(v *VNode) {
 	if v.Type == NotsetNode {
 		if v.Data == "" {
 			panic("Uninitialized node detected, no node type and node data.")
@@ -80,6 +81,8 @@ func PreprocessVNode(v *VNode) {
 		if v.Children == nil {
 			v.Children = []VNode{}
 		}
+
+		v.processClassAttr()
 	}
 }
 
@@ -135,10 +138,27 @@ func VPrep(node VNode) (r VNode) {
 }
 
 func prepRec(node *VNode) {
-	PreprocessVNode(node)
+	preprocessVNode(node)
 	for i := range node.Children {
 		prepRec(&node.Children[i])
 	}
+}
+
+func (node *VNode) processClassAttr() {
+	if class, ok := node.Attr("class"); ok {
+		if node.classes == nil {
+			node.classes = map[string]bool{}
+		}
+
+		classes := strings.Split(class.(string), " ")
+		for _, cls := range classes {
+			node.classes[cls] = true
+		}
+	}
+}
+
+func (node *VNode) Prep() {
+	prepRec(node)
 }
 
 func (node VNode) TagName() string {
@@ -187,16 +207,16 @@ func (node VNode) ChildElems() (l []*VNode) {
 	l = []*VNode{}
 	for i := range node.Children {
 		item := &node.Children[i]
-		if item.Type == ElementNode {
+		if item.Type == ElementNode || item.Type == GroupNode {
 			l = append(l, item)
-		}
-
-		if item.Type == GroupNode {
-			l = append(l, item.ChildElems()...)
 		}
 	}
 
 	return
+}
+
+func (node VNode) IsElement() bool {
+	return node.Type == ElementNode || node.Type == GroupNode
 }
 
 func (node *VNode) SetAttr(attr string, value interface{}) {
@@ -234,35 +254,35 @@ func (node VNode) HasClass(className string) bool {
 	return false
 }
 
-func (node VNode) FindTag(tagName string) (result []*VNode) {
-	result = []*VNode{}
-	NodeWalk(&node, func(node *VNode) {
-		if node.Type == ElementNode && node.TagName() == tagName {
-			result = append(result, node)
-		}
-	})
-
-	return
+func (node VNode) Debug() {
+	nodeDebug(node, 0)
 }
 
-func NodeDebug(node VNode, level int) {
+func nodeDebug(node VNode, level int) {
 	sp := ""
 	for i := 0; i < level; i++ {
 		sp += "  "
 	}
 	fmt.Print(sp)
+	group := ""
+	if node.Type == GroupNode {
+		group = "group"
+	}
 	switch node.Type {
 	case TextNode:
-		fmt.Printf(`< "%v" >`, node.Data)
+		text := strings.TrimSpace(node.Data)
+		if text != "" {
+			fmt.Printf(`"%v"`, text)
+		}
 	case MustacheNode:
-		fmt.Printf(`< {%v}"%v" >`, node.Binds[0].Name, node.Data)
+		fmt.Printf(`{{%v}"%v" }`, node.Binds[0].Expr, node.Data)
 	default:
-		fmt.Printf("<%v:%v {%+v} [%v]>", node.Type, node.TagName(), node.Attrs, node.ClassStr())
+		fmt.Printf("<%v:%v {%+v} [%v]>", node.TagName(), group, node.Attrs, node.ClassStr())
 	}
 	fmt.Println()
 
 	for i, _ := range node.Children {
-		NodeDebug(node.Children[i], level+1)
+		nodeDebug(node.Children[i], level+1)
 	}
 }
 
@@ -274,9 +294,8 @@ func NodeWalkX(node *VNode, fn func(*VNode, int)) {
 }
 
 func NodeWalk(node *VNode, fn func(*VNode)) {
-	PreprocessVNode(node)
 	fn(node)
-	for i, _ := range node.Children {
+	for i := range node.Children {
 		NodeWalk(&node.Children[i], fn)
 	}
 }
@@ -287,7 +306,7 @@ func (node VNode) Clone() (clone VNode) {
 
 func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
 	clone = node
-	PreprocessVNode(&clone)
+	preprocessVNode(&clone)
 	clone.Children = make([]VNode, 0)
 	for i := range node.Children {
 		if cond == nil || cond(node.Children[i]) {

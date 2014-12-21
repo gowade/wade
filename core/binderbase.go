@@ -10,6 +10,10 @@ type ModelUpdateFn func(value string)
 
 // Binder is the common interface for binders.
 type Binder interface {
+	// BeforeBind is called before the binder's evaluation happens, the binder
+	// may add additional values to the scope with this method
+	BeforeBind(ScopeAdder)
+
 	// Check the number of arguments and return whether it's legal or not
 	CheckArgsNo(argsNo int) (bool, string)
 
@@ -18,6 +22,14 @@ type Binder interface {
 
 	// Bind is called once when a bind is executed
 	Bind(DomBind)
+}
+
+type ScopeAdder interface {
+	AddValues(map[string]interface{})
+}
+
+type MutableBinder interface {
+	NewInstance() Binder
 }
 
 type TwoWayBinder interface {
@@ -50,10 +62,9 @@ func (d DomBind) RemoveBind(node *VNode) {
 	}
 }
 
-// ProduceOutputs is a convenient method which performs call Bind on the element,
-// producing values with name specified in names
-// and values specified in outputs accordingly
-func (d DomBind) ProduceOutputs(node *VNode, names []string, outputs ...interface{}) {
+// BindOutputs is a convenient method that adds values with name specified in names
+// and values specified in outputs accordingly and perform a bind to the specified node
+func (d DomBind) BindOutputs(node *VNode, names []string, outputs ...interface{}) {
 	m := make(map[string]interface{})
 	if len(outputs) == len(names) {
 		for i, output := range names {
@@ -76,10 +87,10 @@ type BaseBinder struct{}
 func (b BaseBinder) Bind(d DomBind) {
 }
 
-func (b BaseBinder) Update(d DomBind) {
+func (b BaseBinder) BeforeBind(s ScopeAdder) {
 }
 
-func (b BaseBinder) Listen(d DomBind, ufn ModelUpdateFn) {
+func (b BaseBinder) Update(d DomBind) {
 }
 
 func (b BaseBinder) CheckArgsNo(n int) (bool, string) {

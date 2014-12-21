@@ -5,6 +5,7 @@ import (
 
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/vquery"
 )
 
 const (
@@ -21,14 +22,17 @@ type (
 		document  dom.Selection
 		fetcher   SrcFetcher
 		container dom.Selection
-		origVdom  core.VNode
-		vdom      core.VNode
+		importCtn dom.Selection
+		origVdom  *core.VNode
+		vdom      *core.VNode
+		onReady   []func()
 	}
 
 	NopFetcher struct{}
 
 	TemplateConverter struct {
-		Doc dom.Selection
+		*MarkupManager
+		queue []func()
 	}
 )
 
@@ -37,21 +41,47 @@ func (f NopFetcher) FetchFile(file string) (string, error) {
 }
 
 func (tc TemplateConverter) FromString(template string) core.VNode {
-	return tc.Doc.NewFragment(template).ToVNode()
+	return tc.document.NewFragment(template).ToVNode()
 }
 
-func (tc TemplateConverter) FromHTMLTemplate(templateId string) core.VNode {
-	vn := core.VNode{
-		Type:     core.GroupNode,
-		Children: []core.VNode{},
+func (tc *TemplateConverter) processQueue() {
+	for _, fn := range tc.queue {
+		fn()
 	}
+}
 
-	children := tc.Doc.Find("template#" + templateId).Children().Elements()
-	for _, c := range children {
-		vn.Children = append(vn.Children, c.ToVNode())
-	}
+func (tc *TemplateConverter) FromHTMLTemplate(templatePtr *core.VNode, templateId string) core.VNode {
+	tc.queue = append(tc.queue, func() {
+		vn := core.VNode{
+			Type:     core.GroupNode,
+			Children: []core.VNode{},
+		}
 
-	return vn
+		template := tc.importCtn.Find("template#" + templateId)
+		if template.Length() == 0 {
+			panic(fmt.Errorf(`Cannot find HTML Template "%v".`, templateId))
+		}
+
+		children := template.Children().Elements()
+
+		for _, c := range children {
+			vn.Children = append(vn.Children, c.ToVNode())
+		}
+
+		*templatePtr = vn
+	})
+
+	// return a temporary dummy template, replaced later
+	return core.VPrep(core.VNode{
+		Type: core.GroupNode,
+		Data: "component",
+	})
+}
+
+func (m *MarkupManager) TemplateConverter() *TemplateConverter {
+	tc := &TemplateConverter{m, make([]func(), 0)}
+	m.onReady = append(m.onReady, tc.processQueue)
+	return tc
 }
 
 func (m MarkupManager) Document() dom.Selection {
@@ -69,6 +99,8 @@ func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager) {
 		document:  document,
 		fetcher:   fetcher,
 		container: c,
+		importCtn: c,
+		onReady:   make([]func(), 0),
 	}
 
 	return
@@ -79,22 +111,37 @@ func (mm MarkupManager) Container() dom.Selection {
 }
 
 func (mm MarkupManager) Render() {
+	mm.vdom.Update()
 	mm.container.Render(mm.vdom)
 }
 
-func (mm *MarkupManager) RenderPage(title string, condFn core.CondFn) {
-	mm.vdom = mm.origVdom.CloneWithCond(condFn)
-	mm.Render()
+func (mm MarkupManager) VDom() *core.VNode {
+	return mm.vdom
 }
 
-func (mm *MarkupManager) VirtualDOM() *core.VNode {
-	return &mm.vdom
+func (mm *MarkupManager) MarkupPage(title string, condFn core.CondFn) *core.VNode {
+	if mm.origVdom == nil {
+		panic("View has not been loaded.")
+	}
+
+	mm.vdom = mm.origVdom.CloneWithCond(condFn).Ptr()
+
+	headElem := mm.document.Find("head").First()
+	titleElem := headElem.Find("title")
+	if titleElem.Length() == 0 {
+		titleElem = mm.document.NewFragment("<title></title>")
+		headElem.Append(titleElem)
+	}
+
+	titleElem.SetHtml(title)
+
+	return mm.vdom
 }
 
 func (mm *MarkupManager) LoadView() (err error) {
 	file, ok := mm.container.Attr(AppViewAttr)
 	if !ok {
-		panic("WTF? who changed it?")
+		panic("WTF?")
 	}
 
 	importCtn := mm.container
@@ -116,8 +163,16 @@ func (mm *MarkupManager) LoadView() (err error) {
 		return
 	}
 
-	mm.origVdom = importCtn.ToVNode()
+	mm.origVdom = importCtn.ToVNode().Ptr()
+	for _, tmpl := range vq.New(mm.origVdom).Find(vq.Selector{Tag: "template"}) {
+		tmpl.Type = core.DeadNode
+	}
 	mm.vdom = mm.origVdom
+	mm.importCtn = importCtn
+	for _, fn := range mm.onReady {
+		fn()
+	}
+
 	return
 }
 
@@ -151,7 +206,7 @@ func HTMLImports(fetcher SrcFetcher, container dom.Selection) (err error) {
 
 			// the go html parser will refuse to work if the content is only text, so
 			// we put a wrapper here
-			newElem := container.NewFragment("<div !ghost>" + html + "</div>")
+			newElem := container.NewFragment("<div !group>" + html + "</div>")
 			if belong, hasbelong := elem.Attr(core.BelongAttrName); hasbelong {
 				newElem.SetAttr(core.BelongAttrName, belong)
 			}

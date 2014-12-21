@@ -46,7 +46,7 @@ func TestConversion(t *testing.T) {
 			},
 			core.VText("t"),
 		},
-	})
+	}).Ptr()
 
 	buf := bytes.NewBufferString("")
 	Render(node, root)
@@ -82,14 +82,14 @@ func TestConversion(t *testing.T) {
 
 	vnode := ToVNode(pnode)
 	target := createElement("zz")
-	Render(target, vnode)
+	Render(target, &vnode)
 
 	b := bytes.NewBufferString("")
 	html.Render(b, target)
 	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src))
 
 	vnode.ChildElems()[0].ChildElems()[0].SetClass("done", true)
-	Render(target, vnode)
+	Render(target, &vnode)
 	b = bytes.NewBufferString("")
 	html.Render(b, target)
 	src2 := `<div>

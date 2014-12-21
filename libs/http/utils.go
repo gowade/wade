@@ -21,11 +21,8 @@ func NewNamedParams(params []urlrouter.Param) (np *NamedParams) {
 	return
 }
 
-// GetParam puts the value of the given named parameter to a dest.
-// The dest must be a pointer, to receive the value.
-// for example
-//	pc.GetParam("postid", &pmodel.PostId)
-func (np *NamedParams) GetTo(param string, dest interface{}) (err error) {
+// GetParam use fmt.Sscan to scan the value of the given named parameter to a dest.
+func (np *NamedParams) ScanTo(dest interface{}, param string) (err error) {
 	v, ok := np.m[param]
 	if !ok {
 		err = fmt.Errorf("No such parameter %v.", param)

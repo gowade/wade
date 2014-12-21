@@ -265,8 +265,10 @@ func parseLiteralExpr(expr string) (value interface{}, isLiteral bool, err error
 			}
 
 		default:
-			err = fmt.Errorf("Invalid character '%q'", c)
-			return
+			if !isValidExprChar(c) {
+				err = fmt.Errorf("Invalid character '%q'", c)
+				return
+			}
 		}
 	}
 

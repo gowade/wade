@@ -1,4 +1,4 @@
-package core
+package binders
 
 import (
 	"fmt"
@@ -10,15 +10,21 @@ import (
 )
 
 var (
-	Binders = map[string]core.Binder{
+	binders = map[string]core.Binder{
 		"value": ValueBinder{},
-		"on":    EventBinder{},
+		"on":    &EventBinder{},
 		"range": &RangeBinder{},
 		"if":    &IfBinder{},
 		"ifn":   IfnBinder{&IfBinder{}},
 		"class": ClassBinder{},
 	}
 )
+
+func Install(b *core.Binding) {
+	for name, binder := range binders {
+		b.RegisterBinder(name, binder)
+	}
+}
 
 // ValueBinder is a 2-way binder that binds an element's value attribute to a value.
 // Meant to be used for <input>, <textarea> and <select>.
@@ -29,6 +35,10 @@ var (
 // Usage:
 //	#value(...events)="Expression"
 type ValueBinder struct{ core.BaseBinder }
+
+func (b ValueBinder) CheckArgsNo(n int) (bool, string) {
+	return true, "any"
+}
 
 // Update sets the element's value attribute to a new value
 func (b ValueBinder) Update(d core.DomBind) {
@@ -71,45 +81,48 @@ func (b ClassBinder) Update(d core.DomBind) {
 //	#on(event)="Expression"
 //
 //
-// The Expression is evaluated like any other expressions, if you call a function,
-// the value that gets bound is the return value, not the function call.
-// You can use Wade.Go's '@' syntax to conveniently wrap a function call.
-//
-// Example: we have a function func Fn(super bool) int. You want to call Fn with super=true on click event.
-// You would do it like this:
-//  #on(click)="@Fn(true)"
-// Note that
-//  #on(click)="Fn(true)"
-// is invalid because the bind value here is an int returned by Fn, an error will be raised.
-type EventBinder struct{ core.BaseBinder }
+// The Expression is evaluated like any other expressions,
+// if the expression is a function call,
+// the value evaluated is the return value, not the function call.
+type EventBinder struct {
+	core.BaseBinder
+	evt *dom.Event
+}
 
 func (b EventBinder) CheckArgsNo(n int) (bool, string) {
 	return n == 1, "1"
 }
 
-func (b EventBinder) Bind(d core.DomBind) {
+func (b *EventBinder) BeforeBind(s core.ScopeAdder) {
+	s.AddValues(map[string]interface{}{
+		"$event": b.evt,
+	})
+}
+
+func (b EventBinder) NewInstance() core.Binder {
+	return &EventBinder{evt: new(dom.Event)}
+}
+
+func (b *EventBinder) Bind(d core.DomBind) {
 	fni := d.Value
 	if fni == nil {
-		panic(fmt.Errorf(`Event must be bound to a handler function of type
-		func(dom.Event), not a nil.
-		Note that if you want to call a function,
-		please wrap it or use the '@' syntax.`))
+		panic(fmt.Errorf(`Event must be bound to a handler function, not a nil.
+		Please use the '@' syntax to wrap a function call.`))
 	}
 
-	handler1, ok1 := fni.(func(dom.Event))
+	handler, ok := fni.(func())
 
-	if !ok1 {
+	if !ok {
 		panic(fmt.Errorf(`Wrong type %v for EventBinder's bind target,
-		must be a function of type func(dom.Event)`,
+		must be a function of type func()`,
 			reflect.TypeOf(fni).String()))
 	}
 
 	evtname := d.Args[0]
 	d.Node.SetAttr("on"+evtname, func(evt dom.Event) {
-		go func() {
-			//gopherjs:blocking
-			handler1(evt)
-		}()
+		*b.evt = evt
+		//gopherjs:blocking
+		handler()
 	})
 }
 
@@ -127,6 +140,10 @@ type RangeBinder struct {
 	prototype core.VNode
 }
 
+func (b RangeBinder) NewInstance() core.Binder {
+	return &RangeBinder{}
+}
+
 func (b *RangeBinder) Bind(d core.DomBind) {
 	b.prototype = *d.Node
 	d.RemoveBind(&b.prototype)
@@ -139,6 +156,10 @@ func (b *RangeBinder) Bind(d core.DomBind) {
 	return
 }
 
+func (b RangeBinder) CheckArgsNo(n int) (bool, string) {
+	return n == 2, "2"
+}
+
 func (b RangeBinder) Update(d core.DomBind) {
 	val := reflect.ValueOf(d.Value)
 	if val.Kind() != reflect.Slice {
@@ -149,7 +170,7 @@ func (b RangeBinder) Update(d core.DomBind) {
 	for i := 0; i < val.Len(); i++ {
 		d.Node.Children[i] = b.prototype.Clone()
 
-		d.ProduceOutputs(&d.Node.Children[i], d.Args[:2], i, val.Index(i).Interface())
+		d.BindOutputs(&d.Node.Children[i], d.Args[:2], i, val.Index(i).Interface())
 	}
 
 	return
@@ -162,6 +183,10 @@ func (b RangeBinder) Update(d core.DomBind) {
 type IfBinder struct {
 	core.BaseBinder
 	nodeType core.NodeType
+}
+
+func (b IfBinder) NewInstance() core.Binder {
+	return &IfBinder{}
 }
 
 func (b *IfBinder) Bind(d core.DomBind) {
@@ -192,4 +217,8 @@ func (b IfnBinder) Update(d core.DomBind) {
 	b.IfBinder.Update(d)
 
 	return
+}
+
+func (b IfnBinder) NewInstance() core.Binder {
+	return IfnBinder{&IfBinder{}}
 }

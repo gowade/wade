@@ -7,6 +7,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 
+	"github.com/phaikawl/wade/binders"
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
@@ -26,6 +27,10 @@ func App() *Application {
 	}
 
 	return gApp
+}
+
+func SetApp(app *Application) {
+	gApp = app
 }
 
 type (
@@ -72,6 +77,10 @@ func (app *Application) Document() dom.Selection {
 	return app.markupMgr.Document()
 }
 
+func (app *Application) MarkupMgr() *markman.MarkupManager {
+	return app.markupMgr
+}
+
 func (fetcher fetcher) FetchFile(file string) (data string, err error) {
 	resp, err := fetcher.http.GET(path.Join(fetcher.serverBase, file))
 	if resp.Failed() || err != nil {
@@ -94,13 +103,21 @@ func (app *Application) Router() page.Router {
 func (app *Application) Start(appMain Main) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			trace := make([]byte, 1024)
+			trace := make([]byte, 4096)
 			count := runtime.Stack(trace, true)
 			err = fmt.Errorf("Error while starting and rendering the app: %s\nStack of %d bytes: %s\n", r, count, trace)
 		}
 	}()
 
+	SetApp(app)
+
 	appMain.Main(app)
+
+	err = app.markupMgr.LoadView()
+	if err != nil {
+		return
+	}
+
 	app.PageMgr.Start()
 	app.renderBackend.AfterReady(app)
 
@@ -114,8 +131,10 @@ func (app *Application) Start(appMain Main) (err error) {
 	return
 }
 
-func (app *Application) AddComponent(cv core.ComponentView) {
-	app.bindEngine.ComponentManager().Register(cv)
+func (app *Application) AddComponent(cvList ...core.ComponentView) {
+	for _, cv := range cvList {
+		app.bindEngine.ComponentManager().Register(cv)
+	}
 }
 
 func (app *Application) AddPageGroup(pageGroup page.PageGroup) {
@@ -127,11 +146,13 @@ func New(config Config, rb RenderBackend) (app *Application) {
 	httpClient := http.NewClient(rb.HttpBackend())
 	http.SetDefaultClient(httpClient)
 
-	bindEngine := core.NewBindEngine(markman.TemplateConverter{rb.Document()}, DefaultHelpers)
 	markupMgr := markman.New(rb.Document(), fetcher{
 		http:       httpClient,
 		serverBase: config.ServerBase,
 	})
+
+	bindEngine := core.NewBindEngine(markupMgr.TemplateConverter(), defaultHelpers)
+	binders.Install(bindEngine)
 
 	app = &Application{
 		Config:     config,
@@ -142,6 +163,8 @@ func New(config Config, rb RenderBackend) (app *Application) {
 			markupMgr, bindEngine),
 		renderBackend: rb,
 	}
+
+	defaultHelpers["url"] = app.PageMgr.PageUrl
 
 	rb.Bootstrap(app)
 

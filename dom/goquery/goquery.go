@@ -21,8 +21,7 @@ const (
 )
 
 var (
-	gDom          = Dom{}
-	EventHandlers = map[*html.Node]map[string][]dom.EventHandler{}
+	gDom = Dom{}
 )
 
 type (
@@ -87,6 +86,10 @@ func parseHTML(source string) []*html.Node {
 	}
 
 	return nodes
+}
+
+func SelectionFromNodes(nodes ...*html.Node) dom.Selection {
+	return selFromNodes(nodes)
 }
 
 func selFromNodes(nodes []*html.Node) dom.Selection {
@@ -473,21 +476,7 @@ func (s Selection) Underlying() js.Object {
 	return nil
 }
 
-func (s Selection) On(eventname string, handler dom.EventHandler) {
-	// Save to EventHandlers for event simulation
-	node := s.Nodes[0]
-	if _, ok := EventHandlers[node]; !ok {
-		EventHandlers[node] = map[string][]dom.EventHandler{}
-	}
-
-	if _, ok := EventHandlers[node][eventname]; !ok {
-		EventHandlers[node][eventname] = []dom.EventHandler{}
-	}
-
-	EventHandlers[node][eventname] = append(EventHandlers[node][eventname], handler)
-}
-
-func (sel Selection) Render(vn core.VNode) {
+func (sel Selection) Render(vn *core.VNode) {
 	gonet.Render(sel.Nodes[0], vn)
 }
 
@@ -495,14 +484,59 @@ func (sel Selection) ToVNode() core.VNode {
 	return gonet.ToVNode(sel.Nodes[0])
 }
 
-func TriggerEvent(selection dom.Selection, event dom.Event) {
-	for _, e := range selection.Elements() {
-		if ee, ok := EventHandlers[e.(Selection).Nodes[0]]; ok {
-			if list, ok := ee[event.Type()]; ok {
-				for _, handler := range list {
-					handler(event)
-				}
-			}
+func (sel Selection) DebugHtml() (s string) {
+	for _, elem := range sel.Elements() {
+		s += debugHtml(elem, 0, false)
+	}
+
+	return
+}
+
+func debugHtml(elem dom.Selection, idx int, inline bool) (s string) {
+	indent := ""
+	for i := 0; i < idx; i++ {
+		indent += "  "
+	}
+
+	attrs := ""
+	for _, attr := range elem.Attrs() {
+		attrs += fmt.Sprintf(` %v="%v"`, attr.Name, attr.Value)
+	}
+
+	if elem.IsElement() {
+		s += indent
+		s += fmt.Sprintf("<%v%v>", elem.TagName(), attrs)
+		inline := elem.Contents().Length() == 1 && elem.Contents().First().IsTextNode()
+		if !inline {
+			s += "\n"
+		}
+
+		for _, c := range elem.Contents().Elements() {
+			s += debugHtml(c, idx+1, inline)
+		}
+
+		if !inline {
+			s += indent
+		}
+
+		s += fmt.Sprintf("</%v>", elem.TagName())
+		s += "\n"
+	}
+
+	if elem.IsTextNode() {
+		text := strings.TrimSpace(elem.Text())
+		if text == "" {
+			return
+		}
+
+		if !inline {
+			s += indent
+		}
+		s += "`" + text + "`"
+		if !inline {
+			s += "\n"
 		}
 	}
+
+	return
 }

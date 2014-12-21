@@ -3,6 +3,7 @@ package scope
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 )
 
 type (
@@ -76,8 +77,9 @@ func (fs FieldSymbol) Value() (v reflect.Value, err error) {
 func (fs FieldSymbol) Call(args []reflect.Value, async bool) (v reflect.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in sym.Call()", r)
-			err = fmt.Errorf("%v", r)
+			trace := make([]byte, 2048)
+			count := runtime.Stack(trace, true)
+			err = fmt.Errorf("Error while calling a function: %s\nStack of %d bytes: %s\n", r, count, trace)
 		}
 	}()
 

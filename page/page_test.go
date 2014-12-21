@@ -96,9 +96,9 @@ func TestPageManager(t *testing.T) {
 	r.Handle("/", Redirecter{"/home"})
 	r.Handle("/home", Page{
 		Id: "pg-home",
-		Controller: func(ctx Context) Map {
+		Controller: func(ctx Context) Scope {
 			mess <- 1
-			return Map{
+			return Scope{
 				"home": "home",
 			}
 		},
@@ -106,8 +106,8 @@ func TestPageManager(t *testing.T) {
 
 	r.Handle("/child/:name", Page{
 		Id: "pg-child-1",
-		Controller: func(ctx Context) Map {
-			return Map{
+		Controller: func(ctx Context) Scope {
+			return Scope{
 				"b": Struct2{B: 3},
 			}
 		},
@@ -115,8 +115,8 @@ func TestPageManager(t *testing.T) {
 
 	r.Handle("/child/:name/:gender", Page{
 		Id: "pg-child-2",
-		Controller: func(ctx Context) Map {
-			return Map{
+		Controller: func(ctx Context) Scope {
+			return Scope{
 				"p": Struct1{A: 4},
 			}
 		},
@@ -125,16 +125,16 @@ func TestPageManager(t *testing.T) {
 	pm.AddPageGroup(PageGroup{
 		Id:       "grp-parent",
 		Children: []string{"pg-child-1", "pg-child-2"},
-		Controller: func(ctx Context) Map {
-			return Map{
+		Controller: func(ctx Context) Scope {
+			return Scope{
 				"p": Struct1{A: 2},
 			}
 		},
 	})
 
-	GlobalDisplayScope.AddController(func(ctx Context) Map {
+	GlobalDisplayScope.AddController(func(ctx Context) Scope {
 		globalCalled = true
-		return Map{
+		return Scope{
 			"global": Struct1{
 				A: 0,
 			},

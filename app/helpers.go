@@ -8,7 +8,7 @@ import (
 	"github.com/phaikawl/wade/utils"
 )
 
-var DefaultHelpers = map[string]interface{}{
+var defaultHelpers = map[string]interface{}{
 	"toUpper": strings.ToUpper,
 
 	"toLower": strings.ToLower,

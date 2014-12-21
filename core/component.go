@@ -26,14 +26,14 @@ type (
 		template VNode
 	}
 
-	VDomProvider interface {
-		ToVNode(templateConverter) VNode
+	vdomProvider interface {
+		ToVNode(*VNode, templateConverter)
 	}
 
 	ComponentView struct {
 		Name      string // The tag name for the component
 		Prototype ComponentPrototype
-		Template  VDomProvider
+		Template  vdomProvider
 	}
 
 	ComManager struct {
@@ -43,7 +43,7 @@ type (
 
 	templateConverter interface {
 		FromString(html string) VNode
-		FromHTMLTemplate(templateId string) VNode
+		FromHTMLTemplate(dst *VNode, templateId string) VNode
 	}
 
 	componentInstance struct {
@@ -86,16 +86,17 @@ type (
 	}
 )
 
-func (t VNode) ToVNode(conv templateConverter) VNode {
-	return t
+func (t VNode) ToVNode(template *VNode, conv templateConverter) {
+	*template = t
 }
 
-func (t StringTemplate) ToVNode(conv templateConverter) VNode {
-	return conv.FromString(t.HTML)
+func (t StringTemplate) ToVNode(template *VNode, conv templateConverter) {
+	*template = conv.FromString(t.HTML)
+	return
 }
 
-func (t HTMLTemplate) ToVNode(conv templateConverter) VNode {
-	return conv.FromHTMLTemplate(t.TemplateId)
+func (t HTMLTemplate) ToVNode(template *VNode, conv templateConverter) {
+	*template = conv.FromHTMLTemplate(template, t.TemplateId)
 }
 
 func (b BaseProto) ProcessInner(node VNode) {}
@@ -245,7 +246,7 @@ func (tm *ComManager) Register(specs ...ComponentView) (ret error) {
 			attrs:         map[string]string{},
 		}
 
-		ct.template = ht.Template.ToVNode(tm.templateConv)
+		ht.Template.ToVNode(&ct.template, tm.templateConv)
 		if ct.template.Type != GroupNode {
 			ct.template = VNode{
 				Type:     GroupNode,

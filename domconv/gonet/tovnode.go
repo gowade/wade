@@ -13,6 +13,14 @@ import (
 	"github.com/phaikawl/wade/utils"
 )
 
+var (
+	gNodeMap map[*html.Node]*core.VNode
+)
+
+func GetVNode(node *html.Node) *core.VNode {
+	return gNodeMap[node]
+}
+
 func parseHtml(src string) (*html.Node, error) {
 	nodes, err := html.ParseFragment(bytes.NewBufferString(strings.TrimSpace(src)), &html.Node{
 		Type:     html.ElementNode,
@@ -59,8 +67,10 @@ func renderAttrs(v core.VNode, n *html.Node) {
 			}
 
 			value = ""
-		default:
+		case int, int32, int64, float32, float64:
 			value = utils.ToString(val)
+		default:
+			continue
 		}
 
 		n.Attr = append(n.Attr, html.Attribute{
@@ -75,7 +85,7 @@ func renderAttrs(v core.VNode, n *html.Node) {
 
 	if clsStr := v.ClassStr(); clsStr != "" {
 		if classAttr != nil {
-			classAttr.Val += clsStr
+			classAttr.Val = clsStr
 		} else {
 			n.Attr = append(n.Attr, html.Attribute{
 				Key: "class",
@@ -85,12 +95,19 @@ func renderAttrs(v core.VNode, n *html.Node) {
 	}
 }
 
-func renderRec(v core.VNode) []*html.Node {
-	children := []*html.Node{}
-	for _, c := range v.Children {
-		rchild := renderRec(c)
-		if rchild != nil {
-			children = append(children, rchild...)
+type outputItem struct {
+	*html.Node
+	*core.VNode
+}
+
+func renderRec(v *core.VNode) []outputItem {
+	children := []outputItem{}
+	for i := range v.Children {
+		c := &v.Children[i]
+		rchilds := renderRec(c)
+
+		if rchilds != nil {
+			children = append(children, rchilds...)
 		}
 	}
 
@@ -106,13 +123,13 @@ func renderRec(v core.VNode) []*html.Node {
 		n = createTextNode(v.Data)
 	case core.ElementNode:
 		n = createElement(v.Data)
-		renderAttrs(v, n)
+		renderAttrs(*v, n)
 
 		for _, c := range children {
-			n.AppendChild(c)
+			n.AppendChild(c.Node)
 		}
 	case core.DeadNode:
-		return []*html.Node{}
+		return []outputItem{}
 	case core.DataNode:
 		n = createNode()
 		n.Type = html.CommentNode
@@ -123,12 +140,16 @@ func renderRec(v core.VNode) []*html.Node {
 		panic(fmt.Errorf("Invalid node type %v", v.Type))
 	}
 
-	return []*html.Node{n}
+	v.Rendered = n
+	gNodeMap[n] = v
+	return []outputItem{{Node: n, VNode: v}}
 }
 
-func Render(r *html.Node, v core.VNode) {
-	n := renderRec(core.VPrep(v))
-	*r = *n[0]
+func Render(r *html.Node, v *core.VNode) {
+	v.Prep()
+	gNodeMap = make(map[*html.Node]*core.VNode)
+	n := renderRec(v)
+	*r = *n[0].Node
 }
 
 func getAttr(n *html.Node, attrName string) *html.Attribute {
@@ -191,7 +212,7 @@ func tovnodeRec(node *html.Node) (result []core.VNode) {
 			n.Children = append(n.Children, tovnodeRec(c)...)
 		}
 
-		return []core.VNode{n}
+		return []core.VNode{core.VPrep(n)}
 	default:
 		panic(fmt.Errorf(`Unhandled node type %v when
 		converting HTML to VNode", node.Type`))

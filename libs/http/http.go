@@ -90,10 +90,9 @@ func (r *Response) Failed() bool {
 	return r.StatusCode >= 400
 }
 
-func (r *Response) DecodeTo(dest interface{}) error {
+func (r *Response) ParseJSON(dest interface{}) (err error) {
 	if r.Type != "" && r.Type != Text {
 		panic("This response's type must be text to be decoded.")
-		return nil
 	}
 
 	if r.Failed() {
@@ -110,16 +109,7 @@ func (r *Response) DecodeTo(dest interface{}) error {
 		p.SetLen(0)
 	}
 
-	err := json.Unmarshal([]byte(r.Data), dest)
-	if err != nil {
-		panic(err.Error())
-	}
-	return err
-}
-
-func (r *Response) Bool() (b bool) {
-	r.DecodeTo(&b)
-	return
+	return json.Unmarshal([]byte(r.Data), dest)
 }
 
 // Add adds the key, value pair to the header.
@@ -269,25 +259,6 @@ func (c *Client) GET(url string) (resp *Response, err error) {
 	}
 
 	resp, err = c.Do(req)
-	return
-}
-
-func (c *Client) GetJson(dst interface{}, url string) (err error) {
-	req, err := c.NewRequest("GET", url)
-	if err != nil {
-		return
-	}
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return
-	}
-
-	if resp.Failed() {
-		return fmt.Errorf(resp.Status)
-	}
-
-	err = resp.DecodeTo(dst)
 	return
 }
 

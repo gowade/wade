@@ -211,8 +211,14 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, bs bindScope
 
 	ok, required := binder.CheckArgsNo(len(args))
 	if !ok {
-		err = fmt.Errorf(`Invalid number of arguments for the "%v" binder. Given %v, required %v.`, required)
+		err = fmt.Errorf(`Invalid number of arguments for the "%v" binder. Given %v, required %v.`, binderName, len(args), required)
 	}
+
+	if mb, ok := binder.(MutableBinder); ok {
+		binder = mb.NewInstance()
+	}
+
+	binder.BeforeBind(&bs)
 
 	roote, v, err2 := bs.evaluate(bstr)
 	if err2 != nil {

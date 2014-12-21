@@ -78,8 +78,12 @@ func GetReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, 
 	switch o.Kind() {
 	case reflect.Struct:
 		rv = o.FieldByName(field)
-		if !rv.IsValid() && o.CanAddr() {
-			rv = o.Addr().MethodByName(field)
+		if !rv.IsValid() {
+			if o.CanAddr() {
+				o = o.Addr()
+			}
+
+			rv = o.MethodByName(field)
 		}
 
 	case reflect.Map:

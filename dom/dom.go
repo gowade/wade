@@ -76,7 +76,6 @@ type (
 		After(sel Selection)
 		Exists() bool
 		Attrs() []Attr
-		On(Event string, handler EventHandler)
 		Listen(event string, selector string, handler EventHandler)
 		Hide()
 		Show()
@@ -93,8 +92,9 @@ type (
 		SetProp(prop string, value interface{})
 		Underlying() js.Object
 		Each(EachFn)
-		Render(core.VNode)
+		Render(*core.VNode)
 		ToVNode() core.VNode
+		DebugHtml() string
 	}
 )
 
