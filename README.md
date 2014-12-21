@@ -11,7 +11,7 @@ With the creation of Wade.Go, you can now write both client side and server side
 
 Although being client-centric in approach, Wade.Go is independent and designed to work perfectly when Javascript is not available, the ability to render the site on the server is built in. It even has a **functional test** API that runs the app in native Go with `go test`.
 
-Wade.Go is made for web *sites*, not just *apps*, it is built for content-heavy sites like blog, forum as well as very dynamic web applications.
+Wade.Go is made for web *sites*, not just *apps*, it is built to create content-heavy sites like blog, forum as well as dynamic web applications.
 
 # Getting started
 * [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Outdated)
