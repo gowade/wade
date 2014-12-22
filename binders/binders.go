@@ -194,7 +194,7 @@ func (b *IfBinder) Bind(d core.DomBind) {
 	return
 }
 
-func (b IfBinder) Update(d core.DomBind) {
+func (b *IfBinder) Update(d core.DomBind) {
 	if !d.Value.(bool) {
 		d.Node.Type = core.DeadNode
 	} else {

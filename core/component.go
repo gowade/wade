@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/phaikawl/wade/scope"
 )
 
 const (
@@ -64,13 +62,13 @@ type (
 		//
 		// Inner content is *moved* to the real node for the first <w-inner>,
 		// cloned for other <w-inner>.
-		ProcessInner(inner VNode)
+		ProcessInner(VNode)
 
 		// Inner is called on instantiation of a component to perform initializations
-		Init(realNode VNode)
+		Init()
 
 		// Update is called whenever the virtual DOM is rerendered
-		Update(realNode VNode)
+		Update(VNode)
 	}
 
 	BaseProto struct{}
@@ -100,7 +98,7 @@ func (t HTMLTemplate) ToVNode(template *VNode, conv templateConverter) {
 }
 
 func (b BaseProto) ProcessInner(node VNode) {}
-func (b BaseProto) Init(node VNode)         {}
+func (b BaseProto) Init()                   {}
 func (b BaseProto) Update(node VNode)       {}
 
 func (c *componentInstance) Model() interface{} {
@@ -188,6 +186,8 @@ func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err e
 	orig.Data = "group"
 	orig.Type = GroupNode
 	orig.Attrs = map[string]interface{}{}
+	orig.preUpdate = true
+	model.Init()
 
 	inst = &componentInstance{
 		model:    model,
@@ -198,14 +198,14 @@ func (t *componentView) NewInstance(node *VNode) (inst *componentInstance, err e
 	return
 }
 
-func (ci *componentInstance) prepareInner(outerScope scope.Scope) {
+func (ci *componentInstance) processUpdate() {
+	ci.origNode.update(true)
 	ci.model.ProcessInner(ci.origNode)
 
 	i := 0
 	NodeWalk(ci.realNode, func(node *VNode) {
 		// replace <w-inner> elements with inner content
 		if node.Type == ElementNode && node.Data == CompInner {
-			ci.origNode.scope = &outerScope
 			if i > 0 {
 				*node = ci.origNode.Clone()
 			} else {
@@ -215,11 +215,7 @@ func (ci *componentInstance) prepareInner(outerScope scope.Scope) {
 		}
 	})
 
-	ci.model.Init(*ci.realNode)
-	ci.realNode.addCallback(func() (err error) {
-		ci.model.Update(*ci.realNode)
-		return
-	})
+	ci.model.Update(*ci.realNode)
 }
 
 func NewComManager(tempConv templateConverter) *ComManager {

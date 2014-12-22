@@ -40,6 +40,10 @@ func (m Model) TestFn() string {
 	return "ok"
 }
 
+func (m Model) Update(vnode VNode) {
+	vnode.Children[0].SetClass("updated", true)
+}
+
 func (b TextBinder) Update(d DomBind) {
 	d.Node.Children = []VNode{VText(utils.ToString(d.Value))}
 	return
@@ -146,6 +150,8 @@ func TestBinding(t *testing.T) {
 	sc.Name = "scope"
 	b.Bind(elem, sc)
 	elem.Update()
+
+	require.True(t, elem.Children[0].Children[0].HasClass("updated"))
 
 	first := &elem.Children[0]
 	second := &elem.Children[1]

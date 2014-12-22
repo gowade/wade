@@ -151,15 +151,18 @@ func (b *Binding) bindComponent(node *VNode, bs bindScope, cv *componentView) (e
 		}
 	}
 
-	ci.prepareInner(bs.Scope)
-
-	if err != nil {
-		return
-	}
+	ci.origNode.scope = &bs.Scope
+	b.bindWithScope(&ci.origNode, bs.Scope)
 
 	for i, _ := range node.Children {
 		b.Bind(&node.Children[i], ci.model)
 	}
+
+	node.addCallback(func() (err error) {
+		ci.processUpdate()
+		return
+	})
+
 	return
 }
 

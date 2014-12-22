@@ -46,6 +46,7 @@ type (
 		scope     *scope.Scope
 		callbacks []cbFunc
 		Rendered  interface{} // data field to save the real rendered DOM element
+		preUpdate bool
 	}
 
 	CondFn func(node VNode) bool
@@ -182,6 +183,14 @@ func (node VNode) Text() (s string) {
 }
 
 func (node *VNode) Update() {
+	node.update(false)
+}
+
+func (node *VNode) update(preUpdate bool) {
+	if node.preUpdate && !preUpdate {
+		return
+	}
+
 	if node.callbacks != nil {
 		for _, cb := range node.callbacks {
 			err := cb()
@@ -194,8 +203,10 @@ func (node *VNode) Update() {
 	}
 
 	for i, _ := range node.Children {
-		(&node.Children[i]).Update()
+		c := &node.Children[i]
+		c.update(preUpdate)
 	}
+
 }
 
 func (node VNode) Attr(attr string) (v interface{}, ok bool) {
@@ -207,8 +218,12 @@ func (node VNode) ChildElems() (l []*VNode) {
 	l = []*VNode{}
 	for i := range node.Children {
 		item := &node.Children[i]
-		if item.Type == ElementNode || item.Type == GroupNode {
+		if item.Type == ElementNode {
 			l = append(l, item)
+		}
+
+		if item.Type == GroupNode {
+			l = append(l, item.ChildElems()...)
 		}
 	}
 
@@ -254,16 +269,17 @@ func (node VNode) HasClass(className string) bool {
 	return false
 }
 
-func (node VNode) Debug() {
-	nodeDebug(node, 0)
+func (node VNode) DebugInfo() string {
+	return nodeDebug(node, 0)
 }
 
-func nodeDebug(node VNode, level int) {
+func nodeDebug(node VNode, level int) (s string) {
 	sp := ""
 	for i := 0; i < level; i++ {
 		sp += "  "
 	}
-	fmt.Print(sp)
+
+	s += sp
 	group := ""
 	if node.Type == GroupNode {
 		group = "group"
@@ -272,18 +288,20 @@ func nodeDebug(node VNode, level int) {
 	case TextNode:
 		text := strings.TrimSpace(node.Data)
 		if text != "" {
-			fmt.Printf(`"%v"`, text)
+			s += fmt.Sprintf(`"%v"`, text)
 		}
 	case MustacheNode:
-		fmt.Printf(`{{%v}"%v" }`, node.Binds[0].Expr, node.Data)
+		s += fmt.Sprintf(`{{%v}"%v" }`, node.Binds[0].Expr, node.Data)
 	default:
-		fmt.Printf("<%v:%v {%+v} [%v]>", node.TagName(), group, node.Attrs, node.ClassStr())
+		s += fmt.Sprintf("<%v:%v {%+v} [%v]>", node.TagName(), group, node.Attrs, node.ClassStr())
 	}
-	fmt.Println()
+	s += "\n"
 
 	for i, _ := range node.Children {
-		nodeDebug(node.Children[i], level+1)
+		s += nodeDebug(node.Children[i], level+1)
 	}
+
+	return
 }
 
 func NodeWalkX(node *VNode, fn func(*VNode, int)) {

@@ -88,7 +88,7 @@ func TestConversion(t *testing.T) {
 	html.Render(b, target)
 	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src))
 
-	vnode.ChildElems()[0].ChildElems()[0].SetClass("done", true)
+	vnode.ChildElems()[0].SetClass("done", true)
 	Render(target, &vnode)
 	b = bytes.NewBufferString("")
 	html.Render(b, target)

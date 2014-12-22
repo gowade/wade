@@ -14,7 +14,7 @@ type SwitchMenu struct {
 	Choices         map[string]*core.VNode
 }
 
-func (sm *SwitchMenu) Init(node core.VNode) {
+func (sm *SwitchMenu) ProcessInner(node core.VNode) {
 	sm.Choices = make(map[string]*core.VNode)
 	sm.ActiveClassName = strings.TrimSpace(sm.ActiveClassName)
 	if sm.ActiveClassName == "" {
@@ -30,9 +30,7 @@ func (sm *SwitchMenu) Init(node core.VNode) {
 		panic(`Must have 1 child and it must be an "ul" element.`)
 	}
 
-	ul := children[0]
-
-	for _, item := range ul.ChildElems() {
+	for _, item := range children[0].ChildElems() {
 		if item.TagName() != "li" {
 			continue
 		}

@@ -39,7 +39,7 @@ func TestSwitchMenu(t *testing.T) {
 
 	vroot.Update()
 
-	root.Render(vroot)
+	root.Render(&vroot)
 
 	lis := root.Find("ul").Children().Elements()
 	require.Equal(t, lis[0].HasClass("active"), true)
@@ -48,7 +48,7 @@ func TestSwitchMenu(t *testing.T) {
 
 	scope.Choice = "b"
 	vroot.Update()
-	root.Render(vroot)
+	root.Render(&vroot)
 	lis = root.Find("ul").Children().Elements()
 	require.Equal(t, lis[0].HasClass("active"), false)
 	require.Equal(t, lis[1].HasClass("active"), true)
@@ -56,7 +56,7 @@ func TestSwitchMenu(t *testing.T) {
 
 	scope.Choice = "kkf"
 	vroot.Update()
-	root.Render(vroot)
+	root.Render(&vroot)
 	lis = root.Find("ul").Children().Elements()
 	require.Equal(t, lis[0].HasClass("active"), false)
 	require.Equal(t, lis[1].HasClass("active"), false)

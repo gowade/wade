@@ -3,7 +3,6 @@ package core
 import (
 	"testing"
 
-	"github.com/phaikawl/wade/scope"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,7 +68,7 @@ func TestComponent(t *testing.T) {
 	require.Equal(t, model.Fnum, 699.69)
 	require.Equal(t, model.Tf, true)
 
-	ci.prepareInner(scope.NewScope())
+	ci.processUpdate()
 	require.Equal(t, re.Text(), ":D_:D")
 
 	re.Update()

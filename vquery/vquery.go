@@ -102,6 +102,15 @@ func (s Selection) First() *core.VNode {
 	return s[0]
 }
 
+func (s Selection) Children() Selection {
+	children := []*core.VNode{}
+	for _, e := range s {
+		children = append(children, e.ChildElems()...)
+	}
+
+	return children
+}
+
 func (s Selection) Text() (text string) {
 	for _, node := range s {
 		text += node.Text()

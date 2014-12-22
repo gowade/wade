@@ -125,7 +125,7 @@ func TestEach(t *testing.T) {
 	vRoot.Update()
 	//n := vRoot.Children[1].Children[1]
 	//fmt.Printf("%v %v %v", n.Type, n.Data, n.Attrs())
-	rRoot.Render(*vRoot)
+	rRoot.Render(vRoot)
 
 	list := rRoot.Children().Filter("li").Elements()
 	require.Equal(t, utils.NoSp(list[0].Text()), "#0aaz")
@@ -138,7 +138,7 @@ func TestEach(t *testing.T) {
 	m1.List = m1.List[1:]
 
 	vRoot.Update()
-	rRoot.Render(*vRoot)
+	rRoot.Render(vRoot)
 
 	list = rRoot.Children().Filter("li").Elements()
 	require.Equal(t, utils.NoSp(list[0].Text()), "#0bbz")
@@ -161,7 +161,7 @@ func TestEach(t *testing.T) {
 	b.Bind(vRoot, m3)
 
 	vRoot.Update()
-	rRoot.Render(*vRoot)
+	rRoot.Render(vRoot)
 
 	list = rRoot.Children().Filter("li").Elements()
 	require.Equal(t, utils.NoSp(list[0].Text()), "ab")
@@ -178,7 +178,7 @@ func TestIf(t *testing.T) {
 	b.Bind(vRoot, s)
 
 	vRoot.Update()
-	rRoot.Render(*vRoot)
+	rRoot.Render(vRoot)
 
 	require.Equal(t, rRoot.Children().Length(), 1)
 
@@ -187,7 +187,10 @@ func TestIf(t *testing.T) {
 	s.Ok = true
 
 	vRoot.Update()
-	rRoot.Render(*vRoot)
+	return
+	rRoot.Render(vRoot)
 
+	println(vRoot.DebugInfo())
+	println(rRoot.DebugHtml())
 	require.Equal(t, rRoot.Find("span").Text(), ":D")
 }
