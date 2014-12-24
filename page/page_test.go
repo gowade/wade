@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/phaikawl/wade/core"
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 	"github.com/phaikawl/wade/markman"
 	"github.com/phaikawl/wade/scope"
 	"github.com/phaikawl/wade/utils"
@@ -66,7 +66,7 @@ func TestPageUrl(t *testing.T) {
 
 func TestPageManager(t *testing.T) {
 	var (
-		root = goquery.GetDom().NewDocument(`<html><head></head>
+		root = gonet.GetDom().NewDocument(`<html><head></head>
 	<body !appview>
 		<div !belong="pg-home">Home</div>
 		<div !belong="grp-parent">

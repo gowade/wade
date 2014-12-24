@@ -2,13 +2,15 @@ package serverside
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
 
-	gqdom "github.com/phaikawl/wade/dom/goquery"
+	gqdom "github.com/phaikawl/wade/dom/gonet"
 	"golang.org/x/net/html"
 
 	"github.com/phaikawl/wade/app"
@@ -34,10 +36,6 @@ type (
 		httpBackend wadehttp.Backend
 		document    dom.Selection
 	}
-
-	finalizable interface {
-		AfterReady(*app.Application)
-	}
 )
 
 func (b renderBackend) History() page.History {
@@ -55,7 +53,7 @@ func (b renderBackend) HttpBackend() wadehttp.Backend {
 }
 
 func (b renderBackend) AfterReady(app *app.Application) {
-	if bkn, ok := b.httpBackend.(finalizable); ok {
+	if bkn, ok := b.httpBackend.(*serverCacheHttpBackend); ok {
 		bkn.AfterReady(app)
 	}
 }
@@ -78,7 +76,7 @@ func (b *serverCacheHttpBackend) requestPath() string {
 	return b.ClientReq.URL.Path
 }
 
-func (b *serverCacheHttpBackend) afterReady(app *app.Application) {
+func (b *serverCacheHttpBackend) AfterReady(app *app.Application) {
 	doc := app.Document()
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
@@ -120,6 +118,14 @@ func NewApp(conf app.Config, document io.Reader, startPath string, httpBackend w
 }
 
 func StartRender(app *app.Application, appMain app.Main, w io.Writer) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			trace := make([]byte, 4096)
+			count := runtime.Stack(trace, true)
+			err = fmt.Errorf("Error while starting and rendering the app: %s\nStack of %d bytes: %s\n", r, count, trace)
+		}
+	}()
+
 	err = app.Start(appMain)
 	if err != nil {
 		return

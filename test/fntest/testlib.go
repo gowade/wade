@@ -49,8 +49,8 @@ func (app *TestApp) Start(appMain app.Main) error {
 }
 
 func (app *TestApp) Render() {
+	<-app.EventFinished()
 	app.Application.Render()
-	app.View.rsessId++
 }
 
 func NewDummyTestApp(initialPath string, httpMock http.Backend) *TestApp {
@@ -82,7 +82,7 @@ func NewTestApp(conf app.Config,
 
 	return &TestApp{
 		Application: wapp,
-		View:        &TestView{wapp.Document(), 1},
+		View:        &TestView{wapp.Document()},
 	}
 }
 

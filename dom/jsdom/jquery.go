@@ -1,17 +1,18 @@
-package jquery
+package jsdom
 
 import (
 	"fmt"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
+	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
 )
 
 var (
 	gDom      = Dom{}
 	gJQ       = jquery.NewJQuery
-	EventChan = make(chan Event)
+	EventChan = make(chan jqEvent)
 )
 
 type (
@@ -22,36 +23,42 @@ type (
 
 	Dom struct{}
 
-	Event struct {
+	jqEvent struct {
 		jquery.Event
 	}
 )
 
-func (e Event) Target() dom.Selection {
+func createEvent(orig js.Object) jqEvent {
+	orig = js.Global.Get(jquery.JQ).Get("event").Call("fix", orig)
+	//println(orig.Get("preventDefault"))
+	return jqEvent{jquery.Event{Object: orig}}
+}
+
+func (e jqEvent) Target() dom.Selection {
 	return NewSelection(gJQ(e.Event.Target))
 }
 
-func (e Event) PreventDefault() {
+func (e jqEvent) PreventDefault() {
 	e.Event.PreventDefault()
 }
 
-func (e Event) StopPropagation() {
+func (e jqEvent) StopPropagation() {
 	e.Event.StopPropagation()
 }
 
-func (e Event) Which() int {
+func (e jqEvent) Which() int {
 	return e.Event.Which
 }
 
-func (e Event) Pos() (int, int) {
+func (e jqEvent) Pos() (int, int) {
 	return e.Event.PageX, e.Event.PageY
 }
 
-func (e Event) Type() string {
+func (e jqEvent) Type() string {
 	return e.Event.Type
 }
 
-func (e Event) Js() js.Object {
+func (e jqEvent) Js() js.Object {
 	return e.Event.Object
 }
 
@@ -83,19 +90,12 @@ func (d Dom) NewTextNode(content string) dom.Selection {
 	return NewSelection(gJQ(js.Global.Get("document").Call("createTextNode", content)))
 }
 
-func (s Selection) TagName() (tn string, err error) {
-	if s.Length() == 0 {
-		err = dom.ErrorNoElementSelected
-		return
-	}
-
+func (s Selection) TagName() string {
 	if !s.IsElement() {
-		err = dom.ErrorCantGetTagName
-		return
+		return ""
 	}
 
-	tn = s.JQuery.Underlying().Call("prop", "tagName").Call("toLowerCase").Str()
-	return
+	return s.JQuery.Underlying().Call("prop", "tagName").Call("toLowerCase").Str()
 }
 
 func (s Selection) Children() dom.Selection {
@@ -135,14 +135,6 @@ func (s Selection) Elements() []dom.Selection {
 func (s Selection) Each(fn dom.EachFn) {
 	u := s.JQuery.Underlying()
 	for i := 0; i < s.JQuery.Length; i++ {
-		fn(i, NewSelection(gJQ(u.Index(i))))
-	}
-}
-
-func (s Selection) BEach(fn dom.EachFn) {
-	u := s.JQuery.Underlying()
-	for i := 0; i < s.JQuery.Length; i++ {
-		//gopherjs:blocking
 		fn(i, NewSelection(gJQ(u.Index(i))))
 	}
 }
@@ -250,9 +242,9 @@ func (s Selection) Prev() dom.Selection {
 	return NewSelection(s.JQuery.Prev())
 }
 
-func (s Selection) On(eventname string, handler dom.EventHandler) {
+func (s Selection) On(eventname string, handler dom.EventHandlerFn) {
 	s.JQuery.On(eventname, func(event jquery.Event) {
-		evt := Event{event}
+		evt := jqEvent{event}
 		handler(evt)
 
 		select {
@@ -262,9 +254,9 @@ func (s Selection) On(eventname string, handler dom.EventHandler) {
 	})
 }
 
-func (s Selection) Listen(event string, selector string, handler dom.EventHandler) {
+func (s Selection) Listen(event string, selector string, handler dom.EventHandlerFn) {
 	s.JQuery.On(event, selector, func(event jquery.Event) {
-		handler(Event{event})
+		handler(jqEvent{event})
 	})
 }
 
@@ -306,7 +298,7 @@ func (s Selection) SetText(text string) {
 	} else if s.IsTextNode() {
 		s.JQuery.Get(0).Set("nodeValue", text)
 	} else {
-		js.Global.Get("console").Call("error", fmt.Sprintf("Cannot set text for this kind of node %v.", s.JQuery.Get(0).Get("nodeType").Int()))
+		panic(fmt.Sprintf("Cannot set text for this kind of node %v.", s.JQuery.Get(0).Get("nodeType").Int()))
 	}
 }
 
@@ -341,4 +333,12 @@ func (s Selection) Index() (n int) {
 
 func (s Selection) Underlying() js.Object {
 	return s.JQuery.Underlying()
+}
+
+func (sel Selection) Render(vn *core.VNode) {
+	Render(sel.Get(0), vn)
+}
+
+func (sel Selection) ToVNode() core.VNode {
+	return ToVNode(sel.Get(0))
 }

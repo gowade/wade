@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+
+	"github.com/gopherjs/gopherjs/js"
 )
 
 type (
@@ -13,7 +15,7 @@ type (
 
 	ScopeSymbol interface {
 		Value() (reflect.Value, error)
-		Call(args []reflect.Value, async bool) (reflect.Value, error)
+		Call(args []reflect.Value) (reflect.Value, error)
 	}
 
 	SymbolTable interface {
@@ -74,22 +76,19 @@ func (fs FieldSymbol) Value() (v reflect.Value, err error) {
 	return fs.eval.FieldRefl, nil
 }
 
-func (fs FieldSymbol) Call(args []reflect.Value, async bool) (v reflect.Value, err error) {
+func (fs FieldSymbol) Call(args []reflect.Value) (v reflect.Value, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			trace := make([]byte, 2048)
-			count := runtime.Stack(trace, true)
-			err = fmt.Errorf("Error while calling a function: %s\nStack of %d bytes: %s\n", r, count, trace)
+		if js.Global == nil || js.Global.Get("window").IsUndefined() {
+			if r := recover(); r != nil {
+				trace := make([]byte, 2048)
+				count := runtime.Stack(trace, true)
+				err = fmt.Errorf("Error while calling a function: %s\nStack of %d bytes: %s\n", r, count, trace)
+			}
 		}
 	}()
 
 	if fs.eval.FieldRefl.Kind() != reflect.Func {
 		err = fmt.Errorf(`Cannot call "%v", it's not a method or a function.`, fs.name)
-		return
-	}
-
-	if async {
-		fs.eval.FieldRefl.Call(args)
 		return
 	}
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 	"github.com/phaikawl/wade/libs/http"
 	hm "github.com/phaikawl/wade/test/httpmock"
 	"github.com/phaikawl/wade/utils"
@@ -52,7 +52,7 @@ func TestMarkMgr(t *testing.T) {
 	client := http.NewClient(mb)
 	fetcher := fetcher{client}
 
-	root := goquery.GetDom().NewDocument(Index)
+	root := gonet.GetDom().NewDocument(Index)
 	markman := New(root, fetcher)
 	err := markman.LoadView()
 	require.Equal(t, err, nil)

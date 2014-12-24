@@ -1,1 +1,0 @@
-gopherjs build -w=true -o="public/js/app.js"

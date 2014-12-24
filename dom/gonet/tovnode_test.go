@@ -12,7 +12,7 @@ import (
 
 func TestConversion(t *testing.T) {
 	// From virtual to real
-	node := createElement("zz")
+	node := createNode()
 
 	root := core.VPrep(core.VNode{
 		Data: "div",
@@ -57,7 +57,6 @@ func TestConversion(t *testing.T) {
 			(<div disabled="">
 				)
 			</div>
-			<!--data-->
 			t
 		</div>
 	`
@@ -70,7 +69,6 @@ func TestConversion(t *testing.T) {
 				<b></b>
 				<a w="123.4"></a>
 				(<div disabled>)</div>
-				<!--data-->
 				t
 			</div>
 		</div>
@@ -81,7 +79,7 @@ func TestConversion(t *testing.T) {
 	}
 
 	vnode := ToVNode(pnode)
-	target := createElement("zz")
+	target := createNode()
 	Render(target, &vnode)
 
 	b := bytes.NewBufferString("")
@@ -98,7 +96,6 @@ func TestConversion(t *testing.T) {
 			(<div disabled="">
 				)
 			</div>
-			<!--data-->
 			t
 		</div>`
 

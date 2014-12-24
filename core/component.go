@@ -246,7 +246,7 @@ func (tm *ComManager) Register(specs ...ComponentView) (ret error) {
 		if ct.template.Type != GroupNode {
 			ct.template = VNode{
 				Type:     GroupNode,
-				Data:     "component",
+				Data:     "template",
 				Children: []VNode{ct.template},
 			}
 		}

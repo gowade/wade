@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 )
 
 func TestVQuery(t *testing.T) {
-	gq := goquery.GetDom()
+	gq := gonet.GetDom()
 	vdom := gq.NewFragment(`<div>
 		<div class="wrapper">
 			<a href="zz">A</a>

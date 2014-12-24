@@ -187,7 +187,6 @@ func (pm *PageManager) updateUrl(url string, pushState bool, firstLoad bool) boo
 }
 
 func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
-
 	if pu.pushState {
 		pm.history.PushState(page.Title, pm.FullPath(pu.url.Path))
 	}
@@ -197,7 +196,7 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 
 	vdom := pm.output.MarkupPage(pm.formattedTitle,
 		func(vnode core.VNode) bool {
-			if belongstr, ok := vnode.Attr(core.BelongAttrName); ok {
+			if belongstr, ok := vnode.MetaAttr(core.BelongAttrName); ok {
 				belongs := strings.Split(belongstr.(string), " ")
 				for _, belong := range belongs {
 					if ds, ok := pm.displayScopes[belong]; ok {
@@ -216,9 +215,11 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 			return true
 		})
 
+	//gopherjs:blocking
 	pm.binding.Bind(vdom,
 		pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)...)
 
+	//gopherjs:blocking
 	pm.output.Render()
 }
 

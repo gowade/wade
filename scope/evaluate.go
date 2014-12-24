@@ -35,9 +35,6 @@ func EvaluateObjField(query string, model reflect.Value) (oe *ObjEval, ok bool, 
 	vals := make([]reflect.Value, len(flist)+1)
 	o := model
 
-	if o.Kind() == reflect.Ptr {
-		o = o.Elem()
-	}
 	vals[0] = o
 
 	for i, field := range flist {
@@ -71,18 +68,19 @@ func GetReflectField(o reflect.Value, field string) (rv reflect.Value, ok bool, 
 		return
 	}
 
-	if o.Kind() == reflect.Ptr {
-		o = o.Elem()
-	}
-
+	elem := o
 	switch o.Kind() {
-	case reflect.Struct:
-		rv = o.FieldByName(field)
-		if !rv.IsValid() {
-			if o.CanAddr() {
-				o = o.Addr()
-			}
+	case reflect.Ptr:
+		elem = o.Elem()
+		if elem.Kind() != reflect.Struct {
+			ok = false
+			return
+		}
 
+		fallthrough
+	case reflect.Struct:
+		rv = elem.FieldByName(field)
+		if !rv.IsValid() {
 			rv = o.MethodByName(field)
 		}
 

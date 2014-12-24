@@ -2,13 +2,12 @@ package fntest
 
 import (
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 )
 
 type (
 	TestView struct {
 		document dom.Selection
-		rsessId  int64
 	}
 
 	//Selection struct {
@@ -116,6 +115,6 @@ func (tv TestView) TriggerEvent(selection *Selection, event Event) {
 	for _, elem := range selection.doSelect().Elements() {
 		event.Event().propaStopped = false
 		event.Event().target = elem
-		triggerRec(elem.(goquery.Selection).Nodes[0], event)
+		triggerRec(elem.(gonet.Selection).Nodes[0], event)
 	}
 }

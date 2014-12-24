@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/phaikawl/wade/core"
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +22,7 @@ func TestSwitchMenu(t *testing.T) {
 		Choice: "a",
 	}
 
-	root := goquery.GetDom().NewFragment(`
+	root := gonet.GetDom().NewFragment(`
 	<div>
 		<w-switch-menu @Current="Choice">
 			<ul>

@@ -5,7 +5,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/domconv/gonet"
+	"github.com/phaikawl/wade/dom/gonet"
 )
 
 type (

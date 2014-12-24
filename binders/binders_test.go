@@ -8,7 +8,7 @@ import (
 
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/dom/goquery"
+	"github.com/phaikawl/wade/dom/gonet"
 	"github.com/phaikawl/wade/utils"
 )
 
@@ -70,7 +70,7 @@ func (e dummyEvent) Js() js.Object {
 }
 
 var (
-	gq = goquery.Dom{}
+	gq = gonet.Dom{}
 	b  = core.NewBindEngine(nil, make(map[string]interface{}))
 )
 
@@ -187,10 +187,7 @@ func TestIf(t *testing.T) {
 	s.Ok = true
 
 	vRoot.Update()
-	return
-	rRoot.Render(vRoot)
 
-	println(vRoot.DebugInfo())
-	println(rRoot.DebugHtml())
+	rRoot.Render(vRoot)
 	require.Equal(t, rRoot.Find("span").Text(), ":D")
 }

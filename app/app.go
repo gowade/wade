@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"path"
-	"runtime"
 
 	"github.com/gopherjs/gopherjs/js"
 
@@ -65,6 +64,7 @@ type (
 		bindEngine    *core.Binding
 		markupMgr     *markman.MarkupManager
 		renderBackend RenderBackend
+		eventFinish   chan bool
 	}
 
 	fetcher struct {
@@ -100,15 +100,15 @@ func (app *Application) Router() page.Router {
 	return app.PageMgr.RouteMgr()
 }
 
-func (app *Application) Start(appMain Main) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			trace := make([]byte, 4096)
-			count := runtime.Stack(trace, true)
-			err = fmt.Errorf("Error while starting and rendering the app: %s\nStack of %d bytes: %s\n", r, count, trace)
-		}
-	}()
+func (app *Application) NotifyEventFinish() {
+	app.eventFinish <- true
+}
 
+func (app *Application) EventFinished() chan bool {
+	return app.eventFinish
+}
+
+func (app *Application) Start(appMain Main) (err error) {
 	SetApp(app)
 
 	appMain.Main(app)
@@ -120,13 +120,6 @@ func (app *Application) Start(appMain Main) (err error) {
 
 	app.PageMgr.Start()
 	app.renderBackend.AfterReady(app)
-
-	go func() {
-		for {
-			<-http.ResponseChan
-			app.Render()
-		}
-	}()
 
 	return
 }
@@ -162,6 +155,7 @@ func New(config Config, rb RenderBackend) (app *Application) {
 		PageMgr: page.NewPageManager(config.BasePath, rb.History(),
 			markupMgr, bindEngine),
 		renderBackend: rb,
+		eventFinish:   make(chan bool),
 	}
 
 	defaultHelpers["url"] = app.PageMgr.PageUrl

@@ -65,7 +65,8 @@ func TestInterceptor(t *testing.T) {
 
 	go func() {
 		var b bool
-		err := client.GetJson(&b, "/zzz")
+		resp, err := client.GET("/zzz")
+		resp.ParseJSON(&b)
 		if !ok || err != nil || !b {
 			t.Fatalf("Expected %v, got %v", true, false)
 		}

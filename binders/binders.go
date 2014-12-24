@@ -33,7 +33,7 @@ func Install(b *core.Binding) {
 // the real dom to the model.
 //
 // Usage:
-//	#value(...events)="Expression"
+//	#value(...events)
 type ValueBinder struct{ core.BaseBinder }
 
 func (b ValueBinder) CheckArgsNo(n int) (bool, string) {
@@ -63,7 +63,7 @@ func (b ValueBinder) Listen(d core.DomBind, ufn core.ModelUpdateFn) {
 // ClassBinder toggles a class based on a boolean value.
 //
 // Usage:
-//	#class(className)="Expression"
+//	#class(className)
 type ClassBinder struct{ core.BaseBinder }
 
 func (b ClassBinder) CheckArgsNo(n int) (bool, string) {
@@ -78,7 +78,7 @@ func (b ClassBinder) Update(d core.DomBind) {
 // EventBinder binds an element's event to a function.
 //
 // Usage:
-//	#on(event)="Expression"
+//	#on(event, [preventDefault=true])
 //
 //
 // The Expression is evaluated like any other expressions,
@@ -90,7 +90,7 @@ type EventBinder struct {
 }
 
 func (b EventBinder) CheckArgsNo(n int) (bool, string) {
-	return n == 1, "1"
+	return n == 1 || n == 2, "1 or 2"
 }
 
 func (b *EventBinder) BeforeBind(s core.ScopeAdder) {
@@ -119,9 +119,13 @@ func (b *EventBinder) Bind(d core.DomBind) {
 	}
 
 	evtname := d.Args[0]
+
 	d.Node.SetAttr("on"+evtname, func(evt dom.Event) {
 		*b.evt = evt
-		//gopherjs:blocking
+		if len(d.Args) == 1 || d.Args[1] != "false" {
+			evt.PreventDefault()
+		}
+
 		handler()
 	})
 }

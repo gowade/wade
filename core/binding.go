@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	AttrBindPrefix    = '@'
-	BinderBindPrefix  = '#'
-	SpecialAttrPrefix = "!"
-	BelongAttrName    = SpecialAttrPrefix + "belong"
-	GroupAttrName     = SpecialAttrPrefix + "group"
+	AttrBindPrefix   = '@'
+	BinderBindPrefix = '#'
+	MetaAttrPrefix   = "!"
+	BelongAttrName   = "belong"
+	GroupAttrName    = "group"
 )
 
 type (
@@ -119,13 +119,20 @@ func (b *Binding) processFieldBind(field string, bstr string, node *VNode, bs bi
 	}
 
 	oe.FieldRefl.Set(reflect.ValueOf(v))
+	//if oe.FieldRefl.Type().String() == "*common.Score" {
+	//	oe.FieldRefl.Elem().FieldByName("Score").Set(reflect.ValueOf(9))
+	//	//println("<<")
+	//	//println(oe.FieldRefl.Interface())
+	//	//println(v)
+	//	//println(">>")
+	//}
 	node.addCallback(func() (err error) {
-		_, v, err := bs.evaluate(bstr)
-		if err != nil {
-			return
-		}
+		//_, v, err := bs.evaluate(bstr)
+		//if err != nil {
+		//	return
+		//}
 
-		oe.FieldRefl.Set(reflect.ValueOf(v))
+		//oe.FieldRefl.Set(reflect.ValueOf(v))
 
 		return
 	})
@@ -264,8 +271,8 @@ func (b *Binding) processBinderBind(astr, bstr string, node *VNode, bs bindScope
 	binder.Bind(domBind)
 
 	node.addCallback(func() (err error) {
-		//gopherjs:blocking
 		_, domBind.Value, _ = bs.evaluate(bstr)
+		//gopherjs:blocking
 		binder.Update(domBind)
 		return
 	})

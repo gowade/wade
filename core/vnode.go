@@ -47,6 +47,7 @@ type (
 		callbacks []cbFunc
 		Rendered  interface{} // data field to save the real rendered DOM element
 		preUpdate bool
+		metaAttrs Attributes
 	}
 
 	CondFn func(node VNode) bool
@@ -84,6 +85,23 @@ func preprocessVNode(v *VNode) {
 		}
 
 		v.processClassAttr()
+
+		if v.metaAttrs == nil {
+			v.metaAttrs = make(Attributes)
+		}
+
+		for attr, value := range v.Attrs {
+			if string(attr[0]) == MetaAttrPrefix {
+				delete(v.Attrs, attr)
+
+				if attr == "!group" {
+					v.Type = GroupNode
+					continue
+				}
+
+				v.metaAttrs[attr[1:]] = value
+			}
+		}
 	}
 }
 
@@ -193,6 +211,7 @@ func (node *VNode) update(preUpdate bool) {
 
 	if node.callbacks != nil {
 		for _, cb := range node.callbacks {
+			//gopherjs:blocking
 			err := cb()
 			if err != nil {
 				go func() {
@@ -238,6 +257,11 @@ func (node *VNode) SetAttr(attr string, value interface{}) {
 	node.Attrs[strings.ToLower(attr)] = value
 }
 
+func (node *VNode) MetaAttr(attr string) (value interface{}, ok bool) {
+	value, ok = node.metaAttrs[attr]
+	return
+}
+
 func (node *VNode) ClassStr() (s string) {
 	for className, enabled := range node.classes {
 		if enabled {
@@ -280,10 +304,15 @@ func nodeDebug(node VNode, level int) (s string) {
 	}
 
 	s += sp
-	group := ""
+	suffix := ""
 	if node.Type == GroupNode {
-		group = "group"
+		suffix = "GROUP"
 	}
+
+	if node.Type == DeadNode {
+		suffix = "DEAD"
+	}
+
 	switch node.Type {
 	case TextNode:
 		text := strings.TrimSpace(node.Data)
@@ -292,8 +321,10 @@ func nodeDebug(node VNode, level int) (s string) {
 		}
 	case MustacheNode:
 		s += fmt.Sprintf(`{{%v}"%v" }`, node.Binds[0].Expr, node.Data)
+	case DataNode:
+		s += fmt.Sprintf(`//%v`, node.Data)
 	default:
-		s += fmt.Sprintf("<%v:%v {%+v} [%v]>", node.TagName(), group, node.Attrs, node.ClassStr())
+		s += fmt.Sprintf("<%v:%v {%+v} [%v]>", node.Data, suffix, node.Attrs, node.ClassStr())
 	}
 	s += "\n"
 

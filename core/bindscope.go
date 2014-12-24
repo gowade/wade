@@ -72,7 +72,7 @@ func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
 
 		if wrapped {
 			v = func() {
-				_, er := sym.Call(args, true)
+				_, er := sym.Call(args)
 				if er != nil {
 					panic(er)
 				}
@@ -81,7 +81,7 @@ func (b bindScope) evaluateRec(e *expr) (v interface{}, err error) {
 			return
 		}
 
-		rv, err = sym.Call(args, false)
+		rv, err = sym.Call(args)
 		if rv.IsValid() && rv.CanInterface() {
 			v = rv.Interface()
 		}

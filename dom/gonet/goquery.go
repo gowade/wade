@@ -1,4 +1,4 @@
-package goquery
+package gonet
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
-	"github.com/phaikawl/wade/domconv/gonet"
 )
 
 const (
@@ -370,7 +369,7 @@ func (s Selection) Prev() dom.Selection {
 	return selFromNodes(nsnodes)
 }
 
-func (s Selection) Listen(event string, selector string, handler dom.EventHandler) {
+func (s Selection) Listen(event string, selector string, handler dom.EventHandlerFn) {
 	//stub
 }
 
@@ -477,66 +476,9 @@ func (s Selection) Underlying() js.Object {
 }
 
 func (sel Selection) Render(vn *core.VNode) {
-	gonet.Render(sel.Nodes[0], vn)
+	Render(sel.Nodes[0], vn)
 }
 
 func (sel Selection) ToVNode() core.VNode {
-	return gonet.ToVNode(sel.Nodes[0])
-}
-
-func (sel Selection) DebugHtml() (s string) {
-	for _, elem := range sel.Elements() {
-		s += debugHtml(elem, 0, false)
-	}
-
-	return
-}
-
-func debugHtml(elem dom.Selection, idx int, inline bool) (s string) {
-	indent := ""
-	for i := 0; i < idx; i++ {
-		indent += "  "
-	}
-
-	attrs := ""
-	for _, attr := range elem.Attrs() {
-		attrs += fmt.Sprintf(` %v="%v"`, attr.Name, attr.Value)
-	}
-
-	if elem.IsElement() {
-		s += indent
-		s += fmt.Sprintf("<%v%v>", elem.TagName(), attrs)
-		inline := elem.Contents().Length() == 1 && elem.Contents().First().IsTextNode()
-		if !inline {
-			s += "\n"
-		}
-
-		for _, c := range elem.Contents().Elements() {
-			s += debugHtml(c, idx+1, inline)
-		}
-
-		if !inline {
-			s += indent
-		}
-
-		s += fmt.Sprintf("</%v>", elem.TagName())
-		s += "\n"
-	}
-
-	if elem.IsTextNode() {
-		text := strings.TrimSpace(elem.Text())
-		if text == "" {
-			return
-		}
-
-		if !inline {
-			s += indent
-		}
-		s += "`" + text + "`"
-		if !inline {
-			s += "\n"
-		}
-	}
-
-	return
+	return ToVNode(sel.Nodes[0])
 }

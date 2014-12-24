@@ -1,4 +1,4 @@
-package goquery
+package gonet
 
 import (
 	"testing"

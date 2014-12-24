@@ -23,6 +23,7 @@ type (
 		fetcher   SrcFetcher
 		container dom.Selection
 		importCtn dom.Selection
+		templates map[string]*core.VNode
 		origVdom  *core.VNode
 		vdom      *core.VNode
 		onReady   []func()
@@ -52,29 +53,18 @@ func (tc *TemplateConverter) processQueue() {
 
 func (tc *TemplateConverter) FromHTMLTemplate(templatePtr *core.VNode, templateId string) core.VNode {
 	tc.queue = append(tc.queue, func() {
-		vn := core.VNode{
-			Type:     core.GroupNode,
-			Children: []core.VNode{},
-		}
-
-		template := tc.importCtn.Find("template#" + templateId)
-		if template.Length() == 0 {
+		template, ok := tc.templates[templateId]
+		if !ok {
 			panic(fmt.Errorf(`Cannot find HTML Template "%v".`, templateId))
 		}
 
-		children := template.Children().Elements()
-
-		for _, c := range children {
-			vn.Children = append(vn.Children, c.ToVNode())
-		}
-
-		*templatePtr = vn
+		*templatePtr = *template
 	})
 
 	// return a temporary dummy template, replaced later
 	return core.VPrep(core.VNode{
 		Type: core.GroupNode,
-		Data: "component",
+		Data: "template",
 	})
 }
 
@@ -101,6 +91,7 @@ func New(document dom.Selection, fetcher SrcFetcher) (mm *MarkupManager) {
 		container: c,
 		importCtn: c,
 		onReady:   make([]func(), 0),
+		templates: make(map[string]*core.VNode),
 	}
 
 	return
@@ -150,6 +141,7 @@ func (mm *MarkupManager) LoadView() (err error) {
 		importCtn = mm.container.Clone()
 
 		var src string
+		//gopherjs:blocking
 		src, err = mm.fetcher.FetchFile(file)
 		if err != nil {
 			return
@@ -164,9 +156,18 @@ func (mm *MarkupManager) LoadView() (err error) {
 	}
 
 	mm.origVdom = importCtn.ToVNode().Ptr()
+
 	for _, tmpl := range vq.New(mm.origVdom).Find(vq.Selector{Tag: "template"}) {
 		tmpl.Type = core.DeadNode
+		if id, ok := tmpl.Attr("id"); ok && id != "" {
+			mm.templates[id.(string)] = tmpl
+		}
 	}
+
+	for _, imp := range vq.New(mm.origVdom).Find(vq.Selector{Tag: IncludeTag}) {
+		imp.Type = core.GroupNode
+	}
+
 	mm.vdom = mm.origVdom
 	mm.importCtn = importCtn
 	for _, fn := range mm.onReady {
@@ -198,22 +199,15 @@ func HTMLImports(fetcher SrcFetcher, container dom.Selection) (err error) {
 		go func(elem dom.Selection) {
 			var err error
 			var html string
+			//gopherjs:blocking
 			html, err = fetcher.FetchFile(src)
 			if err != nil {
 				finishChan <- err
 				return
 			}
 
-			// the go html parser will refuse to work if the content is only text, so
-			// we put a wrapper here
-			newElem := container.NewFragment("<div !group>" + html + "</div>")
-			if belong, hasbelong := elem.Attr(core.BelongAttrName); hasbelong {
-				newElem.SetAttr(core.BelongAttrName, belong)
-			}
-
-			elem.ReplaceWith(newElem)
-
-			err = HTMLImports(fetcher, newElem)
+			elem.SetHtml(html)
+			err = HTMLImports(fetcher, elem)
 			if err != nil {
 				finishChan <- err
 				return
