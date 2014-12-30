@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -68,7 +69,11 @@ func (d Dom) NewTextNode(content string) dom.Selection {
 }
 
 func parseHTML(source string) []*html.Node {
-	nodes, err := html.ParseFragment(bytes.NewBufferString(strings.TrimSpace(source)), &html.Node{
+	return ParseHTML(bytes.NewBufferString(strings.TrimSpace(source)))
+}
+
+func ParseHTML(source io.Reader) []*html.Node {
+	nodes, err := html.ParseFragment(source, &html.Node{
 		Type:     html.ElementNode,
 		Data:     "body",
 		DataAtom: atom.Body,
@@ -98,7 +103,11 @@ func selFromNodes(nodes []*html.Node) dom.Selection {
 }
 
 func newFragment(source string) dom.Selection {
-	nodes := parseHTML(source)
+	return NewFragment(bytes.NewBufferString(strings.TrimSpace(source)))
+}
+
+func NewFragment(source io.Reader) dom.Selection {
+	nodes := ParseHTML(source)
 	if len(nodes) == 0 {
 		empty := goquery.NewDocumentFromNode(nil)
 		empty.Nodes = []*html.Node{}
@@ -479,6 +488,6 @@ func (sel Selection) Render(vn *core.VNode) {
 	Render(sel.Nodes[0], vn)
 }
 
-func (sel Selection) ToVNode() core.VNode {
+func (sel Selection) ToVNode() *core.VNode {
 	return ToVNode(sel.Nodes[0])
 }

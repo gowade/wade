@@ -14,39 +14,33 @@ func TestConversion(t *testing.T) {
 	// From virtual to real
 	node := createNode()
 
-	root := core.VPrep(core.VNode{
+	root := core.VPrep(&core.VNode{
 		Data: "div",
-		Children: []core.VNode{
-			core.VNode{
+		Children: []*core.VNode{
+			&core.VNode{
 				Data: "b",
 			},
-			core.VNode{
+			&core.VNode{
 				Data:  "a",
 				Attrs: core.Attributes{"w": 123.4},
 			},
-			core.VNode{
+			&core.VNode{
 				Type: core.GroupNode,
-				Children: []core.VNode{
+				Children: []*core.VNode{
 					core.VText("("),
-					core.VMustache("empty"),
 					{
 						Data:     "div",
 						Attrs:    core.Attributes{"disabled": true},
-						Binds:    []core.Bindage{core.BindAttr("test", "test")},
-						Children: []core.VNode{core.VText(")")},
+						Children: []*core.VNode{core.VText(")")},
 					},
 				},
 			},
-			core.VNode{
-				Type: core.DataNode,
-				Data: "data",
-			},
-			core.VNode{
+			&core.VNode{
 				Type: core.DeadNode,
 			},
 			core.VText("t"),
 		},
-	}).Ptr()
+	})
 
 	buf := bytes.NewBufferString("")
 	Render(node, root)
@@ -65,12 +59,12 @@ func TestConversion(t *testing.T) {
 	// From real to virtual
 	pnode, err := parseHtml(`
 		<div>
-			<div !group>
+			<w_group>
 				<b></b>
 				<a w="123.4"></a>
 				(<div disabled>)</div>
 				t
-			</div>
+			</w_group>
 		</div>
 	`)
 
@@ -80,14 +74,14 @@ func TestConversion(t *testing.T) {
 
 	vnode := ToVNode(pnode)
 	target := createNode()
-	Render(target, &vnode)
+	Render(target, vnode)
 
 	b := bytes.NewBufferString("")
 	html.Render(b, target)
 	require.Equal(t, utils.NoSp(b.String()), utils.NoSp(src))
 
 	vnode.ChildElems()[0].SetClass("done", true)
-	Render(target, &vnode)
+	Render(target, vnode)
 	b = bytes.NewBufferString("")
 	html.Render(b, target)
 	src2 := `<div>

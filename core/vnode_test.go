@@ -9,15 +9,15 @@ import (
 func TestVNode(t *testing.T) {
 	vn := VNode{
 		Data: "div",
-		Children: []VNode{
+		Children: []*VNode{
 			{
 				Data:     "div",
-				Children: []VNode{VText("ABCD")},
+				Children: []*VNode{VText("ABCD")},
 			},
 			{
 				Type: GroupNode,
-				Children: []VNode{
-					{Data: "hidden", Children: []VNode{VText("<Should not display>")}},
+				Children: []*VNode{
+					{Data: "hidden", Children: []*VNode{VText("<Should not display>")}},
 					VText("hidden"),
 					VText("EFGH"),
 				},
@@ -33,7 +33,7 @@ func TestVNode(t *testing.T) {
 		return true
 	})
 
-	NodeWalk(&nn, func(n *VNode) {
+	NodeWalk(nn, func(n *VNode) {
 		require.NotEqual(t, n.Type, NotsetNode)
 	})
 

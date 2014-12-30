@@ -71,6 +71,11 @@ type (
 		serverBase string
 		http       *http.Client
 	}
+
+	ComponentProto struct {
+		core.BaseProto
+		App *Application
+	}
 )
 
 func (app *Application) Document() dom.Selection {

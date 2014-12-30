@@ -38,56 +38,37 @@ func createNode() *html.Node {
 
 type htmlNode html.Node
 
-func (n *htmlNode) ToVNode() (result []core.VNode) {
+func (n *htmlNode) ToVNode() (result []*core.VNode) {
 	node := n.node()
 	switch node.Type {
 	case html.TextNode:
 		return dom.ParseMustaches(node.Data)
 	case html.CommentNode:
-		return []core.VNode{
-			core.VPrep(core.VNode{Type: core.DataNode, Data: node.Data}),
-		}
+		return []*core.VNode{}
 	case html.ElementNode:
 		attrs := map[string]interface{}{}
-		binds := []core.Bindage{}
 		for _, attr := range node.Attr {
-			var bindType core.BindType
-			switch attr.Key[0] {
-			case core.AttrBindPrefix:
-				bindType = core.AttrBind
-			case core.BinderBindPrefix:
-				bindType = core.BinderBind
-			default:
-				attrs[attr.Key] = attr.Val
-				continue
-			}
-
-			binds = append(binds, core.Bindage{
-				Type: bindType,
-				Name: attr.Key[1:],
-				Expr: attr.Val,
-			})
+			attrs[attr.Key] = attr.Val
 		}
 
-		n := core.VNode{
+		n := &core.VNode{
 			Data:     node.Data,
 			Type:     core.ElementNode,
 			Attrs:    attrs,
-			Binds:    binds,
-			Children: []core.VNode{},
+			Children: []*core.VNode{},
 		}
 
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
 			n.Children = append(n.Children, (*htmlNode)(c).ToVNode()...)
 		}
 
-		return []core.VNode{core.VPrep(n)}
+		return []*core.VNode{core.VPrep(n)}
 	default:
 		panic(fmt.Errorf(`Unhandled node type %v when
-		converting HTML to VNode", node.Type`))
+		converting HTML to VNode", node.Type`, node.Type))
 	}
 
-	return []core.VNode{}
+	return []*core.VNode{}
 }
 
 func (n *htmlNode) node() *html.Node {
@@ -176,6 +157,6 @@ func Render(node *html.Node, v *core.VNode) {
 	*node = *ptr
 }
 
-func ToVNode(node *html.Node) core.VNode {
+func ToVNode(node *html.Node) *core.VNode {
 	return (*htmlNode)(node).ToVNode()[0]
 }

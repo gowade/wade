@@ -23,7 +23,8 @@ func ToString(value interface{}) string {
 	if value == nil {
 		return ""
 	}
-	return fmt.Sprintf("%v", value)
+
+	return fmt.Sprint(value)
 }
 
 type M map[string]interface{}

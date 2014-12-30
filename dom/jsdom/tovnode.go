@@ -94,22 +94,15 @@ func html2VNode(node js.Object) (result []core.VNode) {
 				key := attr.Get("name").Str()
 				value := attr.Get("value").Str()
 
-				var bindType core.BindType
-				switch key[0] {
-				case core.AttrBindPrefix:
-					bindType = core.AttrBind
-				case core.BinderBindPrefix:
-					bindType = core.BinderBind
-				default:
+				if bindType, ok := dom.GetBindType(key); ok {
+					binds = append(binds, core.Bindage{
+						Type: bindType,
+						Name: key[1:],
+						Expr: value,
+					})
+				} else {
 					attrs[key] = value
-					continue
 				}
-
-				binds = append(binds, core.Bindage{
-					Type: bindType,
-					Name: key[1:],
-					Expr: value,
-				})
 			}
 		}
 

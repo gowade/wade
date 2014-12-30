@@ -94,7 +94,7 @@ type (
 		Underlying() js.Object
 		Each(EachFn)
 		Render(*core.VNode)
-		ToVNode() core.VNode
+		ToVNode() *core.VNode
 	}
 )
 

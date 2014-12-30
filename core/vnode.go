@@ -3,63 +3,51 @@ package core
 import (
 	"fmt"
 	"strings"
+	"unicode"
+)
 
-	"github.com/phaikawl/wade/scope"
+const (
+	GroupNodeTagName = "w_group"
+	IncludeTagName   = "w_include"
 )
 
 const (
 	NotsetNode NodeType = iota
-	TextNode
 	MustacheNode
+	TextNode
 	ElementNode
 	GroupNode
-	DataNode
 	DeadNode
-)
-
-const (
-	AttrBind BindType = iota
-	BinderBind
 )
 
 type (
 	Attributes map[string]interface{}
 
-	Bindage struct {
-		Type BindType
-		Name string
-		Expr string
-	}
-
 	NodeType uint
-	BindType uint
 
-	cbFunc func() error
+	BindFunc func(*VNode)
 
 	VNode struct {
 		Type      NodeType
 		Data      string
-		Children  []VNode
+		Children  []*VNode
 		Attrs     Attributes
-		Binds     []Bindage
 		classes   map[string]bool
-		scope     *scope.Scope
-		callbacks []cbFunc
+		Callbacks []BindFunc
 		Rendered  interface{} // data field to save the real rendered DOM element
 		preUpdate bool
-		metaAttrs Attributes
 	}
 
 	CondFn func(node VNode) bool
 )
 
-func (node *VNode) addCallback(cb cbFunc) {
-	if node.callbacks == nil {
-		node.callbacks = []cbFunc{cb}
+func (node *VNode) addCallback(cb BindFunc) {
+	if node.Callbacks == nil {
+		node.Callbacks = []BindFunc{cb}
 		return
 	}
 
-	node.callbacks = append(node.callbacks, cb)
+	node.Callbacks = append(node.Callbacks, cb)
 }
 
 func preprocessVNode(v *VNode) {
@@ -72,95 +60,105 @@ func preprocessVNode(v *VNode) {
 	}
 
 	if v.Type != TextNode && v.Type != MustacheNode {
+		if v.Data == GroupNodeTagName {
+			v.Type = GroupNode
+		}
+
 		if v.Attrs == nil {
 			v.Attrs = make(map[string]interface{})
 		}
 
-		if v.Binds == nil {
-			v.Binds = []Bindage{}
-		}
-
 		if v.Children == nil {
-			v.Children = []VNode{}
+			v.Children = []*VNode{}
 		}
 
 		v.processClassAttr()
+	}
+}
 
-		if v.metaAttrs == nil {
-			v.metaAttrs = make(Attributes)
+func trimSpace(text string) string {
+	start := 0
+	r := []rune(text)
+	for {
+		if start == len(r)-1 || !unicode.IsSpace(r[start]) {
+			break
 		}
 
-		for attr, value := range v.Attrs {
-			if string(attr[0]) == MetaAttrPrefix {
-				delete(v.Attrs, attr)
+		start++
+	}
 
-				if attr == "!group" {
-					v.Type = GroupNode
-					continue
-				}
-
-				v.metaAttrs[attr[1:]] = value
-			}
+	end := len(r)
+	for {
+		if end <= start || !unicode.IsSpace(r[end-1]) {
+			break
 		}
+
+		end--
 	}
+
+	preSp := ""
+	if start > 0 {
+		preSp = " "
+	}
+
+	postSp := ""
+	if end < len(r) {
+		postSp = " "
+	}
+
+	//println(start, end, len(r))
+	return preSp + string(r[start:end]) + postSp
 }
 
-func BindBinder(name, expr string) Bindage {
-	return Bindage{
-		Type: BinderBind,
-		Name: name,
-		Expr: expr,
-	}
-}
-
-func BindAttr(name, expr string) Bindage {
-	return Bindage{
-		Type: AttrBind,
-		Name: name,
-		Expr: expr,
-	}
-}
-
-func VText(text string) VNode {
-	return VNode{
+func VText(text string) *VNode {
+	return &VNode{
 		Type:     TextNode,
-		Data:     text,
+		Data:     trimSpace(text),
 		Attrs:    make(map[string]interface{}),
-		Binds:    []Bindage{},
-		Children: []VNode{},
+		Children: []*VNode{},
 	}
 }
 
-func VMustache(expr string) VNode {
-	return VNode{
-		Type:  MustacheNode,
-		Data:  "",
-		Attrs: make(map[string]interface{}),
-		Binds: []Bindage{Bindage{
-			Type: AttrBind,
-			Expr: expr,
-		}},
-		Children: []VNode{},
+func VElem(tagName string, class string) *VNode {
+	return &VNode{
+		Type: ElementNode,
+		Data: tagName,
+		Attrs: Attributes{
+			"class": class,
+		},
 	}
 }
 
-func (node VNode) Ptr() (np *VNode) {
-	np = new(VNode)
-	*np = node
-	return np
+func VMustacheInfo(text string) *VNode {
+	return &VNode{
+		Type:     MustacheNode,
+		Data:     trimSpace(text),
+		Attrs:    make(map[string]interface{}),
+		Children: []*VNode{},
+	}
 }
 
-func VPrep(node VNode) (r VNode) {
-	r = node
-	prepRec(&r)
-	return
+func VMustache(expr func() interface{}) *VNode {
+	return &VNode{
+		Type:     MustacheNode,
+		Data:     "",
+		Attrs:    make(map[string]interface{}),
+		Children: []*VNode{},
+		Callbacks: []BindFunc{
+			func(vn *VNode) {
+				vn.Data = fmt.Sprint(expr())
+			},
+		},
+	}
 }
 
-func prepRec(node *VNode) {
+func VPrep(node *VNode) *VNode {
 	preprocessVNode(node)
-	for i := range node.Children {
-		prepRec(&node.Children[i])
+	for _, c := range node.Children {
+		VPrep(c)
 	}
+
+	return node
 }
 
 func (node *VNode) processClassAttr() {
@@ -174,10 +172,6 @@ func (node *VNode) processClassAttr() {
 			node.classes[cls] = true
 		}
 	}
-}
-
-func (node *VNode) Prep() {
-	prepRec(node)
 }
 
 func (node VNode) TagName() string {
@@ -209,20 +203,14 @@ func (node *VNode) update(preUpdate bool) {
 		return
 	}
 
-	if node.callbacks != nil {
-		for _, cb := range node.callbacks {
+	if node.Callbacks != nil {
+		for _, cb := range node.Callbacks {
 			//gopherjs:blocking
-			err := cb()
-			if err != nil {
-				go func() {
-					panic(err)
-				}()
-			}
+			cb(node)
 		}
 	}
 
-	for i, _ := range node.Children {
-		c := &node.Children[i]
+	for _, c := range node.Children {
 		c.update(preUpdate)
 	}
 
@@ -235,8 +223,7 @@ func (node VNode) Attr(attr string) (v interface{}, ok bool) {
 
 func (node VNode) ChildElems() (l []*VNode) {
 	l = []*VNode{}
-	for i := range node.Children {
-		item := &node.Children[i]
+	for _, item := range node.Children {
 		if item.Type == ElementNode {
 			l = append(l, item)
 		}
@@ -255,11 +242,6 @@ func (node VNode) IsElement() bool {
 
 func (node *VNode) SetAttr(attr string, value interface{}) {
 	node.Attrs[strings.ToLower(attr)] = value
-}
-
-func (node *VNode) MetaAttr(attr string) (value interface{}, ok bool) {
-	value, ok = node.metaAttrs[attr]
-	return
 }
 
 func (node *VNode) ClassStr() (s string) {
@@ -294,10 +276,10 @@ func (node VNode) HasClass(className string) bool {
 }
 
 func (node VNode) DebugInfo() string {
-	return nodeDebug(node, 0)
+	return nodeDebug(&node, 0)
 }
 
-func nodeDebug(node VNode, level int) (s string) {
+func nodeDebug(node *VNode, level int) (s string) {
 	sp := ""
 	for i := 0; i < level; i++ {
 		sp += "  "
@@ -320,45 +302,44 @@ func nodeDebug(node VNode, level int) (s string) {
 			s += fmt.Sprintf(`"%v"`, text)
 		}
 	case MustacheNode:
-		s += fmt.Sprintf(`{{%v}"%v" }`, node.Binds[0].Expr, node.Data)
-	case DataNode:
-		s += fmt.Sprintf(`//%v`, node.Data)
+		s += fmt.Sprintf(`{"%v"}`, node.Data)
 	default:
 		s += fmt.Sprintf("<%v:%v {%+v} [%v]>", node.Data, suffix, node.Attrs, node.ClassStr())
 	}
 	s += "\n"
 
-	for i, _ := range node.Children {
-		s += nodeDebug(node.Children[i], level+1)
+	for _, c := range node.Children {
+		s += nodeDebug(c, level+1)
 	}
 
 	return
 }
 
 func NodeWalkX(node *VNode, fn func(*VNode, int)) {
-	for i, _ := range node.Children {
+	for i, c := range node.Children {
 		fn(node, i)
-		NodeWalkX(&node.Children[i], fn)
+		NodeWalkX(c, fn)
 	}
 }
 
 func NodeWalk(node *VNode, fn func(*VNode)) {
 	fn(node)
-	for i := range node.Children {
-		NodeWalk(&node.Children[i], fn)
+	for _, c := range node.Children {
+		NodeWalk(c, fn)
 	}
 }
 
-func (node VNode) Clone() (clone VNode) {
+func (node VNode) Clone() (clone *VNode) {
 	return node.CloneWithCond(nil)
 }
 
-func (node VNode) CloneWithCond(cond CondFn) (clone VNode) {
-	clone = node
-	preprocessVNode(&clone)
-	clone.Children = make([]VNode, 0)
+func (node VNode) CloneWithCond(cond CondFn) (clone *VNode) {
+	clone = new(VNode)
+	*clone = node
+	preprocessVNode(clone)
+	clone.Children = make([]*VNode, 0)
 	for i := range node.Children {
-		if cond == nil || cond(node.Children[i]) {
+		if cond == nil || cond(*node.Children[i]) {
 			clone.Children = append(clone.Children,
 				node.Children[i].CloneWithCond(cond))
 		}

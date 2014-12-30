@@ -22,8 +22,7 @@ type (
 
 func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
 	children := []PlatformNode{}
-	for i := range v.Children {
-		c := &v.Children[i]
+	for _, c := range v.Children {
 		rchilds := renderRec(c, renderer)
 
 		if rchilds != nil {
@@ -43,7 +42,7 @@ func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
 		n = renderer.NewTextNode(v)
 	case core.ElementNode:
 		n = renderer.NewElementNode(v, children)
-	case core.DataNode, core.DeadNode:
+	case core.DeadNode:
 		return []PlatformNode{}
 	case core.NotsetNode:
 		panic(fmt.Errorf("node type not set for this node (nodeType=0)."))
@@ -55,26 +54,26 @@ func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
 }
 
 func Render(v *core.VNode, renderer Renderer) PlatformNode {
-	v.Prep()
+	core.VPrep(v)
 	n := renderRec(v, renderer)
 	return n[0]
 }
 
-func ParseMustaches(text string) []core.VNode {
+func ParseMustaches(text string) []*core.VNode {
 	matches := MustacheRegex.FindAllStringSubmatch(text, -1)
 
 	if matches == nil {
-		return []core.VNode{core.VText(text)}
+		return []*core.VNode{core.VText(text)}
 	}
 
-	nodes := []core.VNode{}
+	nodes := []*core.VNode{}
 	splitted := MustacheRegex.Split(text, -1)
 
 	for i, m := range matches {
 		if splitted[i] != "" {
 			nodes = append(nodes, core.VText(splitted[i]))
 		}
-		nodes = append(nodes, core.VMustache(m[1]))
+		nodes = append(nodes, core.VMustacheInfo(m[1]))
 	}
 
 	if splitted[len(splitted)-1] != "" {
