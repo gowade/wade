@@ -14,7 +14,7 @@ Wade.Go is made for web *sites*, not just *apps*, it can help build content-heav
 # Getting started
 * [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Iteration 2)
 * [godoc API reference](http://godoc.org/github.com/phaikawl/wade) (Iteration 2)
-* [Wadereddi](https://github.com/phaikawl/wadereddi) the demo app (Master at iteration 4)
+* [Wadereddi](https://github.com/phaikawl/wadereddi) the demo app
 
 # License
 
