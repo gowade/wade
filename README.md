@@ -12,9 +12,9 @@ Although being client-centric in approach, Wade.Go is independent and designed t
 Wade.Go is made for web *sites*, not just *apps*, it can help build content-heavy sites like blog, forum as well as dynamic web applications.
 
 # Getting started
-* [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Iteration 2)
-* [godoc API reference](http://godoc.org/github.com/phaikawl/wade) (Iteration 2)
-* [Wadereddi](https://github.com/phaikawl/wadereddi) the demo app
+* [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Outdated, Iteration 2)
+* [godoc API reference](http://godoc.org/github.com/phaikawl/wade) (Outdated)
+* [Wadereddi](https://github.com/phaikawl/wadereddi)
 
 # License
 
