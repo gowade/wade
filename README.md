@@ -1,6 +1,4 @@
 
->>> December 21, 2014: Wade.Go i3 on react-esque virtual DOM technique is underway (on the "vdom" branch). The internal API rewrite and code migration is done, it now passed the *wadereddi* functional test. The remaining task is Javascript adaptation, mainly integrating with a Javascript virtual DOM rendering library.
-
 # Wade.Go
 **Wade.Go** is a **client-centric** web framework for Go, it's like nothing you ever heard. It brings these awesome things together
 * Compiled, statically typed programming with Go (compiled to Javascript on client side by [gopherjs](https://github.com/gopherjs/gopherjs))
