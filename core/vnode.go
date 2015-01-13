@@ -33,7 +33,7 @@ type (
 		Children  []*VNode
 		Attrs     Attributes
 		classes   map[string]bool
-		Callbacks []BindFunc
+		Binds     []BindFunc
 		Rendered  interface{} // data field to save the real rendered DOM element
 		preUpdate bool
 	}
@@ -41,13 +41,13 @@ type (
 	CondFn func(node VNode) bool
 )
 
-func (node *VNode) addCallback(cb BindFunc) {
-	if node.Callbacks == nil {
-		node.Callbacks = []BindFunc{cb}
+func (node *VNode) addBind(cb BindFunc) {
+	if node.Binds == nil {
+		node.Binds = []BindFunc{cb}
 		return
 	}
 
-	node.Callbacks = append(node.Callbacks, cb)
+	node.Binds = append(node.Binds, cb)
 }
 
 func preprocessVNode(v *VNode) {
@@ -144,7 +144,7 @@ func VMustache(expr func() interface{}) *VNode {
 		Data:     "",
 		Attrs:    make(map[string]interface{}),
 		Children: []*VNode{},
-		Callbacks: []BindFunc{
+		Binds: []BindFunc{
 			func(vn *VNode) {
 				vn.Data = fmt.Sprint(expr())
 			},
@@ -203,8 +203,8 @@ func (node *VNode) update(preUpdate bool) {
 		return
 	}
 
-	if node.Callbacks != nil {
-		for _, cb := range node.Callbacks {
+	if node.Binds != nil {
+		for _, cb := range node.Binds {
 			//gopherjs:blocking
 			cb(node)
 		}
