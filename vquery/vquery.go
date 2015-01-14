@@ -78,7 +78,7 @@ func (s Selector) Match(node *core.VNode) bool {
 
 func New(vnode *core.VNode) Selection {
 	core.NodeWalkX(vnode, func(parent *core.VNode, i int) {
-		c := &parent.Children[i]
+		c := parent.Children[i]
 		gParent[c] = parent
 	})
 

@@ -13,9 +13,10 @@ import (
 var (
 	prelude = "package %v\n" +
 		"import (\n" +
-		"\t " + `. "github.com/phaikawl/wade/app/helpers"` + "\n" +
-		"\t " + `bdrs "github.com/phaikawl/wade/binders"` + "\n" +
-		"\t " + `wc "github.com/phaikawl/wade/core"` + "\n" +
+		"\t" + `. "fmt"` + "\n" +
+		"\t" + `. "strings"` + "\n" +
+		"\t" + `. "github.com/phaikawl/wade/utils"` + "\n" +
+		"\t" + `wc "github.com/phaikawl/wade/core"` + "\n" +
 		")\n\n" +
 		"var binders = bdrs.Binders" +
 		"var %v = wc.VPrep(wc.VNode%v)\n"

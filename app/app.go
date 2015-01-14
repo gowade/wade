@@ -6,7 +6,6 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 
-	"github.com/phaikawl/wade/binders"
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
@@ -61,7 +60,6 @@ type (
 		Config        Config
 		Http          *http.Client
 		PageMgr       *page.PageManager
-		bindEngine    *core.Binding
 		markupMgr     *markman.MarkupManager
 		renderBackend RenderBackend
 		eventFinish   chan bool

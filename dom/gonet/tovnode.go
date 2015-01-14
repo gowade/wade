@@ -42,6 +42,9 @@ func (n *htmlNode) ToVNode() (result []*core.VNode) {
 	node := n.node()
 	switch node.Type {
 	case html.TextNode:
+		if strings.TrimSpace(n.Data) == "" {
+			return []*core.VNode{}
+		}
 		return dom.ParseMustaches(node.Data)
 	case html.CommentNode:
 		return []*core.VNode{}

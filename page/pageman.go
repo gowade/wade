@@ -196,7 +196,7 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 
 	vdom := pm.output.MarkupPage(pm.formattedTitle,
 		func(vnode core.VNode) bool {
-			if belongstr, ok := vnode.MetaAttr(core.BelongAttrName); ok {
+			if belongstr, ok := vnode.Attr("!belong"); ok {
 				belongs := strings.Split(belongstr.(string), " ")
 				for _, belong := range belongs {
 					if ds, ok := pm.displayScopes[belong]; ok {

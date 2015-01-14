@@ -41,7 +41,7 @@ func (f NopFetcher) FetchFile(file string) (string, error) {
 	return "", nil
 }
 
-func (tc TemplateConverter) FromString(template string) core.VNode {
+func (tc TemplateConverter) FromString(template string) *core.VNode {
 	return tc.document.NewFragment(template).ToVNode()
 }
 
@@ -51,7 +51,7 @@ func (tc *TemplateConverter) processQueue() {
 	}
 }
 
-func (tc *TemplateConverter) FromHTMLTemplate(templatePtr *core.VNode, templateId string) core.VNode {
+func (tc *TemplateConverter) FromHTMLTemplate(templatePtr *core.VNode, templateId string) *core.VNode {
 	tc.queue = append(tc.queue, func() {
 		template, ok := tc.templates[templateId]
 		if !ok {
@@ -62,7 +62,7 @@ func (tc *TemplateConverter) FromHTMLTemplate(templatePtr *core.VNode, templateI
 	})
 
 	// return a temporary dummy template, replaced later
-	return core.VPrep(core.VNode{
+	return core.VPrep(&core.VNode{
 		Type: core.GroupNode,
 		Data: "template",
 	})
@@ -115,7 +115,7 @@ func (mm *MarkupManager) MarkupPage(title string, condFn core.CondFn) *core.VNod
 		panic("View has not been loaded.")
 	}
 
-	mm.vdom = mm.origVdom.CloneWithCond(condFn).Ptr()
+	mm.vdom = mm.origVdom.CloneWithCond(condFn)
 
 	headElem := mm.document.Find("head").First()
 	titleElem := headElem.Find("title")
@@ -155,7 +155,7 @@ func (mm *MarkupManager) LoadView() (err error) {
 		return
 	}
 
-	mm.origVdom = importCtn.ToVNode().Ptr()
+	mm.origVdom = importCtn.ToVNode()
 
 	for _, tmpl := range vq.New(mm.origVdom).Find(vq.Selector{Tag: "template"}) {
 		tmpl.Type = core.DeadNode
