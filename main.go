@@ -69,5 +69,5 @@ func main() {
 
 	vRoot := root.ToVNode()
 	c := compiler.NewCompiler(outputDir, pkgName, ctbinders.Binders)
-	c.Compile(masterFile, vRoot)
+	c.CompileRoot(masterFile, vRoot)
 }

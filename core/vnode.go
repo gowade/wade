@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	GroupNodeTagName = "w_group"
-	IncludeTagName   = "w_include"
+	GroupNodeTagName   = "w_group"
+	IncludeTagName     = "w_include"
+	ComponentTagName   = "w_component"
+	ComponentTagPrefix = "c:"
 )
 
 const (

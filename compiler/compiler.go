@@ -8,6 +8,11 @@ import (
 	"strings"
 
 	"github.com/phaikawl/wade/core"
+	"github.com/phaikawl/wade/vquery"
+)
+
+const (
+	tmplVarPrefix = "Tmpl_"
 )
 
 var (
@@ -16,10 +21,9 @@ var (
 		"\t" + `. "fmt"` + "\n" +
 		"\t" + `. "strings"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/utils"` + "\n" +
-		"\t" + `wc "github.com/phaikawl/wade/core"` + "\n" +
+		"\t" + `. "github.com/phaikawl/wade/core"` + "\n" +
 		")\n\n" +
-		"var binders = bdrs.Binders" +
-		"var %v = wc.VPrep(wc.VNode%v)\n"
+		"var %v = VPrep(VNode%v)\n"
 )
 
 type CTBFunc func(TempComplData) string
@@ -43,11 +47,50 @@ func NewCompiler(outputDir, pkgName string, ctBinders map[string]CTBFunc) *Compi
 	}
 }
 
-func (g *Compiler) Compile(htmlFile string, node *core.VNode) {
-	g.writeFile(htmlFile, g.Process(node, 0, htmlFile))
+func (g *Compiler) Compile(htmlFile string, varName string, node *core.VNode) {
+	g.writeContent(htmlFile, varName, g.Process(node, 0, htmlFile))
 }
 
-func (g Compiler) fileContent(varName string, data string) string {
+func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
+	metaElems := vq.New(node).Find(vq.Selector{Tag: "w_meta"})
+	if len(metaElems) == 0 {
+		return
+	}
+
+	for _, meta := range metaElems {
+		for _, n := range meta.Children {
+			if n.Data == core.ComponentTagName {
+				comNameI, ok := n.Attr("name")
+				comName := strings.TrimSpace(comNameI.(string))
+				if !ok || comName == "" {
+					continue
+				}
+
+				outputFile := "component_" + comName + ".html.go"
+				varName := "component_" + comName
+				if impSrc, _ := n.Attr("import_src"); impSrc != nil {
+					if impCom, _ := n.Attr("import_com"); impCom != nil {
+						data := fmt.Sprintf("package %v\n"+`import __imported "%v"`+"\n%v = %v", g.PackageName, impSrc.(string),
+							varName, "__imported."+tmplVarPrefix+"component_"+impCom.(string))
+						g.writeFile(outputFile, data)
+					} else {
+						fmt.Printf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string))
+					}
+				} else {
+					comTemp := core.VPrep(&core.VNode{
+						Data: comName,
+					})
+					comTemp.Children = n.Children
+					g.Compile(outputFile, varName, comTemp)
+				}
+			}
+		}
+	}
+
+	g.Compile(htmlFile, "main", node)
+}
+
+func (g Compiler) fileContent(varName, data string) string {
 	return fmt.Sprintf(prelude, g.PackageName, varName, data)
 }
 
@@ -62,9 +105,17 @@ func (g *Compiler) getInclVar(htmlFile string) string {
 	return fmt.Sprintf("include%d", idx)
 }
 
-func (g *Compiler) writeFile(htmlFile string, data string) {
+func (g *Compiler) writeContent(htmlFile, varName, data string) {
+	if varName == "" {
+		varName = g.getInclVar(htmlFile)
+	}
+
+	g.writeFile(htmlFile, g.fileContent(tmplVarPrefix+varName, data))
+}
+
+func (g *Compiler) writeFile(htmlFile, content string) {
 	filePath := path.Join(g.OutputDir, path.Base(htmlFile)+".go")
-	ioutil.WriteFile(filePath, []byte(g.fileContent(g.getInclVar(htmlFile), data)), 0644)
+	ioutil.WriteFile(filePath, []byte(content), 0644)
 }
 
 var (
@@ -115,11 +166,15 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		return ""
 	}
 
-	if depth > 0 {
+	if node.Data == "w_meta" {
+		return ""
+	}
+
+	if depth > 0 && node.Data == core.GroupNodeTagName {
 		if iSrc, ok := node.Attr("src"); ok {
 			src := iSrc.(string)
-			g.Compile(src, node)
-			return g.getInclVar(src)
+			g.Compile(src, "", node)
+			return tmplVarPrefix + g.getInclVar(src)
 		}
 	}
 
@@ -129,16 +184,16 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 			return ""
 		}
 
-		return fmt.Sprintf("wc.VText(`%s`)", node.Data)
+		return fmt.Sprintf("VText(`%s`)", node.Data)
 	case core.MustacheNode:
-		return fmt.Sprintf(`wc.VMustache(func() interface{} { return %s })`, strings.TrimSpace(node.Data))
+		return fmt.Sprintf(`VMustache(func() interface{} { return %s })`, strings.TrimSpace(node.Data))
 	case core.ElementNode, core.DeadNode, core.GroupNode:
 		cidt := g.getIndent(depth)
 		idt := cidt + "\t"
 
 		childrenStr := ""
 		if len(node.Children) > 0 {
-			childrenStr = idt + "Children: []wc.VNode{"
+			childrenStr = idt + "Children: []VNode{"
 			for _, c := range node.Children {
 				cr := g.Process(c, depth+1, file)
 				if cr == "" {
@@ -161,7 +216,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		}
 
 		if nbinds > 0 {
-			bStr = idt + "Binds: []wc.BindFunc{"
+			bStr = idt + "Binds: []BindFunc{"
 			for k, v := range node.Attrs {
 				kr := []rune(k)
 				vstr := v.(string)
@@ -172,7 +227,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 					var fStr string
 					switch kr[0] {
 					case '@':
-						fStr = fmt.Sprintf(`func(n *wc.VNode){ n.Attrs["%v"] = %v }`, name, vstr)
+						fStr = fmt.Sprintf(`func(n *VNode){ n.Attrs["%v"] = %v }`, name, vstr)
 					case '#':
 						binder, args, err := parseBinderLHS(k)
 						if err != nil {
@@ -186,7 +241,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 							continue
 						}
 
-						fStr = "func(__node *wc.VNode) {\n"
+						fStr = "func(__node *VNode) {\n"
 						fStr += fn(TempComplData{
 							Args:     args,
 							Node:     node,
@@ -205,7 +260,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		}
 
 		if len(node.Attrs) != 0 {
-			attrStr = idt + "Attrs: wc.Attributes{"
+			attrStr = idt + "Attrs: Attributes{"
 			for k, v := range node.Attrs {
 				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": "%v",`, k, v.(string))
 			}

@@ -22,7 +22,7 @@ func init() {
 		if key != "_" {
 			fStr += d.Idt + fmt.Sprintf("\t\t\t%v := __index\n", key)
 		}
-		fStr += d.Idt + "\t\t\t__node.Children = make(*wc.VNode, len(__data))\n"
+		fStr += d.Idt + "\t\t\t__node.Children = make(*VNode, len(__data))\n"
 		fStr += d.Idt + fmt.Sprintf("\t\t\t__node.Children[__index] = %v", d.Compiler.Process(d.Node.Children[0], d.Depth+2, d.File))
 		fStr += "\n" + d.Idt + "\t\t}"
 
