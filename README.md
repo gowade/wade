@@ -11,6 +11,9 @@ Although being client-centric in approach, Wade.Go is independent and designed t
 
 Wade.Go is made for web *sites*, not just *apps*, it can help build content-heavy sites like blog, forum as well as dynamic web applications.
 
+# Development Status
+Iteration 4 is being developed, still a long time from release.
+
 # Getting started
 * [Tutorial](https://github.com/phaikawl/wade/wiki/Wade.Go-Quick-Start-Guide) (Outdated, Iteration 2)
 * [godoc API reference](http://godoc.org/github.com/phaikawl/wade) (Outdated)
