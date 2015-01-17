@@ -2,21 +2,19 @@ package ctbinders
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/phaikawl/wade/compiler"
 )
 
 func init() {
-	Binders["on"] = func(d compiler.TempComplData) (fStr string) {
+	Binders["on"] = func(d compiler.TempComplData, args []string, expr string) (fStr string) {
 		eventType := "click"
-		if len(d.Args) > 0 {
-			eventType = d.Args[0]
+		if len(args) > 0 {
+			eventType = args[0]
 		}
 
-		expr := strings.Replace(d.Expr, "$event", "__evt", 1)
 		fStr += d.Idt + "\t\t" + `__node.Attrs["on` + eventType +
-			fmt.Sprintf(`"] = func(__evt dom.Event) { %v }`, expr)
+			fmt.Sprintf(`"] = func(__event dom.Event) { %v }`, expr)
 		return
 	}
 }

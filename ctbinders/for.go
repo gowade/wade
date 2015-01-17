@@ -7,17 +7,17 @@ import (
 )
 
 func init() {
-	Binders["for"] = func(d compiler.TempComplData) (fStr string) {
+	Binders["for"] = func(d compiler.TempComplData, args []string, expr string) (fStr string) {
 		key, val := "_", "_"
-		if len(d.Args) >= 1 {
-			key = d.Args[0]
+		if len(args) >= 1 {
+			key = args[0]
 		}
 
-		if len(d.Args) >= 2 {
-			val = d.Args[1]
+		if len(args) >= 2 {
+			val = args[1]
 		}
 
-		fStr += d.Idt + fmt.Sprintf("\t\t__data := %v\n", d.Expr)
+		fStr += d.Idt + fmt.Sprintf("\t\t__data := %v\n", expr)
 		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, %v := range __data {\n", val)
 		if key != "_" {
 			fStr += d.Idt + fmt.Sprintf("\t\t\t%v := __index\n", key)

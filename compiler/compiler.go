@@ -26,7 +26,7 @@ var (
 		"var %v = VPrep(VNode%v)\n"
 )
 
-type CTBFunc func(TempComplData) string
+type CTBFunc func(TempComplData, []string, string) string
 
 type Compiler struct {
 	OutputDir          string
@@ -35,6 +35,12 @@ type Compiler struct {
 	IncludeIdx         int
 	CompileTimeBinders map[string]CTBFunc
 	PreventProcessing  map[*core.VNode]bool
+	components         map[string]ComponentInfo
+}
+
+type ComponentInfo struct {
+	defBinds map[string]string
+	model    string
 }
 
 func NewCompiler(outputDir, pkgName string, ctBinders map[string]CTBFunc) *Compiler {
@@ -44,6 +50,7 @@ func NewCompiler(outputDir, pkgName string, ctBinders map[string]CTBFunc) *Compi
 		CompileTimeBinders: ctBinders,
 		Includes:           map[string]int{},
 		PreventProcessing:  map[*core.VNode]bool{},
+		components:         map[string]ComponentInfo{},
 	}
 }
 
@@ -61,10 +68,17 @@ func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 		for _, n := range meta.Children {
 			if n.Data == core.ComponentTagName {
 				comNameI, ok := n.Attr("name")
-				comName := strings.TrimSpace(comNameI.(string))
-				if !ok || comName == "" {
+				if !ok || comNameI.(string) == "" {
 					continue
 				}
+				comName := strings.TrimSpace(comNameI.(string))
+
+				modelNameI, ok := n.Attr("model")
+				if !ok || modelNameI.(string) == "" {
+					printErr(fmt.Sprintf(`No model specified for component "%v"`, comName), "root")
+					continue
+				}
+				modelName := modelNameI.(string)
 
 				outputFile := "component_" + comName + ".html.go"
 				varName := "component_" + comName
@@ -74,7 +88,7 @@ func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 							varName, "__imported."+tmplVarPrefix+"component_"+impCom.(string))
 						g.writeFile(outputFile, data)
 					} else {
-						fmt.Printf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string))
+						printErr(fmt.Sprintf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string)), "root")
 					}
 				} else {
 					comTemp := core.VPrep(&core.VNode{
@@ -82,6 +96,20 @@ func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 					})
 					comTemp.Children = n.Children
 					g.Compile(outputFile, varName, comTemp)
+				}
+
+				m := map[string]string{}
+				for attr, val := range n.Attrs {
+					rname := []rune(attr)
+					if rname[0] == '*' {
+						field := string(rname[1:])
+						m[field] = val.(string)
+					}
+				}
+
+				g.components[comName] = ComponentInfo{
+					defBinds: m,
+					model:    modelName,
 				}
 			}
 		}
@@ -152,13 +180,51 @@ func parseBinderLHS(astr string) (binder string, args []string, err error) {
 }
 
 type TempComplData struct {
-	Args     []string
 	Node     *core.VNode
 	Depth    int
 	Idt      string //indentation
 	File     string
-	Expr     string
 	Compiler *Compiler
+}
+
+func printErr(err string, file string) {
+	fmt.Printf(`Error <%v> while processing "%v"`+"\n", err, file)
+}
+
+func (g *Compiler) bindCode(binds map[string]string, cplData TempComplData) (bStr string) {
+	bStr = cplData.Idt + "Binds: {"
+	for k, v := range binds {
+		kr := []rune(k)
+
+		if kr[0] == '@' || kr[0] == '#' {
+			name := string(kr[1:])
+			var fStr string
+			switch kr[0] {
+			case '@':
+				fStr = fmt.Sprintf(`func(n *VNode){ n.Attrs["%v"] = %v }`, name, v)
+			case '#':
+				binder, args, err := parseBinderLHS(k)
+				if err != nil {
+					printErr(err.Error(), cplData.File)
+					continue
+				}
+
+				fn, ok := g.CompileTimeBinders[binder]
+				if !ok {
+					printErr(fmt.Sprintf(`No such binder "%v"`, binder), cplData.File)
+					continue
+				}
+
+				fStr = "func(__node *VNode) {\n"
+				fStr += fn(cplData, args, v)
+				fStr += "\n" + cplData.Idt + "\t" + "},"
+			}
+			bStr += "\n" + cplData.Idt + "\t" + fStr
+		}
+	}
+	bStr += "\n" + cplData.Idt + "},\n"
+
+	return
 }
 
 func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
@@ -186,12 +252,77 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 
 		return fmt.Sprintf("VText(`%s`)", node.Data)
 	case core.MustacheNode:
-		return fmt.Sprintf(`VMustache(func() interface{} { return %s })`, strings.TrimSpace(node.Data))
+		return fmt.Sprintf(`VMustache(func() interface{} { return %s })`,
+			strings.TrimSpace(node.Data))
 	case core.ElementNode, core.DeadNode, core.GroupNode:
+		binds := map[string]string{}
+		fieldBinds := map[string]string{}
+
+		for k, v := range node.Attrs {
+			kr := []rune(k)
+			if kr[0] == '@' || kr[0] == '#' || kr[0] == '*' {
+				delete(node.Attrs, k)
+				expr := v.(string)
+				binds[k] = expr
+				name := string(kr[1:])
+				switch kr[0] {
+				case '@', '#':
+					binds[k] = expr
+				case '*':
+					fieldBinds[name] = expr
+				}
+			}
+		}
+
 		cidt := g.getIndent(depth)
 		idt := cidt + "\t"
 
+		attrStr := ""
+
+		if len(node.Attrs) != 0 {
+			attrStr = idt + "Attrs: Attributes{"
+			for k, v := range node.Attrs {
+				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": "%v",`, k, v.(string))
+			}
+			attrStr += "\n" + idt + "},\n"
+		}
+
 		childrenStr := ""
+		if strings.HasPrefix(node.Data, core.ComponentTagPrefix) {
+			comName := string([]rune(node.Data)[len(core.ComponentTagPrefix):])
+			if comInfo, ok := g.components[comName]; ok {
+				ret := fmt.Sprintf("VComponent(%v.Clone(), func(__node *VNode) func() {\n", tmplVarPrefix+"component_"+comName)
+				ret += idt + fmt.Sprintf("\t\t__m := new %v; __m.Init()\n", comInfo.model)
+				ret += idt + "\t\treturn func(_ *VNode) {\n"
+				for k, v := range fieldBinds {
+					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", k, v)
+				}
+				for k, v := range comInfo.defBinds {
+					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", k, v)
+				}
+
+				ret += idt + fmt.Sprintf("\t\t\t__m.Update(__node)\n")
+				ret += idt + "\t\t}\n"
+				ret += idt + "\t})"
+
+				return ret
+			} else {
+				printErr(fmt.Sprintf(`No component with name "%v" has been defined`, comName), file)
+				return ""
+			}
+		}
+
+		bStr := ""
+		if len(binds) > 0 {
+			bStr = g.bindCode(binds, TempComplData{
+				Node:     node,
+				Depth:    depth,
+				Idt:      idt,
+				File:     file,
+				Compiler: g,
+			})
+		}
+
 		if len(node.Children) > 0 {
 			childrenStr = idt + "Children: []VNode{"
 			for _, c := range node.Children {
@@ -202,69 +333,6 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 				childrenStr += "\n" + idt + "\t" + cr + ","
 			}
 			childrenStr += "\n" + idt + "},\n"
-		}
-
-		attrStr := ""
-		bStr := ""
-		nbinds := 0
-
-		for k := range node.Attrs {
-			kr := []rune(k)
-			if kr[0] == '@' || kr[0] == '#' || kr[0] == '*' {
-				nbinds++
-			}
-		}
-
-		if nbinds > 0 {
-			bStr = idt + "Binds: []BindFunc{"
-			for k, v := range node.Attrs {
-				kr := []rune(k)
-				vstr := v.(string)
-
-				if kr[0] == '@' || kr[0] == '#' || kr[0] == '*' {
-					delete(node.Attrs, k)
-					name := string(kr[1:])
-					var fStr string
-					switch kr[0] {
-					case '@':
-						fStr = fmt.Sprintf(`func(n *VNode){ n.Attrs["%v"] = %v }`, name, vstr)
-					case '#':
-						binder, args, err := parseBinderLHS(k)
-						if err != nil {
-							fmt.Printf(`Error '%v' while processing file "%v".`+"\n", err.Error(), file)
-							continue
-						}
-
-						fn, ok := g.CompileTimeBinders[binder]
-						if !ok {
-							fmt.Printf(`Error 'No such binder "%v"' while processing file "%v".`+"\n", binder, file)
-							continue
-						}
-
-						fStr = "func(__node *VNode) {\n"
-						fStr += fn(TempComplData{
-							Args:     args,
-							Node:     node,
-							Depth:    depth,
-							Idt:      idt,
-							File:     file,
-							Expr:     vstr,
-							Compiler: g,
-						})
-						fStr += "\n" + idt + "\t" + "},"
-					}
-					bStr += "\n" + idt + "\t" + fStr
-				}
-			}
-			bStr += "\n" + idt + "},\n"
-		}
-
-		if len(node.Attrs) != 0 {
-			attrStr = idt + "Attrs: Attributes{"
-			for k, v := range node.Attrs {
-				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": "%v",`, k, v.(string))
-			}
-			attrStr += "\n" + idt + "},\n"
 		}
 
 		return "{\n" +

@@ -163,6 +163,15 @@ func VPrep(node *VNode) *VNode {
 	return node
 }
 
+func VComponent(node *VNode, initFn func(node *VNode) func(node *VNode)) *VNode {
+	if node.Binds == nil {
+		node.Binds = []BindFunc{}
+	}
+
+	node.Binds = append(node.Binds, initFn(node))
+	return node
+}
+
 func (node *VNode) processClassAttr() {
 	if class, ok := node.Attr("class"); ok {
 		if node.classes == nil {
