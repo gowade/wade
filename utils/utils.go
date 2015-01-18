@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	neturl "net/url"
-	"reflect"
 	"unicode"
 )
 
@@ -43,30 +42,4 @@ func UrlQuery(url string, args M) string {
 	}
 
 	return url + "?" + qs
-}
-
-type MapItem struct {
-	Key string
-	Val interface{}
-}
-
-type byStringKey []MapItem
-
-func (a byStringKey) Len() int           { return len(a) }
-func (a byStringKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byStringKey) Less(i, j int) bool { return a[i].Key > a[j].Key }
-
-// ListFromMap returns a list of MapItem sorted in alphabetical order from a map[string]T.
-// Insteaded for use when creating a scope map.
-func ListFromMap(m interface{}) []MapItem {
-	mv := reflect.ValueOf(m)
-	list := make([]MapItem, mv.Len())
-	for i, item := range mv.MapKeys() {
-		list[i] = MapItem{
-			Key: item.String(),
-			Val: mv.MapIndex(item).Interface(),
-		}
-	}
-
-	return list
 }

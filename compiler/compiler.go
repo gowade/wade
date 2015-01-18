@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	strutils "github.com/naoina/go-stringutil"
+
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/vquery"
 )
@@ -22,8 +24,12 @@ var (
 		"\t" + `. "strings"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/core"` + "\n" +
+		"\t" + `. "github.com/phaikawl/wade/app/utils"` + "\n" +
+		"\t" + `"github.com/phaikawl/wade/dom"` + "\n" +
 		")\n\n" +
-		"var %v = VPrep(VNode%v)\n"
+		"var %v = %v\n\n" +
+		"func init() {_ = Url; _ = Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo}"
+	mainVarName = "main"
 )
 
 type CTBFunc func(TempComplData, []string, string) string
@@ -55,7 +61,7 @@ func NewCompiler(outputDir, pkgName string, ctBinders map[string]CTBFunc) *Compi
 }
 
 func (g *Compiler) Compile(htmlFile string, varName string, node *core.VNode) {
-	g.writeContent(htmlFile, varName, g.Process(node, 0, htmlFile))
+	g.writeContent(htmlFile, varName, fmt.Sprintf("VPrep(&VNode%v)", g.Process(node, 0, htmlFile)))
 }
 
 func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
@@ -95,7 +101,9 @@ func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 						Data: comName,
 					})
 					comTemp.Children = n.Children
-					g.Compile(outputFile, varName, comTemp)
+					src := fmt.Sprintf("func(__m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
+						modelName, g.Process(comTemp, 1, outputFile))
+					g.writeContent(outputFile, varName, src)
 				}
 
 				m := map[string]string{}
@@ -115,7 +123,7 @@ func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 		}
 	}
 
-	g.Compile(htmlFile, "main", node)
+	g.Compile(htmlFile, mainVarName, node)
 }
 
 func (g Compiler) fileContent(varName, data string) string {
@@ -192,7 +200,7 @@ func printErr(err string, file string) {
 }
 
 func (g *Compiler) bindCode(binds map[string]string, cplData TempComplData) (bStr string) {
-	bStr = cplData.Idt + "Binds: {"
+	bStr = cplData.Idt + "Binds: []BindFunc{"
 	for k, v := range binds {
 		kr := []rune(k)
 
@@ -201,7 +209,7 @@ func (g *Compiler) bindCode(binds map[string]string, cplData TempComplData) (bSt
 			var fStr string
 			switch kr[0] {
 			case '@':
-				fStr = fmt.Sprintf(`func(n *VNode){ n.Attrs["%v"] = %v }`, name, v)
+				fStr = fmt.Sprintf(`func(n *VNode){ n.Attrs["%v"] = %v },`, name, v)
 			case '#':
 				binder, args, err := parseBinderLHS(k)
 				if err != nil {
@@ -257,10 +265,11 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 	case core.ElementNode, core.DeadNode, core.GroupNode:
 		binds := map[string]string{}
 		fieldBinds := map[string]string{}
+		exBinds := map[string]string{}
 
 		for k, v := range node.Attrs {
 			kr := []rune(k)
-			if kr[0] == '@' || kr[0] == '#' || kr[0] == '*' {
+			if kr[0] == '@' || kr[0] == '#' || kr[0] == '*' || kr[0] == '!' {
 				delete(node.Attrs, k)
 				expr := v.(string)
 				binds[k] = expr
@@ -270,6 +279,8 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 					binds[k] = expr
 				case '*':
 					fieldBinds[name] = expr
+				case '!':
+					exBinds[name] = expr
 				}
 			}
 		}
@@ -284,6 +295,9 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 			for k, v := range node.Attrs {
 				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": "%v",`, k, v.(string))
 			}
+			for k, v := range exBinds {
+				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": %v,`, k, v)
+			}
 			attrStr += "\n" + idt + "},\n"
 		}
 
@@ -291,14 +305,15 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		if strings.HasPrefix(node.Data, core.ComponentTagPrefix) {
 			comName := string([]rune(node.Data)[len(core.ComponentTagPrefix):])
 			if comInfo, ok := g.components[comName]; ok {
-				ret := fmt.Sprintf("VComponent(%v.Clone(), func(__node *VNode) func() {\n", tmplVarPrefix+"component_"+comName)
-				ret += idt + fmt.Sprintf("\t\t__m := new %v; __m.Init()\n", comInfo.model)
-				ret += idt + "\t\treturn func(_ *VNode) {\n"
+				ret := "VComponent(func() (*VNode, func(*VNode)) {\n"
+				ret += idt + fmt.Sprintf("\t\t__m := new(%v); __m.Init(); __node := %v\n",
+					comInfo.model, tmplVarPrefix+"component_"+comName+"(__m)")
+				ret += idt + "\t\treturn __node, func(_ *VNode) {\n"
 				for k, v := range fieldBinds {
-					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", k, v)
+					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", strutils.ToUpperCamelCase(k), v)
 				}
 				for k, v := range comInfo.defBinds {
-					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", k, v)
+					ret += idt + fmt.Sprintf("\t\t\t__m.%v = %v\n", strutils.ToUpperCamelCase(k), v)
 				}
 
 				ret += idt + fmt.Sprintf("\t\t\t__m.Update(__node)\n")
@@ -324,7 +339,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		}
 
 		if len(node.Children) > 0 {
-			childrenStr = idt + "Children: []VNode{"
+			childrenStr = idt + "Children: []*VNode{"
 			for _, c := range node.Children {
 				cr := g.Process(c, depth+1, file)
 				if cr == "" {
@@ -335,8 +350,17 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 			childrenStr += "\n" + idt + "},\n"
 		}
 
+		typeStr := "ElementNode"
+		switch node.Type {
+		case core.GroupNode:
+			typeStr = "GroupNode"
+		case core.DeadNode:
+			typeStr = "DeadNode"
+		}
+
 		return "{\n" +
 			idt + fmt.Sprintf(`Data: "%v",`, node.Data) + "\n" +
+			idt + fmt.Sprintf(`Type: %v,`, typeStr) +
 			bStr +
 			attrStr +
 			childrenStr +

@@ -9,14 +9,15 @@ import (
 	urlrouter "github.com/naoina/kocha-urlrouter"
 
 	"github.com/phaikawl/wade/core"
+	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/libs/http"
 )
 
-type (
-	bindEngine interface {
-		Bind(root *core.VNode, models ...interface{})
-	}
+const (
+	appViewAttr = "!appview"
+)
 
+type (
 	// Context provides access to the page data and operations inside a controller func
 	Context struct {
 		*PageManager
@@ -32,14 +33,7 @@ type (
 		RedirectTo(url string)
 	}
 
-	OutputManager interface {
-		MarkupPage(title string, condFn core.CondFn) *core.VNode
-		Render()
-	}
-
 	PageManager struct {
-		output         OutputManager
-		binding        bindEngine
 		basePath       string
 		router         *router
 		currentPage    *page
@@ -48,21 +42,79 @@ type (
 
 		displayScopes map[string]displayScope
 		history       History
+		document      dom.Selection
+		container     dom.Selection
+		titleElem     dom.Selection
+		template      *core.VNode
 	}
 )
 
 func NewPageManager(basePath string, history History,
-	output OutputManager, bindEngine bindEngine) *PageManager {
+	document dom.Selection) *PageManager {
+	c := document.Find("[\\" + appViewAttr + "]")
+	if c.Length() == 0 {
+		panic(fmt.Errorf(`No view container (element with "%v" attribute found.`, appViewAttr))
+	}
+
+	headElem := document.Find("head").First()
+	titleElem := headElem.Find("title")
+	if titleElem.Length() == 0 {
+		titleElem = document.NewFragment("<title></title>")
+		headElem.Append(titleElem)
+	}
+
 	pm := &PageManager{
-		output:        output,
 		basePath:      basePath,
 		history:       history,
-		binding:       bindEngine,
 		router:        newRouter(),
 		displayScopes: map[string]displayScope{},
+		document:      document,
+		container:     c.First(),
+		titleElem:     titleElem,
 	}
 
 	return pm
+}
+
+func (pm *PageManager) Document() dom.Selection {
+	return pm.document
+}
+
+func (pm *PageManager) cloneFn(vnode core.VNode) bool {
+	if belongstr, ok := vnode.Attr("_belong"); ok {
+		belongs := strings.Split(belongstr.(string), " ")
+		for _, belong := range belongs {
+			if ds, ok := pm.displayScopes[belong]; ok {
+				if ds.hasPage(pm.currentPage.Id) {
+					return true
+				}
+			} else {
+				panic(fmt.Errorf(`In !belong specification %v:
+			no such page or page group with id "%v"`, belongstr, belong))
+			}
+		}
+
+		return false
+	}
+
+	return true
+}
+
+func (pm *PageManager) SetTemplate(t *core.VNode) {
+	pm.template = t
+}
+
+func (pm *PageManager) Render() *core.VNode {
+	if pm.template == nil {
+		panic("Main application template has not been set!")
+	}
+
+	pm.titleElem.SetHtml(pm.formattedTitle)
+	r := pm.template.CloneWithCond(pm.cloneFn)
+	r.Update()
+	pm.container.Render(r)
+
+	return r
 }
 
 func (pm *PageManager) RouteMgr() Router {
@@ -194,33 +246,11 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 	pm.currentPage = page
 	pm.formattedTitle = page.Title
 
-	vdom := pm.output.MarkupPage(pm.formattedTitle,
-		func(vnode core.VNode) bool {
-			if belongstr, ok := vnode.Attr("!belong"); ok {
-				belongs := strings.Split(belongstr.(string), " ")
-				for _, belong := range belongs {
-					if ds, ok := pm.displayScopes[belong]; ok {
-						if ds.hasPage(pm.currentPage.Id) {
-							return true
-						}
-					} else {
-						panic(fmt.Errorf(`In !belong specification %v:
-					no such page or page group with id "%v"`, belongstr, belong))
-					}
-				}
-
-				return false
-			}
-
-			return true
-		})
+	//gopherjs:blocking
+	pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)
 
 	//gopherjs:blocking
-	pm.binding.Bind(vdom,
-		pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)...)
-
-	//gopherjs:blocking
-	pm.output.Render()
+	pm.Render()
 }
 
 // PageUrl returns the url for the page with the given parameters
@@ -268,7 +298,7 @@ func (pm *PageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) []interface{} {
+func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) {
 	pm.ctx = Context{
 		PageManager: pm,
 		NamedParams: namedParams,
@@ -293,21 +323,14 @@ func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.
 
 	add(GlobalDisplayScope)
 
-	models := []interface{}{}
-
 	if len(controllers) > 0 {
 		for _, controller := range controllers {
 			if controller != nil {
 				//gopherjs:blocking
-				m := controller(pm.ctx)
-				if m != nil {
-					models = append(models, m)
-				}
+				controller(pm.ctx)
 			}
 		}
 	}
-
-	return models
 }
 
 func (pm *PageManager) AddPageGroup(pg PageGroup) {

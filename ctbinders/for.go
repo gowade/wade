@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/phaikawl/wade/compiler"
+	"github.com/phaikawl/wade/core"
 )
 
 func init() {
@@ -18,15 +19,24 @@ func init() {
 		}
 
 		fStr += d.Idt + fmt.Sprintf("\t\t__data := %v\n", expr)
-		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, %v := range __data {\n", val)
+		fStr += d.Idt + "\t\t__node.Children = make([]*VNode, len(__data))\n"
+		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, %v := range __data { %v := %v \n", val, val, val)
 		if key != "_" {
 			fStr += d.Idt + fmt.Sprintf("\t\t\t%v := __index\n", key)
 		}
-		fStr += d.Idt + "\t\t\t__node.Children = make(*VNode, len(__data))\n"
-		fStr += d.Idt + fmt.Sprintf("\t\t\t__node.Children[__index] = %v", d.Compiler.Process(d.Node.Children[0], d.Depth+2, d.File))
+
+		wrapper := core.VPrep(&core.VNode{
+			Data:     "w_group",
+			Type:     core.GroupNode,
+			Children: d.Node.Children,
+		})
+
+		fStr += d.Idt + fmt.Sprintf("\t\t\t__node.Children[__index] = VPrep(&VNode%v)", d.Compiler.Process(wrapper, d.Depth+2, d.File))
 		fStr += "\n" + d.Idt + "\t\t}"
 
-		d.Compiler.PreventProcessing[d.Node] = true
+		for _, c := range d.Node.Children {
+			d.Compiler.PreventProcessing[c] = true
+		}
 
 		return
 	}

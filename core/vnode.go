@@ -163,12 +163,13 @@ func VPrep(node *VNode) *VNode {
 	return node
 }
 
-func VComponent(node *VNode, initFn func(node *VNode) func(node *VNode)) *VNode {
+func VComponent(initFn func() (*VNode, func(node *VNode))) *VNode {
+	node, udtFn := initFn()
 	if node.Binds == nil {
 		node.Binds = []BindFunc{}
 	}
 
-	node.Binds = append(node.Binds, initFn(node))
+	node.Binds = append(node.Binds, udtFn)
 	return node
 }
 
@@ -222,6 +223,9 @@ func (node *VNode) update(preUpdate bool) {
 	}
 
 	for _, c := range node.Children {
+		//if c == nil {
+		//	println(node.DebugInfo())
+		//}
 		c.update(preUpdate)
 	}
 
@@ -291,6 +295,10 @@ func (node VNode) DebugInfo() string {
 }
 
 func nodeDebug(node *VNode, level int) (s string) {
+	if node == nil {
+		return "<nil>"
+	}
+
 	sp := ""
 	for i := 0; i < level; i++ {
 		sp += "  "

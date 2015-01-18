@@ -40,10 +40,8 @@ func importHtml(node dom.Selection) {
 		}
 
 		repl := gd.NewFragment(groupNodeStr)
-		repl.SetAttr("src", src)
-
-		if belongStr, hasBelong := inclNode.Attr("_belong"); hasBelong {
-			repl.SetAttr("_belong", belongStr)
+		for _, attr := range inclNode.Attrs() {
+			repl.SetAttr(attr.Name, attr.Value)
 		}
 
 		repl.Append(parseHTML(src))

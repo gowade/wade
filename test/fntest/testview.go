@@ -52,6 +52,10 @@ func (s *Selection) Eq(index int) *Selection {
 	})
 }
 
+func (s *Selection) DebugHtml() string {
+	return dom.DebugHtml(s.doSelect())
+}
+
 func (s *Selection) Find(selector string) *Selection {
 	return s.spawn(func(ds dom.Selection) dom.Selection {
 		return ds.Find(selector)
