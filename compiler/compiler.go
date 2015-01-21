@@ -254,8 +254,10 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 
 	switch node.Type {
 	case core.TextNode:
-		if strings.TrimSpace(node.Data) == "" {
+		if node.Data == "" {
 			return ""
+		} else if strings.TrimSpace(node.Data) == "" {
+			node.Data = " "
 		}
 
 		return fmt.Sprintf("VText(`%s`)", node.Data)
@@ -290,7 +292,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 
 		attrStr := ""
 
-		if len(node.Attrs) != 0 {
+		if len(node.Attrs)+len(exBinds) != 0 {
 			attrStr = idt + "Attrs: Attributes{"
 			for k, v := range node.Attrs {
 				attrStr += "\n" + idt + "\t" + fmt.Sprintf(`"%v": "%v",`, k, v.(string))
@@ -360,7 +362,7 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 
 		return "{\n" +
 			idt + fmt.Sprintf(`Data: "%v",`, node.Data) + "\n" +
-			idt + fmt.Sprintf(`Type: %v,`, typeStr) +
+			idt + fmt.Sprintf(`Type: %v,`, typeStr) + "\n" +
 			bStr +
 			attrStr +
 			childrenStr +

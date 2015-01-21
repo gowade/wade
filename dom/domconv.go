@@ -20,10 +20,14 @@ type (
 	}
 )
 
-func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
+func renderRec(root, v *core.VNode, renderer Renderer) []PlatformNode {
 	children := []PlatformNode{}
 	for _, c := range v.Children {
-		rchilds := renderRec(c, renderer)
+		if v == root && (c.Type == core.TextNode || c.Type == core.MustacheNode) {
+			continue
+		}
+
+		rchilds := renderRec(root, c, renderer)
 
 		if rchilds != nil {
 			children = append(children, rchilds...)
@@ -38,7 +42,7 @@ func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
 
 	var n PlatformNode
 	switch v.Type {
-	case core.TextNode, core.MustacheNode:
+	case core.MustacheNode, core.TextNode:
 		n = renderer.NewTextNode(v)
 	case core.ElementNode:
 		n = renderer.NewElementNode(v, children)
@@ -55,7 +59,7 @@ func renderRec(v *core.VNode, renderer Renderer) []PlatformNode {
 
 func Render(v *core.VNode, renderer Renderer) PlatformNode {
 	core.VPrep(v)
-	n := renderRec(v, renderer)
+	n := renderRec(v, v, renderer)
 	return n[0]
 }
 
