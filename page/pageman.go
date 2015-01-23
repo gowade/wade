@@ -46,6 +46,7 @@ type (
 		container     dom.Selection
 		titleElem     dom.Selection
 		template      *core.VNode
+		markup        *core.VNode
 	}
 )
 
@@ -53,7 +54,7 @@ func NewPageManager(basePath string, history History,
 	document dom.Selection) *PageManager {
 	c := document.Find("[\\" + appViewAttr + "]")
 	if c.Length() == 0 {
-		panic(fmt.Errorf(`No view container (element with "%v" attribute found.`, appViewAttr))
+		panic(fmt.Errorf(`No view container (element with "%v" attribute) found.`, appViewAttr))
 	}
 
 	headElem := document.Find("head").First()
@@ -80,7 +81,7 @@ func (pm *PageManager) Document() dom.Selection {
 	return pm.document
 }
 
-func (pm *PageManager) cloneFn(vnode core.VNode) bool {
+func (pm *PageManager) cloneFn(vnode *core.VNode) bool {
 	if belongstr, ok := vnode.Attr("_belong"); ok {
 		belongs := strings.Split(belongstr.(string), " ")
 		for _, belong := range belongs {
@@ -104,17 +105,20 @@ func (pm *PageManager) SetTemplate(t *core.VNode) {
 	pm.template = t
 }
 
-func (pm *PageManager) Render() *core.VNode {
+func (pm *PageManager) markupPage() {
 	if pm.template == nil {
 		panic("Main application template has not been set!")
 	}
 
 	pm.titleElem.SetHtml(pm.formattedTitle)
-	r := pm.template.CloneWithCond(pm.cloneFn)
-	r.Update()
-	pm.container.Render(r)
+	pm.markup = pm.template.CloneWithCond(pm.cloneFn)
+}
 
-	return r
+func (pm *PageManager) Render() {
+	pm.markup.Update()
+	//js.Global.Get("console").Call("profile")
+	pm.container.Render(pm.markup)
+	//js.Global.Get("console").Call("profileEnd")
 }
 
 func (pm *PageManager) RouteMgr() Router {
@@ -250,6 +254,7 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 	pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)
 
 	//gopherjs:blocking
+	pm.markupPage()
 	pm.Render()
 }
 

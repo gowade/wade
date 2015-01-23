@@ -55,7 +55,7 @@ type (
 //	}
 
 //	n := core.VNode{
-//		Data:     node.Get("tag").Str(),
+//		Data:     node.Get("tag").String(),
 //		Type:     core.ElementNode,
 //		Attrs:    attrs,
 //		Binds:    binds,
@@ -76,50 +76,36 @@ type (
 //	return []core.VNode{core.VPrep(n)}
 //}
 
-func html2VNode(node js.Object) (result []core.VNode) {
+func html2VNode(node js.Object) (result []*core.VNode) {
 	switch node.Get("nodeType").Int() {
 	case 3:
-		return dom.ParseMustaches(node.Get("nodeValue").Str())
-	case 8:
-		return []core.VNode{
-			core.VPrep(core.VNode{Type: core.DataNode, Data: node.Get("nodeValue").Str()}),
-		}
+		return dom.ParseMustaches(node.Get("nodeValue").String())
 	case 1:
 		attrs := map[string]interface{}{}
-		binds := []core.Bindage{}
 		if node.Get("hasAttributes").Bool() {
 			jsAttrs := node.Get("attributes")
 			for i := 0; i < jsAttrs.Length(); i++ {
 				attr := jsAttrs.Index(i)
-				key := attr.Get("name").Str()
-				value := attr.Get("value").Str()
+				key := attr.Get("name").String()
+				value := attr.Get("value").String()
 
-				if bindType, ok := dom.GetBindType(key); ok {
-					binds = append(binds, core.Bindage{
-						Type: bindType,
-						Name: key[1:],
-						Expr: value,
-					})
-				} else {
-					attrs[key] = value
-				}
+				attrs[key] = value
 			}
 		}
 
-		tagName := strings.ToLower(node.Get("tagName").Str())
+		tagName := strings.ToLower(node.Get("tagName").String())
 		if tagName == "template" {
 			content := node.Get("content")
-			if !content.IsUndefined() && !content.IsNull() {
+			if content != js.Undefined && content != nil {
 				node = content
 			}
 		}
 
-		n := core.VNode{
+		n := &core.VNode{
 			Data:     tagName,
 			Type:     core.ElementNode,
 			Attrs:    attrs,
-			Binds:    binds,
-			Children: []core.VNode{},
+			Children: []*core.VNode{},
 		}
 
 		if node.Get("hasChildNodes").Bool() {
@@ -130,10 +116,10 @@ func html2VNode(node js.Object) (result []core.VNode) {
 			}
 		}
 
-		return []core.VNode{core.VPrep(n)}
+		return []*core.VNode{core.VPrep(n)}
 	}
 
-	return []core.VNode{}
+	return []*core.VNode{}
 }
 
 type Renderer struct {
@@ -147,12 +133,10 @@ func (r Renderer) NewElementNode(vnode *core.VNode, children []dom.PlatformNode)
 		if evtHandler, ok := value.(func(dom.Event)); ok {
 			attrs[attr] = func(evt js.Object) {
 				evtHandler(createEvent(evt))
-				go func() {
-					js.Global.Get("console").Call("profile")
+				/*go func() {
 					r.vnode.Update()
-					js.Global.Get("console").Call("profileEnd")
 					gMithril.Call("render", r.target, dom.Render(r.vnode, r).(js.Object))
-				}()
+				}()*/
 			}
 
 			continue
@@ -185,6 +169,6 @@ func Render(target js.Object, vnode *core.VNode) {
 	gMithril.Call("render", target, dom.Render(vnode, Renderer{target, vnode}).(js.Object))
 }
 
-func ToVNode(html js.Object) core.VNode {
+func ToVNode(html js.Object) *core.VNode {
 	return html2VNode(html)[0]
 }

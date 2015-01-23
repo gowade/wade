@@ -95,7 +95,7 @@ func (s Selection) TagName() string {
 		return ""
 	}
 
-	return s.JQuery.Underlying().Call("prop", "tagName").Call("toLowerCase").Str()
+	return s.JQuery.Underlying().Call("prop", "tagName").Call("toLowerCase").String()
 }
 
 func (s Selection) Children() dom.Selection {
@@ -163,11 +163,11 @@ func (s Selection) OuterHtml() string {
 
 func (s Selection) Attr(attr string) (string, bool) {
 	ret := s.JQuery.Underlying().Call("attr", attr)
-	if ret.IsUndefined() {
+	if ret == js.Undefined {
 		return "", false
 	}
 
-	return ret.Str(), true
+	return ret.String(), true
 }
 
 func (s Selection) Parents() dom.Selection {
@@ -231,8 +231,8 @@ func (s Selection) Attrs() []dom.Attr {
 	attrs := make([]dom.Attr, htmla.Length())
 	for i := 0; i < htmla.Length(); i++ {
 		attr := htmla.Index(i)
-		attrs[i].Name = attr.Get("name").Str()
-		attrs[i].Value = attr.Get("value").Str()
+		attrs[i].Name = attr.Get("name").String()
+		attrs[i].Value = attr.Get("value").String()
 	}
 
 	return attrs
@@ -308,7 +308,7 @@ func (s Selection) Add(sel dom.Selection) dom.Selection {
 
 func (s Selection) Prop(prop string) (value interface{}, ok bool) {
 	p := s.JQuery.Underlying().Call("prop", prop)
-	if p.IsUndefined() {
+	if p == js.Undefined {
 		ok = false
 		return
 	}
@@ -324,7 +324,7 @@ func (s Selection) SetProp(prop string, value interface{}) {
 func (s Selection) Index() (n int) {
 	e := s.JQuery.Get(0)
 	for {
-		if e = e.Get("previousSibling"); e.IsNull() {
+		if e = e.Get("previousSibling"); e == nil {
 			return
 		}
 		n++
@@ -339,6 +339,6 @@ func (sel Selection) Render(vn *core.VNode) {
 	Render(sel.Get(0), vn)
 }
 
-func (sel Selection) ToVNode() core.VNode {
+func (sel Selection) ToVNode() *core.VNode {
 	return ToVNode(sel.Get(0))
 }

@@ -2,6 +2,7 @@ package clientside
 
 import (
 	"fmt"
+	"github.com/gopherjs/gopherjs/js"
 )
 
 type JsDep struct {
@@ -29,7 +30,7 @@ var JsDepSymbols = []JsDep{
 
 func jsDepCheck() error {
 	for _, dep := range JsDepSymbols {
-		if gGlobal.Get(dep.CheckSymbol).IsUndefined() {
+		if gGlobal.Get(dep.CheckSymbol) == js.Undefined {
 			return fmt.Errorf(`The javascript dependency "%v" (%v) is not available. `+
 				`It is in the bower package "%v", please install and use the required javascript file. `+
 				`Additional info: "%v".`, dep.Name, dep.Url, dep.Bowerpkg, dep.Ainfo)

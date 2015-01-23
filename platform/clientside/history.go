@@ -18,11 +18,11 @@ func (h History) PushState(title, path string) {
 
 func (h History) CurrentPath() string {
 	location := h.Get("location")
-	if location.IsNull() || location.IsUndefined() {
+	if location == nil || location == js.Undefined {
 		location = js.Global.Get("document").Get("location")
 	}
 
-	return location.Get("pathname").Str()
+	return location.Get("pathname").String()
 }
 
 func (h History) OnPopState(fn func()) {

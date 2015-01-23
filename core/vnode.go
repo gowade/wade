@@ -30,17 +30,16 @@ type (
 	BindFunc func(*VNode)
 
 	VNode struct {
-		Type      NodeType
-		Data      string
-		Children  []*VNode
-		Attrs     Attributes
-		classes   map[string]bool
-		Binds     []BindFunc
-		Rendered  interface{} // data field to save the real rendered DOM element
-		preUpdate bool
+		Type     NodeType
+		Data     string
+		Children []*VNode
+		Attrs    Attributes
+		classes  map[string]bool
+		Binds    []BindFunc
+		Rendered interface{} // data field to save the real rendered DOM element
 	}
 
-	CondFn func(node VNode) bool
+	CondFn func(node *VNode) bool
 )
 
 func (node *VNode) addBind(cb BindFunc) {
@@ -207,11 +206,11 @@ func (node VNode) Text() (s string) {
 }
 
 func (node *VNode) Update() {
-	node.update(false)
+	node.UpdateCond(nil)
 }
 
-func (node *VNode) update(preUpdate bool) {
-	if node.preUpdate && !preUpdate {
+func (node *VNode) UpdateCond(cond CondFn) {
+	if cond != nil && !cond(node) {
 		return
 	}
 
@@ -223,12 +222,8 @@ func (node *VNode) update(preUpdate bool) {
 	}
 
 	for _, c := range node.Children {
-		//if c == nil {
-		//	println(node.DebugInfo())
-		//}
-		c.update(preUpdate)
+		c.UpdateCond(cond)
 	}
-
 }
 
 func (node VNode) Attr(attr string) (v interface{}, ok bool) {
@@ -358,7 +353,7 @@ func (node VNode) CloneWithCond(cond CondFn) (clone *VNode) {
 	preprocessVNode(clone)
 	clone.Children = make([]*VNode, 0)
 	for i := range node.Children {
-		if cond == nil || cond(*node.Children[i]) {
+		if cond == nil || cond(node.Children[i]) {
 			clone.Children = append(clone.Children,
 				node.Children[i].CloneWithCond(cond))
 		}

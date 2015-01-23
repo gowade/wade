@@ -20,7 +20,7 @@ func init() {
 
 		fStr += d.Idt + fmt.Sprintf("\t\t__data := %v\n", expr)
 		fStr += d.Idt + "\t\t__node.Children = make([]*VNode, len(__data))\n"
-		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, %v := range __data { %v := %v \n", val, val, val)
+		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, __value := range __data { %v := __value \n", val)
 		if key != "_" {
 			fStr += d.Idt + fmt.Sprintf("\t\t\t%v := __index\n", key)
 		}

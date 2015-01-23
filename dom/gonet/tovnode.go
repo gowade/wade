@@ -158,7 +158,7 @@ func renderAttrs(v *core.VNode, n *html.Node) {
 func Render(node *html.Node, v *core.VNode) {
 	gNodeMap = make(map[*html.Node]*core.VNode)
 	ptr := dom.Render(v, Renderer{}).(*htmlNode).node()
-	*node = *ptr
+	node.AppendChild(ptr)
 }
 
 func ToVNode(node *html.Node) *core.VNode {

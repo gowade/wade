@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ClientSide = js.Global != nil && !js.Global.Get("window").IsUndefined()
+	ClientSide = js.Global != nil && js.Global.Get("window") == js.Undefined
 	DevMode    = true
 	gApp       *Application
 )
