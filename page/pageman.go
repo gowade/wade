@@ -227,7 +227,7 @@ func (pm *PageManager) updateUrl(url string, pushState bool, firstLoad bool) boo
 
 	if match == nil {
 		if pm.router.notFoundHandler == nil {
-			err = fmt.Errorf("404 page not found. No handler for page not found has been set.")
+			panic(fmt.Errorf("404 page not found. No handler for page not found has been set."))
 			return false
 		}
 

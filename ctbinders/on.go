@@ -2,7 +2,6 @@ package ctbinders
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/phaikawl/wade/compiler"
 )
@@ -14,13 +13,25 @@ func init() {
 			eventType = args[0]
 		}
 
-		pdStr := "__event.PreventDefault()"
-		if len(args) > 1 && strings.ToLower(args[1]) == "false" {
-			pdStr = ""
+		pdStr := "__event.PreventDefault();"
+		spStr := ""
+		if eventType == "click" {
+			spStr = "__event.StopPropagation();"
+		}
+
+		if len(args) > 1 {
+			for _, arg := range args[1:] {
+				switch arg {
+				case "OPT_NOPD":
+					pdStr = ""
+				case "OPT_NOSP":
+					spStr = ""
+				}
+			}
 		}
 
 		fStr += d.Idt + "\t\t" + `__node.Attrs["on` + eventType +
-			fmt.Sprintf(`"] = func(__event dom.Event) { %v; %v }`, pdStr, expr)
+			fmt.Sprintf(`"] = func(__event dom.Event) { %v %v %v }`, pdStr, spStr, expr)
 		return
 	}
 }

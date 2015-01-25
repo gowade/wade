@@ -25,10 +25,11 @@ var (
 		"\t" + `. "github.com/phaikawl/wade/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/core"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/app/utils"` + "\n" +
+		"\t" + `. "github.com/phaikawl/wade/rtbinders"` + "\n" +
 		"\t" + `"github.com/phaikawl/wade/dom"` + "\n" +
 		")\n\n" +
 		"var %v = %v\n\n" +
-		"func init() {_ = Url; _ = Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo}"
+		"func init() {_ = Url; _ = Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value}"
 	mainVarName = "main"
 )
 
@@ -66,58 +67,56 @@ func (g *Compiler) Compile(htmlFile string, varName string, node *core.VNode) {
 
 func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
 	metaElems := vq.New(node).Find(vq.Selector{Tag: "w_meta"})
-	if len(metaElems) == 0 {
-		return
-	}
+	if len(metaElems) != 0 {
+		for _, meta := range metaElems {
+			for _, n := range meta.Children {
+				if n.Data == core.ComponentTagName {
+					comNameI, ok := n.Attr("name")
+					if !ok || comNameI.(string) == "" {
+						continue
+					}
+					comName := strings.TrimSpace(comNameI.(string))
 
-	for _, meta := range metaElems {
-		for _, n := range meta.Children {
-			if n.Data == core.ComponentTagName {
-				comNameI, ok := n.Attr("name")
-				if !ok || comNameI.(string) == "" {
-					continue
-				}
-				comName := strings.TrimSpace(comNameI.(string))
+					modelNameI, ok := n.Attr("model")
+					if !ok || modelNameI.(string) == "" {
+						printErr(fmt.Sprintf(`No model specified for component "%v"`, comName), "root")
+						continue
+					}
+					modelName := modelNameI.(string)
 
-				modelNameI, ok := n.Attr("model")
-				if !ok || modelNameI.(string) == "" {
-					printErr(fmt.Sprintf(`No model specified for component "%v"`, comName), "root")
-					continue
-				}
-				modelName := modelNameI.(string)
-
-				outputFile := "component_" + comName + ".html.go"
-				varName := "component_" + comName
-				if impSrc, _ := n.Attr("import_src"); impSrc != nil {
-					if impCom, _ := n.Attr("import_com"); impCom != nil {
-						data := fmt.Sprintf("package %v\n"+`import __imported "%v"`+"\n%v = %v", g.PackageName, impSrc.(string),
-							varName, "__imported."+tmplVarPrefix+"component_"+impCom.(string))
-						g.writeFile(outputFile, data)
+					outputFile := "component_" + comName + ".html"
+					varName := "component_" + comName
+					if impSrc, _ := n.Attr("import_src"); impSrc != nil {
+						if impCom, _ := n.Attr("import_com"); impCom != nil {
+							data := fmt.Sprintf("package %v\n"+`import __imported "%v"`+"\n%v = %v", g.PackageName, impSrc.(string),
+								varName, "__imported."+tmplVarPrefix+"component_"+impCom.(string))
+							g.writeFile(outputFile, data)
+						} else {
+							printErr(fmt.Sprintf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string)), "root")
+						}
 					} else {
-						printErr(fmt.Sprintf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string)), "root")
+						comTemp := core.VPrep(&core.VNode{
+							Data: comName,
+						})
+						comTemp.Children = n.Children
+						src := fmt.Sprintf("func(__m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
+							modelName, g.Process(comTemp, 1, outputFile))
+						g.writeContent(outputFile, varName, src)
 					}
-				} else {
-					comTemp := core.VPrep(&core.VNode{
-						Data: comName,
-					})
-					comTemp.Children = n.Children
-					src := fmt.Sprintf("func(__m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
-						modelName, g.Process(comTemp, 1, outputFile))
-					g.writeContent(outputFile, varName, src)
-				}
 
-				m := map[string]string{}
-				for attr, val := range n.Attrs {
-					rname := []rune(attr)
-					if rname[0] == '*' {
-						field := string(rname[1:])
-						m[field] = val.(string)
+					m := map[string]string{}
+					for attr, val := range n.Attrs {
+						rname := []rune(attr)
+						if rname[0] == '*' {
+							field := string(rname[1:])
+							m[field] = val.(string)
+						}
 					}
-				}
 
-				g.components[comName] = ComponentInfo{
-					defBinds: m,
-					model:    modelName,
+					g.components[comName] = ComponentInfo{
+						defBinds: m,
+						model:    modelName,
+					}
 				}
 			}
 		}
@@ -150,12 +149,12 @@ func (g *Compiler) writeContent(htmlFile, varName, data string) {
 }
 
 func (g *Compiler) writeFile(htmlFile, content string) {
-	filePath := path.Join(g.OutputDir, path.Base(htmlFile)+".go")
+	filePath := path.Join(g.OutputDir, "tmpl_"+path.Base(htmlFile)+".go")
 	ioutil.WriteFile(filePath, []byte(content), 0644)
 }
 
 var (
-	NameRegexp = regexp.MustCompile(`\w+`)
+	NameRegexp = regexp.MustCompile(`\w*`)
 )
 
 func checkName(strs []string) error {
@@ -175,7 +174,12 @@ func parseBinderLHS(astr string) (binder string, args []string, err error) {
 			return
 		}
 		binder = astr[:lp]
-		args = strings.Split(astr[lp+1:len(astr)-1], ",")
+		argStr := astr[lp+1 : len(astr)-1]
+		if argStr == "" {
+			args = []string{}
+		} else {
+			args = strings.Split(argStr, ",")
+		}
 	} else {
 		binder = astr
 		args = []string{}
@@ -219,13 +223,16 @@ func (g *Compiler) bindCode(binds map[string]string, cplData TempComplData) (bSt
 
 				fn, ok := g.CompileTimeBinders[binder]
 				if !ok {
-					printErr(fmt.Sprintf(`No such binder "%v"`, binder), cplData.File)
-					continue
+					for i := range args {
+						args[i] = "`" + args[i] + "`"
+					}
+					fStr = fmt.Sprintf(`RTBinder(RTBinder_%v(func() interface{} {return %v}, []string{%v})),`,
+						binder, v, strings.Join(args, ","))
+				} else {
+					fStr = "func(__node *VNode) {\n"
+					fStr += fn(cplData, args, v)
+					fStr += "\n" + cplData.Idt + "\t" + "},"
 				}
-
-				fStr = "func(__node *VNode) {\n"
-				fStr += fn(cplData, args, v)
-				fStr += "\n" + cplData.Idt + "\t" + "},"
 			}
 			bStr += "\n" + cplData.Idt + "\t" + fStr
 		}
