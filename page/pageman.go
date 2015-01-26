@@ -320,13 +320,13 @@ func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.
 		}
 	}
 
-	add(pm.currentPage)
+	add(GlobalDisplayScope)
 
 	for _, grp := range pm.currentPage.groups {
 		add(grp)
 	}
 
-	add(GlobalDisplayScope)
+	add(pm.currentPage)
 
 	if len(controllers) > 0 {
 		for _, controller := range controllers {
