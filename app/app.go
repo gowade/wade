@@ -37,7 +37,8 @@ type (
 	}
 
 	Main interface {
-		Main(app *Application)
+		Setup(page.Router)
+		Main()
 	}
 
 	// Config is app configurations, used at the start
@@ -65,13 +66,11 @@ type (
 		Update(*core.VNode)
 	}
 
-	ComponentModel struct {
-		App *Application
-	}
+	BaseProto struct{}
 )
 
-func (m ComponentModel) Init()                   {}
-func (m ComponentModel) Update(node *core.VNode) {}
+func (m BaseProto) Init()                   {}
+func (m BaseProto) Update(node *core.VNode) {}
 
 func (app *Application) Document() dom.Selection {
 	return app.PageMgr.Document()
@@ -82,7 +81,7 @@ func (app *Application) Render() {
 }
 
 func (app *Application) Router() page.Router {
-	return app.PageMgr.RouteMgr()
+	return app.PageMgr.Router()
 }
 
 func (app *Application) NotifyEventFinish() {
@@ -96,7 +95,8 @@ func (app *Application) EventFinished() chan bool {
 func (app *Application) Start(appMain Main) (err error) {
 	SetApp(app)
 
-	appMain.Main(app)
+	appMain.Setup(app.Router())
+	appMain.Main()
 
 	app.PageMgr.Start()
 	app.renderBackend.AfterReady(app)

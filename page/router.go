@@ -5,6 +5,10 @@ import (
 	_ "github.com/phaikawl/regrouter"
 )
 
+const (
+	NotFoundRoute = "!notfound"
+)
+
 type (
 	RouteHandler interface {
 		UpdatePage(pm *PageManager, update pageUpdate) (found bool)
@@ -63,6 +67,10 @@ func (r router) Lookup(url string) (result RouteHandler, params []urlrouter.Para
 
 // Handle adds a route to the router
 func (r Router) Handle(route string, action RouteEntry) {
+	if route == NotFoundRoute {
+		r.Otherwise(action)
+		return
+	}
 	handler := action.Register(r.pm, route)
 	r.router.routes = append(r.router.routes, urlrouter.NewRecord(route, handler))
 }

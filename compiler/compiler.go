@@ -10,11 +10,18 @@ import (
 	strutils "github.com/naoina/go-stringutil"
 
 	"github.com/phaikawl/wade/core"
+	"github.com/phaikawl/wade/page"
 	"github.com/phaikawl/wade/vquery"
 )
 
 const (
-	tmplVarPrefix = "Tmpl_"
+	ComponentDeclTagName = "component"
+	HanldeTagName        = "handle"
+	RouterDeclTagName    = "router"
+	PageDeclTagName      = "page"
+	tmplVarPrefix        = "Tmpl_"
+	OriginFileAttrName   = "_orig"
+	PGroupDeclTagName    = "pagegroup"
 )
 
 var (
@@ -27,10 +34,11 @@ var (
 		"\t" + `. "github.com/phaikawl/wade/app/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/rtbinders"` + "\n" +
 		"\t" + `"github.com/phaikawl/wade/dom"` + "\n" +
-		")\n\n" +
-		"var %v = %v\n\n" +
+		")\n\n%v\n\n" +
 		"func init() {_ = Url; _ = Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value}"
-	mainVarName = "main"
+	mainVarName   = "main"
+	fileOf        = map[*core.VNode]string{}
+	displayScopes = map[string]page.DisplayScope{}
 )
 
 type CTBFunc func(TempComplData, []string, string) string
@@ -61,95 +69,220 @@ func NewCompiler(outputDir, pkgName string, ctBinders map[string]CTBFunc) *Compi
 	}
 }
 
-func (g *Compiler) Compile(htmlFile string, varName string, node *core.VNode) {
-	g.writeContent(htmlFile, varName, fmt.Sprintf("VPrep(&VNode%v)", g.Process(node, 0, htmlFile)))
+func (g *Compiler) genPageCode(page, vm string, n *core.VNode, rootHtmlFile string) {
+	funcEm := ""
+	namePrefix := page
+	if vm != "" {
+		funcEm = "(" + vm + ")"
+		namePrefix = ""
+	}
+	g.writeTemplate(page+".html", fmt.Sprintf(`
+func %v %vTemplate() *VNode {
+return VPrep(&VNode%v)
+}
+`, funcEm, namePrefix, g.Process(n, 0, rootHtmlFile)))
 }
 
-func (g *Compiler) CompileRoot(htmlFile string, node *core.VNode) {
-	metaElems := vq.New(node).Find(vq.Selector{Tag: "w_meta"})
+func pageMarkup(page string, root *core.VNode) *core.VNode {
+	return root.CloneWithCond(func(n *core.VNode) bool {
+		if n.TagName() == "meta" {
+			return false
+		}
+
+		if belongStr := n.StrAttr("!belong"); belongStr != "" {
+			belongs := strings.Split(belongStr, " ")
+			for _, belong := range belongs {
+				if ds, ok := displayScopes[belong]; ok {
+					if ds.HasPage(page) {
+						return true
+					}
+				} else {
+					fmt.Printf(`In !belong specification %v:
+				no such page or page group with id "%v"`, belongStr, belong)
+				}
+			}
+
+			return false
+		}
+
+		return true
+	})
+}
+
+type pageDecl struct {
+	title      string
+	cons       string
+	controller string
+	vm         string
+}
+
+func (g *Compiler) routerDecl(n, root *core.VNode, objStr string, rootHtmlFile string) func() {
+	routeCode := ""
+	pageConsts := ""
+	fns := make([]func(), 0)
+	for _, c := range n.ChildElems() {
+		if c.TagName() == HanldeTagName {
+			route := c.StrAttr("route")
+			redirect := c.StrAttr("redirect")
+			if redirect != "" {
+				routeCode += fmt.Sprintf("\t\t"+
+					`r.Handle("%v", page.Redirecter{"%v"})`+"\n",
+					route, redirect)
+			} else {
+				pg := c.ChildElems()[0]
+				cons := pg.StrAttr("const")
+				if cons == "" {
+					continue
+				}
+				err := (page.Page{Id: cons}).AddTo(displayScopes)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				fns = append(fns, func() {
+					title := pg.Text()
+					pageConsts += cons + ` = "` + cons + `"` + "\n"
+					routeId := `"` + route + `"`
+					if route == page.NotFoundRoute {
+						routeId = "page.NotFoundRoute"
+					}
+					routeCode += fmt.Sprintf("\t\t"+
+						`r.Handle(%v, page.Page{`+"\n"+
+						"\t\t\t"+`Id: %v,`+"\n"+
+						"\t\t\t"+`Title: "%v",`+"\n", routeId, cons, title)
+
+					ctrlCode := pg.StrAttr("controller")
+					if ctrlCode == "" {
+						ctrlCode = fmt.Sprintf("func(ctx *page.Context) *VNode { return %v }",
+							cons)
+					}
+
+					routeCode += "\t\t\t" +
+						"Controller: " + ctrlCode + ",\n"
+
+					g.genPageCode(cons, pg.StrAttr("vm"), pageMarkup(cons, root), rootHtmlFile)
+					routeCode += "\t\t" + `})` + "\n"
+				})
+			}
+		}
+	}
+
+	return func() {
+		for _, fn := range fns {
+			fn()
+		}
+
+		g.writeFile("router", fmt.Sprintf(`package %v
+		
+import "github.com/phaikawl/wade/page"
+import . "github.com/phaikawl/wade/core"
+		
+const (
+%v
+)
+		
+func (%v) Setup(r *page.Router) {
+%v
+
+}`, g.PackageName, pageConsts, objStr, routeCode))
+	}
+}
+
+func (g *Compiler) componentDecl(n *core.VNode, fromFile string) {
+	comName := strings.TrimSpace(n.StrAttr("name"))
+	modelName := n.StrAttr("model")
+	if modelName == "" {
+		printErr(fmt.Sprintf(`No model specified for component "%v"`, comName), "root")
+		return
+	}
+
+	outputFile := "component_" + comName + ".html"
+	varName := "component_" + comName
+	if impSrc := n.StrAttr("import_src"); impSrc != "" {
+		if impCom := n.StrAttr("import_com"); impCom != "" {
+			data := fmt.Sprintf("package %v\n"+`import __imported "%v"`+"\n%v = %v", g.PackageName, impSrc,
+				varName, "__imported."+tmplVarPrefix+"component_"+impCom)
+			g.writeFile(outputFile, data)
+		} else {
+			printErr(fmt.Sprintf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc), "root")
+		}
+	} else {
+		comTemp := core.VPrep(&core.VNode{
+			Data: comName,
+		})
+		comTemp.Children = n.Children
+		src := fmt.Sprintf("var %v = func(m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
+			tmplVarPrefix+varName, modelName, g.Process(comTemp, 1, fromFile))
+		g.writeTemplate(outputFile, src)
+	}
+
+	m := map[string]string{}
+	for attr, val := range n.Attrs {
+		rname := []rune(attr)
+		if rname[0] == '*' {
+			field := string(rname[1:])
+			m[field] = val.(string)
+		}
+	}
+
+	g.components[comName] = ComponentInfo{
+		defBinds: m,
+		model:    modelName,
+	}
+}
+
+func (g *Compiler) CompileRoot(masterFile string, root *core.VNode) {
+	metaElems := vq.New(root).Find(vq.Selector{Tag: "w_meta"})
+	var routerDeclFn func()
 	if len(metaElems) != 0 {
 		for _, meta := range metaElems {
-			for _, n := range meta.Children {
-				if n.Data == core.ComponentTagName {
-					comNameI, ok := n.Attr("name")
-					if !ok || comNameI.(string) == "" {
-						continue
-					}
-					comName := strings.TrimSpace(comNameI.(string))
-
-					modelNameI, ok := n.Attr("model")
-					if !ok || modelNameI.(string) == "" {
-						printErr(fmt.Sprintf(`No model specified for component "%v"`, comName), "root")
-						continue
-					}
-					modelName := modelNameI.(string)
-
-					outputFile := "component_" + comName + ".html"
-					varName := "component_" + comName
-					if impSrc, _ := n.Attr("import_src"); impSrc != nil {
-						if impCom, _ := n.Attr("import_com"); impCom != nil {
-							data := fmt.Sprintf("package %v\n"+`import __imported "%v"`+"\n%v = %v", g.PackageName, impSrc.(string),
-								varName, "__imported."+tmplVarPrefix+"component_"+impCom.(string))
-							g.writeFile(outputFile, data)
-						} else {
-							printErr(fmt.Sprintf("No import_com specified for component '%v' importing '%v'\n", comName, impSrc.(string)), "root")
+			g.Process(meta, 0, masterFile)
+			mainEm := meta.StrAttr("main")
+			for _, n := range meta.ChildElems() {
+				switch n.TagName() {
+				case RouterDeclTagName:
+					routerDeclFn = g.routerDecl(n, root, mainEm, masterFile)
+				case ComponentDeclTagName:
+					from := fileOf[n]
+					g.componentDecl(n, from)
+				case PGroupDeclTagName:
+					if con := n.StrAttr("const"); con != "" {
+						list := []string{}
+						for _, p := range n.ChildElems() {
+							if p.TagName() == "page" {
+								list = append(list, strings.TrimSpace(p.Text()))
+							}
 						}
-					} else {
-						comTemp := core.VPrep(&core.VNode{
-							Data: comName,
-						})
-						comTemp.Children = n.Children
-						src := fmt.Sprintf("func(__m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
-							modelName, g.Process(comTemp, 1, outputFile))
-						g.writeContent(outputFile, varName, src)
-					}
-
-					m := map[string]string{}
-					for attr, val := range n.Attrs {
-						rname := []rune(attr)
-						if rname[0] == '*' {
-							field := string(rname[1:])
-							m[field] = val.(string)
+						err := (page.PageGroup{
+							Id:       con,
+							Children: list,
+						}).AddTo(displayScopes)
+						if err != nil {
+							fmt.Println(err)
 						}
 					}
-
-					g.components[comName] = ComponentInfo{
-						defBinds: m,
-						model:    modelName,
-					}
+				default:
+					fmt.Printf("Unknown Wade meta tag name: %v\n", n.TagName())
 				}
 			}
 		}
 	}
 
-	g.Compile(htmlFile, mainVarName, node)
-}
-
-func (g Compiler) fileContent(varName, data string) string {
-	return fmt.Sprintf(prelude, g.PackageName, varName, data)
-}
-
-func (g *Compiler) getInclVar(htmlFile string) string {
-	idx, ok := g.Includes[htmlFile]
-	if !ok {
-		g.IncludeIdx++
-		idx = g.IncludeIdx
-		g.Includes[htmlFile] = g.IncludeIdx
+	if routerDeclFn != nil {
+		routerDeclFn()
 	}
-
-	return fmt.Sprintf("include%d", idx)
 }
 
-func (g *Compiler) writeContent(htmlFile, varName, data string) {
-	if varName == "" {
-		varName = g.getInclVar(htmlFile)
-	}
+func (g Compiler) templateCode(data string) string {
+	return fmt.Sprintf(prelude, g.PackageName, data)
+}
 
-	g.writeFile(htmlFile, g.fileContent(tmplVarPrefix+varName, data))
+func (g *Compiler) writeTemplate(htmlFile, data string) {
+	g.writeFile(htmlFile, g.templateCode(data))
 }
 
 func (g *Compiler) writeFile(htmlFile, content string) {
-	filePath := path.Join(g.OutputDir, "tmpl_"+path.Base(htmlFile)+".go")
+	filePath := path.Join(g.OutputDir, "compiled_"+path.Base(htmlFile)+".go")
 	ioutil.WriteFile(filePath, []byte(content), 0644)
 }
 
@@ -251,13 +384,10 @@ func (g *Compiler) Process(node *core.VNode, depth int, file string) string {
 		return ""
 	}
 
-	if depth > 0 && node.Data == core.GroupNodeTagName {
-		if iSrc, ok := node.Attr("src"); ok {
-			src := iSrc.(string)
-			g.Compile(src, "", node)
-			return tmplVarPrefix + g.getInclVar(src)
-		}
+	if src := node.StrAttr(OriginFileAttrName); src != "" {
+		file = src
 	}
+	fileOf[node] = file
 
 	switch node.Type {
 	case core.TextNode:

@@ -33,7 +33,7 @@ func parseHTML(filePath string) dom.Selection {
 }
 
 func importHtml(node dom.Selection) {
-	for _, inclNode := range node.Find(core.IncludeTagName).Elements() {
+	for _, inclNode := range node.Find("w_include").Elements() {
 		src, ok := inclNode.Attr("src")
 		if !ok {
 			continue
@@ -41,8 +41,12 @@ func importHtml(node dom.Selection) {
 
 		repl := gd.NewFragment(groupNodeStr)
 		for _, attr := range inclNode.Attrs() {
+			if attr.Name == "src" {
+				continue
+			}
 			repl.SetAttr(attr.Name, attr.Value)
 		}
+		repl.SetAttr(compiler.OriginFileAttrName, src)
 
 		repl.Append(parseHTML(src))
 		importHtml(repl)

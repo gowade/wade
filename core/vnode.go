@@ -8,8 +8,6 @@ import (
 
 const (
 	GroupNodeTagName   = "w_group"
-	IncludeTagName     = "w_include"
-	ComponentTagName   = "w_component"
 	ComponentTagPrefix = "c:"
 )
 
@@ -229,6 +227,14 @@ func (node *VNode) UpdateCond(cond CondFn) {
 func (node VNode) Attr(attr string) (v interface{}, ok bool) {
 	v, ok = node.Attrs[strings.ToLower(attr)]
 	return
+}
+
+func (node VNode) StrAttr(attr string) string {
+	if v, ok := node.Attrs[attr]; ok {
+		return v.(string)
+	}
+
+	return ""
 }
 
 func (node VNode) ChildElems() (l []*VNode) {

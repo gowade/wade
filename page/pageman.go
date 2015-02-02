@@ -23,6 +23,7 @@ type (
 		*PageManager
 		NamedParams *http.NamedParams
 		URL         *gourl.URL
+		redirected bool
 	}
 
 	History interface {
@@ -37,18 +38,23 @@ type (
 		basePath       string
 		router         *router
 		currentPage    *page
-		ctx            Context
+		ctx            *Context
 		formattedTitle string
 
-		displayScopes map[string]displayScope
+		displayScopes map[string]DisplayScope
 		history       History
 		document      dom.Selection
 		container     dom.Selection
 		titleElem     dom.Selection
-		template      *core.VNode
 		markup        *core.VNode
 	}
 )
+
+func (ctx *Context) GoToPage(page string, params ...interface{}) (dummy *core.VNode) {
+	ctx.redirected = true
+	ctx.GoToPage(page, params...)
+	return nil
+}
 
 func NewPageManager(basePath string, history History,
 	document dom.Selection) *PageManager {
@@ -68,7 +74,7 @@ func NewPageManager(basePath string, history History,
 		basePath:      basePath,
 		history:       history,
 		router:        newRouter(),
-		displayScopes: map[string]displayScope{},
+		displayScopes: map[string]DisplayScope{},
 		document:      document,
 		container:     c.First(),
 		titleElem:     titleElem,
@@ -81,39 +87,6 @@ func (pm *PageManager) Document() dom.Selection {
 	return pm.document
 }
 
-func (pm *PageManager) cloneFn(vnode *core.VNode) bool {
-	if belongstr, ok := vnode.Attr("_belong"); ok {
-		belongs := strings.Split(belongstr.(string), " ")
-		for _, belong := range belongs {
-			if ds, ok := pm.displayScopes[belong]; ok {
-				if ds.hasPage(pm.currentPage.Id) {
-					return true
-				}
-			} else {
-				panic(fmt.Errorf(`In !belong specification %v:
-			no such page or page group with id "%v"`, belongstr, belong))
-			}
-		}
-
-		return false
-	}
-
-	return true
-}
-
-func (pm *PageManager) SetTemplate(t *core.VNode) {
-	pm.template = t
-}
-
-func (pm *PageManager) markupPage() {
-	if pm.template == nil {
-		panic("Main application template has not been set!")
-	}
-
-	pm.titleElem.SetHtml(pm.formattedTitle)
-	pm.markup = pm.template.CloneWithCond(pm.cloneFn)
-}
-
 func (pm *PageManager) Render() {
 	pm.markup.Update()
 	//js.Global.Get("console").Call("profile")
@@ -121,14 +94,14 @@ func (pm *PageManager) Render() {
 	//js.Global.Get("console").Call("profileEnd")
 }
 
-func (pm *PageManager) RouteMgr() Router {
+func (pm *PageManager) Router() Router {
 	return Router{
 		router: pm.router,
 		pm:     pm,
 	}
 }
 
-func (pm *PageManager) Context() Context {
+func (pm *PageManager) Context() *Context {
 	return pm.ctx
 }
 
@@ -171,17 +144,15 @@ func (pm *PageManager) FullPath(pa string) string {
 	return path.Join(pm.basePath, pa)
 }
 
-func (pm *PageManager) GoToPage(page string, params ...interface{}) (found bool) {
+func (pm *PageManager) GoToPage(page string, params ...interface{}) {
 	url := pm.PageUrl(page, params...)
-	found = pm.updateUrl(url, true, false)
-	return
+	pm.updateUrl(url, true, false)
 }
 
-func (pm *PageManager) GoToUrl(url string) (found bool) {
+func (pm *PageManager) GoToUrl(url string) {
 	if strings.HasPrefix(url, pm.BasePath()) {
-		found = pm.updateUrl(url, true, false)
+		pm.updateUrl(url, true, false)
 	} else {
-		found = true
 		pm.history.RedirectTo(url)
 	}
 
@@ -227,7 +198,7 @@ func (pm *PageManager) updateUrl(url string, pushState bool, firstLoad bool) boo
 
 	if match == nil {
 		if pm.router.notFoundHandler == nil {
-			panic(fmt.Errorf("404 page not found. No handler for page not found has been set."))
+			panic(fmt.Errorf("404 page not found."))
 			return false
 		}
 
@@ -251,11 +222,13 @@ func (pm *PageManager) updatePage(page *page, pu pageUpdate) {
 	pm.formattedTitle = page.Title
 
 	//gopherjs:blocking
-	pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)
-
-	//gopherjs:blocking
-	pm.markupPage()
-	pm.Render()
+	pm.titleElem.SetHtml(pm.formattedTitle)
+	tmpl, redirected := pm.runControllers(http.NewNamedParams(pu.routeParams), pu.url)
+	
+	if tmpl != nil && !redirected {
+		pm.markup = tmpl
+		pm.Render()
+	}	
 }
 
 // PageUrl returns the url for the page with the given parameters
@@ -303,58 +276,39 @@ func (pm *PageManager) BasePath() string {
 	return pm.basePath
 }
 
-func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) {
-	pm.ctx = Context{
+func (pm *PageManager) runControllers(namedParams *http.NamedParams, url *gourl.URL) (
+tmpl *core.VNode, redirected bool) {
+	ctx := Context{
 		PageManager: pm,
 		NamedParams: namedParams,
 		URL:         url,
+		redirected: false,
 	}
+	
+	pm.ctx = &ctx
 
-	controllers := make([]ControllerFunc, 0)
-
-	add := func(ds displayScope) {
-		if ctrls := ds.Controllers(); ctrls != nil {
-			for _, controller := range ctrls {
-				controllers = append(controllers, controller)
-			}
-		}
+	if ctrl := GlobalDisplayScope.Controller; ctrl != nil {
+		ctrl(&ctx)
 	}
-
-	add(GlobalDisplayScope)
 
 	for _, grp := range pm.currentPage.groups {
-		add(grp)
-	}
-
-	add(pm.currentPage)
-
-	if len(controllers) > 0 {
-		for _, controller := range controllers {
-			if controller != nil {
-				//gopherjs:blocking
-				controller(pm.ctx)
-			}
+		if ctrl := grp.Controller; ctrl != nil {
+			ctrl(&ctx)
 		}
 	}
+
+	if ctrl := pm.CurrentPage().Controller; ctrl != nil {
+		tmpl = ctrl(&ctx)
+		redirected = ctx.redirected
+		return
+	}
+
+	return nil, false
 }
 
 func (pm *PageManager) AddPageGroup(pg PageGroup) {
-	if _, exist := pm.displayScopes[pg.Id]; exist {
-		panic(fmt.Sprintf(`Page or page group with id "%v" has already been registered.`, pg.Id))
+	err := pg.AddTo(pm.displayScopes)
+	if err != nil {
+		panic(err)
 	}
-
-	grp := newPageGroup(make([]displayScope, len(pg.Children)))
-	for i, id := range pg.Children {
-		ds, ok := pm.displayScopes[id]
-		if !ok {
-			panic(fmt.Errorf(`Wrong children for page group "%v",
-			there's no page or page group with id "%v".`, pg.Id, id))
-		}
-
-		ds.addParent(grp)
-		grp.children[i] = ds
-	}
-
-	grp.AddController(pg.Controller)
-	pm.displayScopes[pg.Id] = grp
 }

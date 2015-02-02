@@ -1,6 +1,10 @@
 package page
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/phaikawl/wade/core"
+)
 
 var (
 	GlobalDisplayScope = &globalDisplayScope{}
@@ -8,37 +12,31 @@ var (
 
 type (
 	// PageControllerFunc is the functiong to be run on the load of a page or page scope
-	ControllerFunc func(Context)
+	PageControllerFunc      func(*Context) *core.VNode
+	PageGroupControllerFunc func(*Context)
 )
 
 type (
 	Page struct {
 		Id         string
 		Title      string
-		Controller ControllerFunc
+		Controller PageControllerFunc
 	}
 
 	PageGroup struct {
 		Id         string
 		Children   []string
-		Controller ControllerFunc
+		Controller PageGroupControllerFunc
 	}
 )
 
 type (
-	handlable struct {
-		controllers []ControllerFunc
-	}
-
-	displayScope interface {
-		hasPage(id string) bool
+	DisplayScope interface {
+		HasPage(id string) bool
 		addParent(parent *pageGroup)
-		AddController(fn ControllerFunc)
-		Controllers() []ControllerFunc
 	}
 
 	page struct {
-		handlable
 		Page
 
 		route  string
@@ -46,22 +44,11 @@ type (
 	}
 
 	pageGroup struct {
-		handlable
-		children []displayScope
+		PageGroup
+		children []DisplayScope
 		parents  []*pageGroup
 	}
 )
-
-func (h *handlable) AddController(fn ControllerFunc) {
-	if h.controllers == nil {
-		h.controllers = make([]ControllerFunc, 0)
-	}
-	h.controllers = append(h.controllers, fn)
-}
-
-func (h *handlable) Controllers() []ControllerFunc {
-	return h.controllers
-}
 
 func (p *page) addParent(grp *pageGroup) {
 	if p.groups == nil {
@@ -71,11 +58,11 @@ func (p *page) addParent(grp *pageGroup) {
 	p.groups = append(p.groups, grp)
 }
 
-func (p *page) hasPage(id string) bool {
+func (p *page) HasPage(id string) bool {
 	return p.Id == id
 }
 
-func newPageGroup(children []displayScope) *pageGroup {
+func newPageGroup(children []DisplayScope) *pageGroup {
 	return &pageGroup{
 		children: children,
 	}
@@ -85,9 +72,9 @@ func (pg *pageGroup) addParent(parent *pageGroup) {
 	pg.parents = append(pg.parents, parent)
 }
 
-func (pg *pageGroup) hasPage(id string) bool {
+func (pg *pageGroup) HasPage(id string) bool {
 	for _, c := range pg.children {
-		if c.hasPage(id) {
+		if c.HasPage(id) {
 			return true
 		}
 	}
@@ -95,11 +82,41 @@ func (pg *pageGroup) hasPage(id string) bool {
 	return false
 }
 
-type globalDisplayScope struct {
-	handlable
+func (pg *pageGroup) setPGController(controller PageGroupControllerFunc) {
+	pg.Controller = controller
 }
 
-func (s *globalDisplayScope) hasPage(id string) bool {
+func (pg PageGroup) AddTo(dscopes map[string]DisplayScope) error {
+	if _, exist := dscopes[pg.Id]; exist {
+		return fmt.Errorf(`Page or page group with id "%v" has already been registered.`, pg.Id)
+	}
+
+	grp := newPageGroup(make([]DisplayScope, len(pg.Children)))
+	for i, id := range pg.Children {
+		ds, ok := dscopes[id]
+		if !ok {
+			return fmt.Errorf(`Wrong children for page group "%v",
+			there's no page or page group with id "%v".`, pg.Id, id)
+		}
+
+		ds.addParent(grp)
+		grp.children[i] = ds
+	}
+
+	dscopes[pg.Id] = grp
+
+	return nil
+}
+
+type globalDisplayScope struct {
+	Controller PageGroupControllerFunc
+}
+
+func (s *globalDisplayScope) setPGController(controller PageGroupControllerFunc) {
+	s.Controller = controller
+}
+
+func (s *globalDisplayScope) HasPage(id string) bool {
 	return true
 }
 
@@ -107,21 +124,29 @@ func (s *globalDisplayScope) addParent(parent *pageGroup) {
 	panic("Cannot add parent to global display scope")
 }
 
+func (p Page) AddTo(dscopes map[string]DisplayScope) error {
+	if _, exist := dscopes[p.Id]; exist {
+		return fmt.Errorf(`Page or page group with id "%v" has already been registered.`, p.Id)
+	}
+
+	dscopes[p.Id] = &page{Page: p}
+	return nil
+}
+
 func (p Page) Register(pm *PageManager, route string) RouteHandler {
 	if _, exist := pm.displayScopes[p.Id]; exist {
 		panic(fmt.Sprintf(`Page or page group with id "%v" has already been registered.`, p.Id))
 	}
 
-	pg := &page{
+	pp := &page{
 		Page:   p,
 		route:  route,
 		groups: []*pageGroup{},
 	}
 
-	pg.AddController(p.Controller)
-	pm.displayScopes[p.Id] = pg
+	pm.displayScopes[p.Id] = pp
 
-	return pg
+	return pp
 }
 
 func (p *page) UpdatePage(pm *PageManager, pu pageUpdate) (found bool) {
