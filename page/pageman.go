@@ -10,6 +10,7 @@ import (
 
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
+	//"github.com/phaikawl/wade/vquery"
 	"github.com/phaikawl/wade/libs/http"
 )
 
@@ -89,6 +90,9 @@ func (pm *PageManager) Document() dom.Selection {
 
 func (pm *PageManager) Render() {
 	pm.markup.Update()
+	//for _, n := range vq.New(pm.markup).Find(vq.Selector{}) {
+	//	println(n.DebugInfo())
+	//}
 	//js.Global.Get("console").Call("profile")
 	pm.container.Render(pm.markup)
 	//js.Global.Get("console").Call("profileEnd")

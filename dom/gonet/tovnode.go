@@ -18,7 +18,11 @@ var (
 )
 
 func GetVNode(node *html.Node) *core.VNode {
-	return gNodeMap[node]
+	n, ok := gNodeMap[node]
+	if !ok {
+		panic("No such node has been rendered.")
+	}
+	return n
 }
 
 func parseHtml(src string) (*html.Node, error) {
@@ -156,9 +160,8 @@ func renderAttrs(v *core.VNode, n *html.Node) {
 }
 
 func Render(node *html.Node, v *core.VNode) {
-	gNodeMap = make(map[*html.Node]*core.VNode)
 	ptr := dom.Render(v, Renderer{}).(*htmlNode).node()
-	node.AppendChild(ptr)
+	node.FirstChild = ptr
 }
 
 func ToVNode(node *html.Node) *core.VNode {

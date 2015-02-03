@@ -28,14 +28,14 @@ var (
 	prelude = "package %v\n" +
 		"import (\n" +
 		"\t" + `. "fmt"` + "\n" +
-		"\t" + `. "strings"` + "\n" +
+		"\t" + `"strings"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/core"` + "\n" +
-		"\t" + `. "github.com/phaikawl/wade/app/utils"` + "\n" +
+		"\t" + `. "github.com/phaikawl/wade/rt/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/rtbinders"` + "\n" +
 		"\t" + `"github.com/phaikawl/wade/dom"` + "\n" +
 		")\n\n%v\n\n" +
-		"func init() {_ = Url; _ = Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value}"
+		"func init() {_ = Url; _ = strings.Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value}"
 	mainVarName   = "main"
 	fileOf        = map[*core.VNode]string{}
 	displayScopes = map[string]page.DisplayScope{}
@@ -153,7 +153,7 @@ func (g *Compiler) routerDecl(n, root *core.VNode, objStr string, rootHtmlFile s
 
 					ctrlCode := pg.StrAttr("controller")
 					if ctrlCode == "" {
-						ctrlCode = fmt.Sprintf("func(ctx *page.Context) *VNode { return %v }",
+						ctrlCode = fmt.Sprintf("func(ctx *page.Context) *VNode { return %vTemplate() }",
 							cons)
 					}
 
@@ -181,7 +181,7 @@ const (
 %v
 )
 		
-func (%v) Setup(r *page.Router) {
+func (%v) Setup(r page.Router) {
 %v
 
 }`, g.PackageName, pageConsts, objStr, routeCode))
@@ -211,7 +211,7 @@ func (g *Compiler) componentDecl(n *core.VNode, fromFile string) {
 			Data: comName,
 		})
 		comTemp.Children = n.Children
-		src := fmt.Sprintf("var %v = func(m *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
+		src := fmt.Sprintf("var %v = func(M *%v) *VNode {\n\treturn VPrep(&VNode%v)\n}",
 			tmplVarPrefix+varName, modelName, g.Process(comTemp, 1, fromFile))
 		g.writeTemplate(outputFile, src)
 	}
@@ -237,11 +237,14 @@ func (g *Compiler) CompileRoot(masterFile string, root *core.VNode) {
 	if len(metaElems) != 0 {
 		for _, meta := range metaElems {
 			g.Process(meta, 0, masterFile)
-			mainEm := meta.StrAttr("main")
 			for _, n := range meta.ChildElems() {
 				switch n.TagName() {
 				case RouterDeclTagName:
-					routerDeclFn = g.routerDecl(n, root, mainEm, masterFile)
+					objStr := n.StrAttr("object")
+					if objStr == "" {
+						fmt.Println("Error: No object string for router specified.")
+					}
+					routerDeclFn = g.routerDecl(n, root, objStr, masterFile)
 				case ComponentDeclTagName:
 					from := fileOf[n]
 					g.componentDecl(n, from)

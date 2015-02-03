@@ -3,11 +3,11 @@ package utils
 import (
 	"fmt"
 
-	"github.com/phaikawl/wade/app"
+	"github.com/phaikawl/wade/rt"
 )
 
 var Fmt = fmt.Sprintf
 
 func Url(pageId string, params ...interface{}) string {
-	return app.App().PageMgr.PageUrl(pageId, params...)
+	return rt.App().PageMgr.PageUrl(pageId, params...)
 }

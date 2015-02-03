@@ -5,12 +5,12 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
-	"github.com/phaikawl/wade/app"
 	"github.com/phaikawl/wade/dom"
 	"github.com/phaikawl/wade/dom/jsdom"
 	"github.com/phaikawl/wade/libs/http"
 	xhr "github.com/phaikawl/wade/libs/http/clientside"
 	"github.com/phaikawl/wade/page"
+	"github.com/phaikawl/wade/rt"
 )
 
 var (
@@ -54,7 +54,7 @@ func (b renderBackend) History() page.History {
 	return b.history
 }
 
-func (b renderBackend) Bootstrap(app *app.Application) {
+func (b renderBackend) Bootstrap(app *rt.Application) {
 	err := jsDepCheck()
 	if err != nil {
 		panic(err)
@@ -76,7 +76,7 @@ func (b renderBackend) HttpBackend() http.Backend {
 	return b.httpBackend
 }
 
-func (b renderBackend) AfterReady(ap *app.Application) {
+func (b renderBackend) AfterReady(ap *rt.Application) {
 }
 
 func CreateBackend() renderBackend {

@@ -9,10 +9,10 @@ import (
 
 	//"golang.org/x/net/html"
 
-	"github.com/phaikawl/wade/app"
+	"github.com/phaikawl/wade/rt"
 	//"github.com/phaikawl/wade/core"
 
-	//"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/page"
 
 	"github.com/phaikawl/wade/libs/http"
 	"github.com/phaikawl/wade/platform/serverside"
@@ -21,7 +21,7 @@ import (
 type (
 	TestApp struct {
 		View *TestView
-		*app.Application
+		*rt.Application
 		started bool
 	}
 )
@@ -37,27 +37,19 @@ func (app *TestApp) GoTo(path string) {
 		panic(fmt.Errorf("Application has not been started."))
 	}
 
-	found := app.PageMgr.GoToUrl(path)
-	if !found {
-		panic(fmt.Errorf(`Page not found for "%v"`, path))
-	}
+	app.PageMgr.GoToUrl(path)
 }
 
-func (app *TestApp) Start(appMain app.Main) error {
+func (app *TestApp) Start(appMain rt.Main) error {
 	app.started = true
 	return app.Application.Start(appMain)
 }
 
-func (app *TestApp) Render() {
-	<-app.EventFinished()
-	app.Application.Render()
-}
-
 func NewDummyTestApp(initialPath string, httpMock http.Backend) *TestApp {
-	return NewTestApp(app.Config{}, initialPath, "", httpMock)
+	return NewTestApp(rt.Config{}, initialPath, "", httpMock)
 }
 
-func NewTestApp(conf app.Config,
+func NewTestApp(conf rt.Config,
 	initialPath string,
 	indexFile string,
 	httpMock http.Backend) *TestApp {
@@ -78,7 +70,7 @@ func NewTestApp(conf app.Config,
 	}
 
 	wapp := serverside.NewApp(conf, document, initialPath, httpMock)
-	app.SetApp(wapp)
+	rt.SetApp(wapp)
 
 	return &TestApp{
 		Application: wapp,
@@ -88,11 +80,12 @@ func NewTestApp(conf app.Config,
 
 type dummyMain struct{}
 
-func (dm dummyMain) Main(app *app.Application) {
-}
+func (dm dummyMain) Main() {}
+
+func (dm dummyMain) Setup(r page.Router) {}
 
 func StartDummyApp(httpMock http.Backend) (*TestApp, error) {
-	app := NewTestApp(app.Config{}, "/", "", httpMock)
+	app := NewTestApp(rt.Config{}, "/", "", httpMock)
 	err := app.Start(dummyMain{})
 	return app, err
 }

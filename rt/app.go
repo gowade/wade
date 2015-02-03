@@ -1,6 +1,8 @@
-package app
+package rt
 
 import (
+	"time"
+
 	"github.com/gopherjs/gopherjs/js"
 
 	"github.com/phaikawl/wade/core"
@@ -58,7 +60,7 @@ type (
 		Http          *http.Client
 		PageMgr       *page.PageManager
 		renderBackend RenderBackend
-		eventFinish   chan bool
+		renderQ       chan (chan bool)
 	}
 
 	ComponentProto interface {
@@ -76,20 +78,32 @@ func (app *Application) Document() dom.Selection {
 	return app.PageMgr.Document()
 }
 
-func (app *Application) Render() {
-	app.PageMgr.Render()
+func (app *Application) Render() chan bool {
+	ch := make(chan bool, 1)
+	app.renderQ <- ch
+	return ch
 }
 
 func (app *Application) Router() page.Router {
 	return app.PageMgr.Router()
 }
 
-func (app *Application) NotifyEventFinish() {
-	app.eventFinish <- true
-}
-
-func (app *Application) EventFinished() chan bool {
-	return app.eventFinish
+func (app *Application) renderLoop() {
+	for {
+		ch := <-app.renderQ
+		time.Sleep(70 * time.Millisecond)
+		app.PageMgr.Render()
+		cont := true
+		for cont {
+			select {
+			case cc := <-app.renderQ:
+				cc <- true
+			default:
+				cont = false
+			}
+		}
+		ch <- true
+	}
 }
 
 func (app *Application) Start(appMain Main) (err error) {
@@ -99,6 +113,7 @@ func (app *Application) Start(appMain Main) (err error) {
 	appMain.Main()
 
 	app.PageMgr.Start()
+	go app.renderLoop()
 	app.renderBackend.AfterReady(app)
 
 	return
@@ -109,7 +124,7 @@ func (app *Application) AddPageGroup(pageGroup page.PageGroup) {
 }
 
 // New creates the app
-func New(config Config, rb RenderBackend) (app *Application) {
+func NewApp(config Config, rb RenderBackend) (app *Application) {
 	httpClient := http.NewClient(rb.HttpBackend())
 	http.SetDefaultClient(httpClient)
 
@@ -119,7 +134,7 @@ func New(config Config, rb RenderBackend) (app *Application) {
 		PageMgr: page.NewPageManager(config.BasePath, rb.History(),
 			rb.Document()),
 		renderBackend: rb,
-		eventFinish:   make(chan bool),
+		renderQ:       make(chan (chan bool), 20),
 	}
 
 	rb.Bootstrap(app)

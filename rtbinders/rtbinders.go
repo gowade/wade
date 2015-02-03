@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/phaikawl/wade/app"
 	"github.com/phaikawl/wade/core"
 	"github.com/phaikawl/wade/dom"
+	"github.com/phaikawl/wade/rt"
 	"github.com/phaikawl/wade/utils"
 )
 
@@ -50,7 +50,7 @@ func RTBinder_value(vFn func() interface{}, args []string) rtBinder {
 	}, func(n *core.VNode) {
 		n.Attrs["onchange"] = func(evt dom.Event) {
 			fmt.Sscan(evt.Target().Val(), getValue().Interface())
-			go app.App().Render()
+			go rt.App().Render()
 		}
 	})
 }

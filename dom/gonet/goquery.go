@@ -491,3 +491,7 @@ func (sel Selection) Render(vn *core.VNode) {
 func (sel Selection) ToVNode() *core.VNode {
 	return ToVNode(sel.Nodes[0])
 }
+
+func (sel Selection) DebugHtml() string {
+	return dom.DebugHtml(sel)
+}

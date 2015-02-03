@@ -26,11 +26,11 @@ func ToString(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
-type M map[string]interface{}
+type Map map[string]interface{}
 
 // UrlQuery adds query arguments (?arg1=value1&arg2=value2...)
 // specified in the given name-value map to a given url and returns the new one
-func UrlQuery(url string, args M) string {
+func UrlQuery(url string, args Map) string {
 	m := make(map[string][]string)
 	for k, v := range args {
 		m[k] = []string{ToString(v)}

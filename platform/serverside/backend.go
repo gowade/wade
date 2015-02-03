@@ -13,11 +13,11 @@ import (
 	gqdom "github.com/phaikawl/wade/dom/gonet"
 	"golang.org/x/net/html"
 
-	"github.com/phaikawl/wade/app"
 	"github.com/phaikawl/wade/dom"
 	wadehttp "github.com/phaikawl/wade/libs/http"
 	gohttp "github.com/phaikawl/wade/libs/http/serverside"
 	"github.com/phaikawl/wade/page"
+	"github.com/phaikawl/wade/rt"
 )
 
 type (
@@ -42,7 +42,7 @@ func (b renderBackend) History() page.History {
 	return b.history
 }
 
-func (b renderBackend) Bootstrap(app *app.Application) {}
+func (b renderBackend) Bootstrap(app *rt.Application) {}
 
 func (b renderBackend) Document() dom.Selection {
 	return b.document
@@ -52,7 +52,7 @@ func (b renderBackend) HttpBackend() wadehttp.Backend {
 	return b.httpBackend
 }
 
-func (b renderBackend) AfterReady(app *app.Application) {
+func (b renderBackend) AfterReady(app *rt.Application) {
 	if bkn, ok := b.httpBackend.(*serverCacheHttpBackend); ok {
 		bkn.AfterReady(app)
 	}
@@ -76,7 +76,7 @@ func (b *serverCacheHttpBackend) requestPath() string {
 	return b.ClientReq.URL.Path
 }
 
-func (b *serverCacheHttpBackend) AfterReady(app *app.Application) {
+func (b *serverCacheHttpBackend) AfterReady(app *rt.Application) {
 	doc := app.Document()
 	head := doc.Children().Filter("head")
 	if head.Length() == 0 {
@@ -102,7 +102,7 @@ func NewHttpBackend(server http.Handler, request *http.Request, cachePrefix stri
 	}
 }
 
-func NewApp(conf app.Config, document io.Reader, startPath string, httpBackend wadehttp.Backend) *app.Application {
+func NewApp(conf rt.Config, document io.Reader, startPath string, httpBackend wadehttp.Backend) *rt.Application {
 	sourcebytes, err := ioutil.ReadAll(document)
 	if err != nil {
 		log.Println(`HTML parse error "%v".`, err.Error())
@@ -110,14 +110,14 @@ func NewApp(conf app.Config, document io.Reader, startPath string, httpBackend w
 
 	doc := gqdom.GetDom().NewDocument(string(sourcebytes[:]))
 
-	return app.New(conf, renderBackend{
+	return rt.NewApp(conf, renderBackend{
 		history:     page.NewNoopHistory(startPath),
 		document:    doc,
 		httpBackend: httpBackend,
 	})
 }
 
-func StartRender(app *app.Application, appMain app.Main, w io.Writer) (err error) {
+func StartRender(app *rt.Application, appMain rt.Main, w io.Writer) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			trace := make([]byte, 4096)

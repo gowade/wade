@@ -339,6 +339,10 @@ func (sel Selection) Render(vn *core.VNode) {
 	Render(sel.Get(0), vn)
 }
 
+func (sel Selection) DebugHtml() string {
+	return dom.DebugHtml(sel)
+}
+
 func (sel Selection) ToVNode() *core.VNode {
 	return ToVNode(sel.Get(0))
 }

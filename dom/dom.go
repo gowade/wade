@@ -95,6 +95,7 @@ type (
 		Each(EachFn)
 		Render(*core.VNode)
 		ToVNode() *core.VNode
+		DebugHtml() string
 	}
 )
 
