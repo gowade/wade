@@ -292,16 +292,19 @@ tmpl *core.VNode, redirected bool) {
 	pm.ctx = &ctx
 
 	if ctrl := GlobalDisplayScope.Controller; ctrl != nil {
+		//gopherjs:blocking
 		ctrl(&ctx)
 	}
 
 	for _, grp := range pm.currentPage.groups {
 		if ctrl := grp.Controller; ctrl != nil {
+			//gopherjs:blocking
 			ctrl(&ctx)
 		}
 	}
 
 	if ctrl := pm.CurrentPage().Controller; ctrl != nil {
+		//gopherjs:blocking
 		tmpl = ctrl(&ctx)
 		redirected = ctx.redirected
 		return

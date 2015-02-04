@@ -34,14 +34,15 @@ var (
 		"\t" + `. "github.com/phaikawl/wade/rt/utils"` + "\n" +
 		"\t" + `. "github.com/phaikawl/wade/rtbinders"` + "\n" +
 		"\t" + `"github.com/phaikawl/wade/dom"` + "\n" +
+		"\t" + `"reflect"` + "\n" +
 		")\n\n%v\n\n" +
-		"func init() {_ = Url; _ = strings.Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value}"
+		"func init() {_ = Url; _ = strings.Join; _ = ToString; _ = Sprintf; _ = dom.DebugInfo; _ = RTBinder_value; _ = reflect.ValueOf(nil)}"
 	mainVarName   = "main"
 	fileOf        = map[*core.VNode]string{}
 	displayScopes = map[string]page.DisplayScope{}
 )
 
-type CTBFunc func(TempComplData, []string, string) string
+type CTBFunc func(TempComplData, []string, string) (string, string)
 
 type Compiler struct {
 	OutputDir          string
@@ -365,9 +366,10 @@ func (g *Compiler) bindCode(binds map[string]string, cplData TempComplData) (bSt
 					fStr = fmt.Sprintf(`RTBinder(RTBinder_%v(func() interface{} {return %v}, []string{%v})),`,
 						binder, v, strings.Join(args, ","))
 				} else {
-					fStr = "func(__node *VNode) {\n"
-					fStr += fn(cplData, args, v)
-					fStr += "\n" + cplData.Idt + "\t" + "},"
+					inCode, preCode := fn(cplData, args, v)
+					fStr += fmt.Sprintf("(func() func(*VNode) { %v return func(__node *VNode) {\n%v",
+						preCode, inCode)
+					fStr += "\n" + cplData.Idt + "\t" + "}})(),"
 				}
 			}
 			bStr += "\n" + cplData.Idt + "\t" + fStr

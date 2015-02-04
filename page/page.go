@@ -21,6 +21,7 @@ type (
 		Id         string
 		Title      string
 		Controller PageControllerFunc
+		Test       string
 	}
 
 	PageGroup struct {

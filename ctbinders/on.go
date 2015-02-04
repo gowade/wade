@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	Binders["on"] = func(d compiler.TempComplData, args []string, expr string) (fStr string) {
+	Binders["on"] = func(d compiler.TempComplData, args []string, expr string) (fStr string, _ string) {
 		eventType := "click"
 		if len(args) > 0 {
 			eventType = args[0]

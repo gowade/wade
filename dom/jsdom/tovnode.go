@@ -133,10 +133,6 @@ func (r Renderer) NewElementNode(vnode *core.VNode, children []dom.PlatformNode)
 		if evtHandler, ok := value.(func(dom.Event)); ok {
 			attrs[attr] = func(evt js.Object) {
 				evtHandler(createEvent(evt))
-				go func() {
-					r.vnode.Update()
-					gMithril.Call("render", r.target, dom.Render(r.vnode, r).(js.Object))
-				}()
 			}
 
 			continue

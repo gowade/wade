@@ -8,7 +8,8 @@ import (
 )
 
 func init() {
-	Binders["for"] = func(d compiler.TempComplData, args []string, expr string) (fStr string) {
+	Binders["for"] = func(d compiler.TempComplData, args []string, expr string) (fStr string, preCode string) {
+		preCode = fmt.Sprintf("__prev := %v; __prev = nil;", expr)
 		key, val := "_", "_"
 		if len(args) >= 1 {
 			key = args[0]
@@ -18,6 +19,8 @@ func init() {
 			val = args[1]
 		}
 
+		fStr += d.Idt + fmt.Sprintf("\t\tif reflect.ValueOf(__prev).Pointer() == reflect.ValueOf(%v).Pointer() { return }; __prev = %v \n",
+			expr, expr)
 		fStr += d.Idt + fmt.Sprintf("\t\t__data := %v\n", expr)
 		fStr += d.Idt + "\t\t__node.Children = make([]*VNode, len(__data))\n"
 		fStr += d.Idt + fmt.Sprintf("\t\tfor __index, __value := range __data { %v := __value \n", val)

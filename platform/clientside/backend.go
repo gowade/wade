@@ -59,13 +59,6 @@ func (b renderBackend) Bootstrap(app *rt.Application) {
 	if err != nil {
 		panic(err)
 	}
-
-	go func() {
-		for {
-			<-app.EventFinished()
-			app.Render()
-		}
-	}()
 }
 
 func (b renderBackend) Document() dom.Selection {
