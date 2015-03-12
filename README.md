@@ -5,7 +5,7 @@ It's a *client-centric* web development library, but NOT for Javascript!
 Isomorphic Javascript is cool but what could be better than that? **Isomorphic Go**.  
 And with that, comes:
 * Isomorphism: Write ui/client once, in Go, render seemlessly on both client and server (no SEO problems).
-* Pleasure: Modern React-like development model, in Go.
+* Pleasure: Modern **React**-like development model, in Go.
 * Maintainability: No more maintainability headache like with Javascript, and we could *go easy* on tests.
 It helps a ton to have a types and compiler, especially for large projects.
 * Convenience: Easy collaboration between client and server since they use the same great programming language.
