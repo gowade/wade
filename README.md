@@ -19,3 +19,6 @@ much more awesome. Our ambitious goal is to make the best thing ever for web dev
 very difficult, but we're shooting for no less.
 
 Hope you like the idea and also want that dream become reality.
+
+# LICENSE
+Wade.Go is [BSD licensed](https://github.com/gowade/wade/blob/master/LICENSE)
