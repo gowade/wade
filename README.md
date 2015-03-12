@@ -1,6 +1,6 @@
 # Wade.Go
 Wade.Go is an upcoming brand new way to develop web sites and applications.
-It's a *client-centric* web development library, but not for Javascript, it's for Go!
+It's a *client-centric* web development library, but *not* for Javascript!
 
 Isomorphic Javascript is cool but what could be better than that? **Isomorphic Go**.
 And with that, comes:
