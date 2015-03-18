@@ -6,3 +6,9 @@ const (
 	attributeMapOpener   = "wade.Attrs"
 	elementListOpener    = "[]wade.Element"
 )
+
+const Prelude = `package main
+
+import "github.com/phaikawl/wade"
+
+`
