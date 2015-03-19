@@ -80,6 +80,14 @@ func elementAttrsCode(attrs []html.Attribute) *codeNode {
 	}
 }
 
+func chAppend(a *[]*codeNode, b []*codeNode) {
+	for _, item := range b {
+		if item != nil {
+			*a = append(*a, item)
+		}
+	}
+}
+
 func elementCode(node *html.Node, vda *varDeclArea) *codeNode {
 	switch node.Data {
 	case "for":
@@ -100,7 +108,7 @@ func elementCode(node *html.Node, vda *varDeclArea) *codeNode {
 
 	children := make([]*codeNode, 0)
 	foreachChildren(node, func(_ int, c *html.Node) {
-		children = append(children, generateRec(c, vda)...)
+		chAppend(&children, generateRec(c, vda))
 	})
 
 	childrenCode := nilCode
