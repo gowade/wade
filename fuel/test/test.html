@@ -4,5 +4,13 @@
 			<li>Prefix: {{ this.HeadItem }}</li>
 			<li>2</li>
 		</ul>
+		<ul>
+			<for k="i" v="item" range="{{ this.Items }}">
+				<if cond="{{ i == 0 }}">
+					<li>Even {{ i }}</li>
+				</if>
+				<li>{{ v }}</li>	
+			</for>
+		</ul>
 	</div>
 </div>

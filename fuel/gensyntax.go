@@ -1,14 +1,14 @@
 package main
 
 const (
-	createElementOpener  = "createElement"
-	createTextNodeOpener = "createText"
-	attributeMapOpener   = "wade.Attrs"
-	elementListOpener    = "[]wade.Element"
+	CreateElementOpener  = "createElement"
+	CreateTextNodeOpener = "createText"
+	AttributeMapOpener   = "wade.Attrs"
+	ElementListOpener    = "[]*wade.Element"
+	RenderFuncOpener     = "func Render() "
 )
 
 const Prelude = `package main
 
 import "github.com/phaikawl/wade"
-
 `

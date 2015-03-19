@@ -9,7 +9,7 @@ import (
 
 var (
 	nilCode = &codeNode{
-		typ:  nakedCodeNode,
+		typ:  NakedCodeNode,
 		code: "nil",
 	}
 )
@@ -19,14 +19,14 @@ func textNodeCode(text string) []*codeNode {
 	ret := make([]*codeNode, len(parts))
 
 	for i, part := range parts {
-		cnType := stringCodeNode
+		cnType := StringCodeNode
 		if part.isMustache {
-			cnType = nakedCodeNode
+			cnType = NakedCodeNode
 		}
 
 		ret[i] = &codeNode{
-			typ:  funcCallCodeNode,
-			code: createTextNodeOpener,
+			typ:  FuncCallCodeNode,
+			code: CreateTextNodeOpener,
 			children: []*codeNode{
 				{
 					typ:  cnType,
@@ -68,56 +68,85 @@ func elementAttrsCode(attrs []html.Attribute) *codeNode {
 	for i, attr := range attrs {
 		valueCode := attributeValueCode(parseTextMustache(attr.Val))
 		assignments[i] = &codeNode{
-			typ:  nakedCodeNode,
+			typ:  NakedCodeNode,
 			code: mapFieldAssignmentCode(attr.Key, valueCode),
 		}
 	}
 
 	return &codeNode{
-		typ:      compositeCodeNode,
-		code:     attributeMapOpener,
+		typ:      CompositeCodeNode,
+		code:     AttributeMapOpener,
 		children: assignments,
 	}
 }
 
-func elementCode(node *html.Node) *codeNode {
+func elementCode(node *html.Node, vda *varDeclArea) *codeNode {
+	switch node.Data {
+	case "for":
+		cn, err := forLoopCode(node, vda)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+
+		return cn
+	case "if":
+		cn, err := ifControlCode(node, vda)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+
+		return cn
+	}
+
 	children := make([]*codeNode, 0)
 	foreachChildren(node, func(_ int, c *html.Node) {
-		children = append(children, generateRec(c)...)
+		children = append(children, generateRec(c, vda)...)
 	})
 
 	childrenCode := nilCode
 	if len(children) != 0 {
 		childrenCode = &codeNode{
-			typ:      compositeCodeNode,
-			code:     elementListOpener,
+			typ:      ElemListCodeNode,
+			code:     "",
 			children: children,
 		}
 	}
 
 	return &codeNode{
-		typ:  funcCallCodeNode,
-		code: createElementOpener,
+		typ:  FuncCallCodeNode,
+		code: CreateElementOpener,
 		children: []*codeNode{
-			&codeNode{typ: stringCodeNode, code: node.Data}, // element tag name
+			&codeNode{typ: StringCodeNode, code: node.Data}, // element tag name
 			elementAttrsCode(node.Attr),
 			childrenCode,
 		},
 	}
 }
 
-func generateRec(node *html.Node) []*codeNode {
+func generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
 	if node.Type == html.TextNode {
 		return textNodeCode(node.Data)
 	}
 
 	if node.Type == html.ElementNode {
-		return []*codeNode{elementCode(node)}
+		return []*codeNode{elementCode(node, vda)}
 	}
 
 	return nil
 }
 
 func generate(node *html.Node) *codeNode {
-	return generateRec(node)[0]
+	vda := newVarDeclArea()
+	ret := &codeNode{
+		typ:  BlockCodeNode,
+		code: RenderFuncOpener,
+		children: []*codeNode{
+			vda.codeNode,
+			ncn("return "),
+			generateRec(node, vda)[0],
+		},
+	}
+
+	vda.saveToCN()
+	return ret
 }
