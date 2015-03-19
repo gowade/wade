@@ -9,6 +9,10 @@ import (
 	"golang.org/x/net/html"
 )
 
+const (
+	RETURN_START = 2
+)
+
 type CompileTestSuite struct {
 	suite.Suite
 }
@@ -28,16 +32,12 @@ func (s *CompileTestSuite) TestBasicTree() {
 	root := generate(fragmentFromString(`
 		<div>
 			<div class="wrapper {{ this.aClass }}">
-				<ul>
-					<li>Prefix: {{ this.HeadItem }}</li>
-					<li>2</li>
-				</ul>
+				<ul><li>Prefix: {{ this.HeadItem }}</li><li>Second</li></ul>
 			</div>
 		</div>
 	`))
 
-	root = root.children[1]
-
+	root = root.children[RETURN_START]
 	s.Equal(root.typ, FuncCallCodeNode)
 
 	s.Equal(root.children[0].typ, StringCodeNode)
@@ -47,7 +47,6 @@ func (s *CompileTestSuite) TestBasicTree() {
 	s.Equal(root.children[1].code, "nil")
 
 	s.Equal(root.children[2].typ, ElemListCodeNode)
-	s.Contains(root.children[2].code, ElementListOpener)
 
 	rchild := root.dCh(0)
 	s.Equal(rchild.typ, FuncCallCodeNode)
@@ -58,6 +57,8 @@ func (s *CompileTestSuite) TestBasicTree() {
 	// ul should contain 2 li
 	ulChildren := rchild.dCh(0).dChn()
 	s.Len(ulChildren, 2)
+	s.Equal(ulChildren[1].typ, FuncCallCodeNode)
+	s.Equal(ulChildren[1].dCh(0).children[0].code, "Second")
 
 	// "Prefix:" part
 	liPrefix := ulChildren[0].dCh(0)
@@ -72,7 +73,7 @@ func (s *CompileTestSuite) TestBasicTree() {
 	s.Equal(liMustache.children[0].code, "this.HeadItem")
 }
 
-func (s *CompileTestSuite) TestForIf() {
+func (s *CompileTestSuite) TestForAndIf() {
 	root := generate(fragmentFromString(`
 		<ul>
 			<for k="i" v="item" range="{{ this.Items }}">
@@ -97,7 +98,7 @@ func (s *CompileTestSuite) TestForIf() {
 	s.Equal(varDecls.children[1].children[1].children[1].typ, BlockCodeNode)
 	s.Contains(varDecls.children[1].children[1].children[1].code, "if")
 
-	s.Equal(root.children[1].dCh(0).typ, SliceVarCodeNode)
+	s.Equal(root.children[RETURN_START].dCh(0).typ, SliceVarCodeNode)
 }
 
 func TestCompile(t *testing.T) {

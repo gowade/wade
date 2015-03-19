@@ -9,16 +9,6 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
-type foreachFn func(int, *html.Node)
-
-func foreachChildren(node *html.Node, fn foreachFn) {
-	i := 0
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		fn(i, c)
-		i++
-	}
-}
-
 func parseFragment(source io.Reader) ([]*html.Node, error) {
 	return html.ParseFragment(source, &html.Node{
 		Type:     html.ElementNode,
@@ -45,7 +35,7 @@ func parseTextMustache(text string) []textPart {
 	matches := MustacheRegex.FindAllStringSubmatch(text, -1)
 
 	if matches == nil {
-		return []textPart{}
+		return []textPart{{text, false}}
 	}
 
 	parts := []textPart{}
@@ -55,6 +45,7 @@ func parseTextMustache(text string) []textPart {
 		if splitted[i] != "" {
 			parts = append(parts, textPart{splitted[i], false})
 		}
+
 		parts = append(parts, textPart{strings.TrimSpace(m[1]), true})
 	}
 

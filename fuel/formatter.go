@@ -29,7 +29,7 @@ func writeCodeGofmt(w io.WriteCloser, file string, root *codeNode) {
 func emitCodeNaive(w io.Writer, node *codeNode) {
 	switch node.typ {
 	case StringCodeNode:
-		write(w, fmt.Sprintf(`"%v"`, node.code))
+		write(w, fmt.Sprintf(`%q`, node.code))
 
 	case NakedCodeNode:
 		write(w, node.code)
@@ -98,17 +98,26 @@ func handleElemListCN(w io.Writer, node *codeNode) {
 	}
 
 	write(w, node.code)
+
+	if len(parts[0]) == 0 {
+		parts = parts[1:]
+	}
+
 	for i, part := range parts {
-		if i > 0 && len(parts[i-1]) > 0 {
+		if len(part) == 0 {
+			continue
+		}
+
+		if i > 0 {
 			write(w, " + \n")
 		}
 
 		if len(part) == 1 && part[0].typ == SliceVarCodeNode {
-			write(w, opening+part[0].code+svEnding+closing)
-			continue
-		}
-
-		if len(part) == 0 {
+			if node.typ == AppendListCodeNode {
+				write(w, opening+part[0].code+svEnding+closing)
+			} else {
+				write(w, part[0].code)
+			}
 			continue
 		}
 

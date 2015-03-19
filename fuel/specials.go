@@ -98,9 +98,7 @@ func forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	varName := vda.newVar("for")
 	forVda := newVarDeclArea()
 	apList := []*codeNode{ncn(varName)}
-	foreachChildren(node, func(_ int, c *html.Node) {
-		chAppend(&apList, generateRec(c, forVda))
-	})
+	apList = append(apList, genChildren(node, forVda)...)
 
 	forVda.saveToCN()
 
@@ -146,10 +144,7 @@ func ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 
 	varName := vda.newVar("if")
 	ifVda := newVarDeclArea()
-	children := []*codeNode{}
-	foreachChildren(node, func(_ int, c *html.Node) {
-		chAppend(&children, generateRec(c, ifVda))
-	})
+	children := genChildren(node, ifVda)
 
 	ifVda.saveToCN()
 
