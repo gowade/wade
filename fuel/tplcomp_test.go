@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/html"
+
+	"github.com/gowade/wade/utils/htmlutils"
 )
 
 const (
@@ -17,19 +16,8 @@ type CompileTestSuite struct {
 	suite.Suite
 }
 
-func fragmentFromString(htmlCode string) *html.Node {
-	buf := bytes.NewBufferString(strings.TrimSpace(htmlCode))
-	nodes, err := parseFragment(buf)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return nodes[0]
-}
-
 func (s *CompileTestSuite) TestBasicTree() {
-	root := generate(fragmentFromString(`
+	root := generate(htmlutils.FragmentFromString(`
 		<div>
 			<div class="wrapper {{ this.aClass }}">
 				<ul><li>Prefix: {{ this.HeadItem }}</li><li>Second</li></ul>
@@ -74,7 +62,7 @@ func (s *CompileTestSuite) TestBasicTree() {
 }
 
 func (s *CompileTestSuite) TestForAndIf() {
-	root := generate(fragmentFromString(`
+	root := generate(htmlutils.FragmentFromString(`
 		<ul>
 			<for k="i" v="item" range="{{ this.Items }}">
 				<if cond="{{ i == 0 }}">

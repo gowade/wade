@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+
+	"github.com/gowade/wade/utils/htmlutils"
 )
 
 const (
@@ -20,7 +22,7 @@ func main() {
 		panic(err)
 	}
 
-	n, err := parseFragment(ifile)
+	n, err := htmlutils.ParseFragment(ifile)
 	if err != nil {
 		panic(err)
 	}

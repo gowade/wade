@@ -1,21 +1,9 @@
 package main
 
 import (
-	"io"
 	"regexp"
 	"strings"
-
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 )
-
-func parseFragment(source io.Reader) ([]*html.Node, error) {
-	return html.ParseFragment(source, &html.Node{
-		Type:     html.ElementNode,
-		Data:     "body",
-		DataAtom: atom.Body,
-	})
-}
 
 // textPart represents either a typical HTML text node or a {{mustache node}}
 type textPart struct {
