@@ -1,1 +1,6 @@
 fuel/fuel
+testjs/basic/basic
+testjs/perf/perf
+testjs/test
+*.js
+*.js.map

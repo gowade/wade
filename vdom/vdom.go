@@ -7,6 +7,7 @@ type Event interface{}
 
 type Node interface {
 	IsElement() bool
+	NodeData() string
 }
 
 type TextNode struct {
@@ -15,6 +16,10 @@ type TextNode struct {
 
 func (t *TextNode) IsElement() bool {
 	return false
+}
+
+func (t *TextNode) NodeData() string {
+	return t.Data
 }
 
 func NewTextNode(data string) *TextNode {
@@ -31,6 +36,10 @@ type Element struct {
 
 func (t *Element) IsElement() bool {
 	return true
+}
+
+func (t *Element) NodeData() string {
+	return t.Tag
 }
 
 func NewElement(tag string, attrs Attributes, children []Node) *Element {
