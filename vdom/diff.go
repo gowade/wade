@@ -2,14 +2,13 @@ package vdom
 
 import (
 	"fmt"
+	"sort"
 )
 
 type TreeModifier interface {
-	Render(Node, DomNode)
 	SetAttr(DomNode, string, interface{})
 	RemoveAttr(DomNode, string)
-	Insert(Node, DomNode)
-	Delete(DomNode)
+	Do(DomNode, Action)
 }
 
 type DomNode interface {
@@ -89,33 +88,127 @@ func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {
 	}
 }
 
+func getKey(node Node) string {
+	if e, ok := node.(*Element); ok {
+		if e.Attrs != nil {
+			if key, ok := e.Attrs["key"]; ok {
+				return fmt.Sprint(key)
+			}
+		}
+	}
+
+	return ""
+}
+
+type ActionType int
+
+const (
+	Deletion  ActionType = 0
+	Insertion            = 1
+	Move                 = 2
+	Update               = 3
+)
+
+type Action struct {
+	Type    ActionType
+	Index   int
+	From    int
+	Element DomNode
+	Content Node
+}
+
+type actionPriority []Action
+
+func (a actionPriority) Len() int      { return len(a) }
+func (a actionPriority) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a actionPriority) Less(i, j int) bool {
+	if a[i].Type == a[j].Type {
+		return a[i].Index < a[j].Index
+	}
+
+	return a[i].Type < a[j].Type
+}
+
 // PerformDiff calculates and performs operations on the DOM tree dNode
 // to transform an old tree representation (b) to the new tree (a)
 func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 	if b == nil || a.Tag != b.Tag {
-		m.Render(a, dNode)
+		m.Do(dNode, Action{Type: Update, Index: 0, Content: a})
 		return
 	}
 
 	diffProps(a, b, dNode, m)
 
+	existing := make(map[string]Action)
+	keyedDiff := false
+	for i, bCh := range b.Children {
+		key := getKey(bCh)
+		if key != "" {
+			keyedDiff = true
+			existing[key] = Action{Type: Deletion, Index: i}
+		}
+	}
+
+	if keyedDiff { // Algorithm inspired by Mithril.js
+		var unkeyed []Action
+		for i, aCh := range a.Children {
+			key := getKey(aCh)
+			if key != "" {
+				if action, ok := existing[key]; !ok {
+					existing[key] = Action{Type: Insertion, Index: i, Content: aCh}
+				} else {
+					existing[key] = Action{
+						Type:    Move,
+						Index:   i,
+						From:    action.Index,
+						Element: dNode.Child(action.Index),
+					}
+				}
+			} else {
+				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh})
+			}
+		}
+
+		actions := make([]Action, len(existing))
+		i := 0
+		for _, action := range existing {
+			actions[i] = action
+			i++
+		}
+
+		sort.Sort(actionPriority(actions))
+
+		for _, action := range actions {
+			m.Do(dNode, action)
+		}
+
+		for _, action := range unkeyed {
+			m.Do(dNode, action)
+		}
+
+		return
+	}
+
 	i := 0
 	for ; i < len(a.Children); i++ {
 		aCh := a.Children[i]
+
 		if i > len(b.Children)-1 {
-			m.Insert(aCh, dNode)
+			m.Do(dNode, Action{Type: Insertion, Index: -1, Content: aCh})
 			continue
 		}
 
 		bCh := b.Children[i]
-		if nodeCompat(aCh, bCh) && aCh.IsElement() {
-			PerformDiff(aCh.(*Element), bCh.(*Element), dNode.Child(i), m)
+		if nodeCompat(aCh, bCh) {
+			if aCh.IsElement() {
+				PerformDiff(aCh.(*Element), bCh.(*Element), dNode.Child(i), m)
+			}
 		} else {
-			m.Render(aCh, dNode.Child(i))
+			m.Do(dNode, Action{Type: Update, Index: i, Content: aCh})
 		}
 	}
 
 	for ; i < len(b.Children); i++ {
-		m.Delete(dNode.Child(i))
+		m.Do(dNode, Action{Type: Deletion, Index: i})
 	}
 }

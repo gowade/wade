@@ -5,9 +5,6 @@ import (
 
 	. "github.com/gowade/wade/vdom"
 
-	"github.com/gowade/wade/utils/htmlutils"
-	"golang.org/x/net/html"
-
 	"github.com/stretchr/testify/suite"
 )
 
@@ -15,36 +12,12 @@ type DiffTestSuite struct {
 	suite.Suite
 }
 
-type changeType string
-
-const (
-	Insert changeType = "INSERT"
-	Update            = "UPDATE"
-	Delete            = "DELETE"
-)
-
-func NewNode(src string) GoDomNode {
-	return GoDomNode{htmlutils.FragmentFromString(src)}
-}
-
 type GoDomNode struct {
-	*html.Node
+	Node
 }
 
 func (n GoDomNode) Child(idx int) DomNode {
-	for i, c := 0, n.FirstChild; ; c, i = c.NextSibling, i+1 {
-		if i == idx {
-			return GoDomNode{c}
-		}
-	}
-
-	return nil
-}
-
-type change struct {
-	typ     changeType
-	node    Node
-	domNode DomNode
+	return GoDomNode{n.Node.(*Element).Children[idx]}
 }
 
 type attrChange struct {
@@ -54,29 +27,30 @@ type attrChange struct {
 	domNode DomNode
 }
 
+type change struct {
+	action Action
+	dNode  GoDomNode
+}
+
+func (c change) affectedNode() GoDomNode {
+	return c.dNode.Child(c.action.Index).(GoDomNode)
+}
+
 type modifier struct {
 	changes     []change
 	attrChanges []attrChange
-}
-
-func (m *modifier) record(c change) {
-	m.changes = append(m.changes, c)
 }
 
 func (m *modifier) recordAC(c attrChange) {
 	m.attrChanges = append(m.attrChanges, c)
 }
 
-func (m *modifier) Render(n Node, d DomNode) {
-	m.record(change{Update, n, d})
-}
-
-func (m *modifier) Insert(n Node, d DomNode) {
-	m.record(change{Insert, n, d})
-}
-
-func (m *modifier) Delete(d DomNode) {
-	m.record(change{Delete, nil, d})
+func (m *modifier) Do(d DomNode, action Action) {
+	change := change{action: action}
+	if d != nil {
+		change.dNode = d.(GoDomNode)
+	}
+	m.changes = append(m.changes, change)
 }
 
 func (m *modifier) SetAttr(d DomNode, attr string, v interface{}) {
@@ -100,15 +74,15 @@ func (s *DiffTestSuite) TestDiff() {
 	a := NewElement("div", nil, nil)
 	PerformDiff(a, nil, nil, m1)
 	s.Len(m1.changes, 1)
-	s.Equal(change{Update, a, nil}, m1.changes[0])
+	s.Equal(Action{Type: Update, Index: 0, Content: a}, m1.changes[0].action)
 
-	d, b := NewNode("<div><span>C</span><ul><li>A</li></ul></div>"),
-		NewElement("div", Attributes{"title": "d"}, []Node{
-			NewElement("span", nil, []Node{NewTextNode("C")}),
-			NewElement("ul", Attributes{"disabled": true}, []Node{
-				NewElement("li", nil, []Node{NewTextNode("A")}),
-			}),
-		})
+	b := NewElement("div", Attributes{"title": "d"}, []Node{
+		NewElement("span", nil, []Node{NewTextNode("C")}),
+		NewElement("ul", Attributes{"disabled": true}, []Node{
+			NewElement("li", nil, []Node{NewTextNode("A")}),
+		}),
+	})
+	d := GoDomNode{b}
 	a = NewElement("div", nil, []Node{
 		NewElement("span", nil, []Node{}),
 		NewElement("ul", Attributes{"disabled": false, "value": "0"}, []Node{
@@ -118,35 +92,81 @@ func (s *DiffTestSuite) TestDiff() {
 
 	m1 = newModifier()
 	PerformDiff(a, b, d, m1)
-	s.Equal(m1.changes[0].typ, Delete)
-	s.Equal(m1.changes[0].domNode.(GoDomNode).Data, "C")
+	s.Equal(m1.changes[0].action, Action{Type: Deletion, Index: 0})
+	s.Equal(m1.changes[0].affectedNode().NodeData(), "C")
 
-	s.Equal(m1.changes[1].typ, Update)
-	s.Equal(m1.changes[1].node.(*Element).Tag, "notli")
-	s.Equal(m1.changes[1].domNode.(GoDomNode).Data, "li")
+	s.Equal(m1.changes[1].action.Type, Update)
+	s.Equal(m1.changes[1].action.Content.NodeData(), "notli")
+	s.Equal(m1.changes[1].affectedNode().NodeData(), "li")
 
-	s.Equal(m1.changes[2].typ, Insert)
-	s.Equal(m1.changes[2].node.(*Element).Children[0].(*TextNode).Data, "B")
-	s.Equal(m1.changes[2].domNode.(GoDomNode).Data, "ul")
+	s.Equal(m1.changes[2].action.Type, Insertion)
+	s.Equal(m1.changes[2].action.Content.(*Element).Children[0].NodeData(), "B")
 
 	s.Len(m1.changes, 3)
 
-	// Test attribute changes
+	// Test attribute diffing
 	s.Equal(m1.attrChanges[0].remove, true)
 	s.Equal(m1.attrChanges[0].attr, "title")
-	s.Equal(m1.attrChanges[0].domNode.(GoDomNode).Data, "div")
+	s.Equal(m1.attrChanges[0].domNode.(GoDomNode).NodeData(), "div")
 
 	s.Equal(m1.attrChanges[1].remove, true)
 	s.Equal(m1.attrChanges[1].attr, "disabled")
 	s.Equal(m1.attrChanges[1].value, nil)
-	s.Equal(m1.attrChanges[1].domNode.(GoDomNode).Data, "ul")
+	s.Equal(m1.attrChanges[1].domNode.(GoDomNode).NodeData(), "ul")
 
 	s.Equal(m1.attrChanges[2].remove, false)
 	s.Equal(m1.attrChanges[2].attr, "value")
 	s.Equal(m1.attrChanges[2].value, "0")
-	s.Equal(m1.attrChanges[2].domNode.(GoDomNode).Data, "ul")
+	s.Equal(m1.attrChanges[2].domNode.(GoDomNode).NodeData(), "ul")
 
 	s.Len(m1.attrChanges, 3)
+}
+
+func (s *DiffTestSuite) TestKeyedDiff() {
+	m1 := newModifier()
+	b := NewElement("div", nil, []Node{
+		NewElement("ul", nil, []Node{
+			NewElement("li", Attributes{"key": 1}, nil),
+			NewElement("li", Attributes{"key": 2}, nil),
+			NewElement("li", Attributes{"key": 3}, nil),
+			NewElement("li", Attributes{"key": 4}, nil),
+		}),
+	})
+	d := GoDomNode{b}
+	a := NewElement("div", nil, []Node{
+		NewElement("ul", nil, []Node{
+			NewElement("li", Attributes{"key": 0}, nil),
+			NewElement("li", Attributes{"key": 4}, nil),
+			NewElement("li", nil, nil),
+			NewElement("li", Attributes{"key": 2}, nil),
+			NewElement("li", Attributes{"key": 5}, nil),
+		}),
+	})
+
+	PerformDiff(a, b, d, m1)
+
+	s.Equal(m1.changes[0].action, Action{Type: Deletion, Index: 0})
+	s.Equal(m1.changes[1].action, Action{Type: Deletion, Index: 2})
+
+	s.Equal(m1.changes[2].action.Type, Insertion)
+	s.Equal(m1.changes[2].action.Index, 0)
+	s.Equal(m1.changes[2].action.Content.(*Element).Attrs["key"], 0)
+
+	s.Equal(m1.changes[3].action.Type, Insertion)
+	s.Equal(m1.changes[3].action.Index, 4)
+	s.Equal(m1.changes[3].action.Content.(*Element).Attrs["key"], 5)
+
+	s.Equal(m1.changes[4].action.Type, Move)
+	s.Equal(m1.changes[4].action.Index, 1)
+	s.Equal(m1.changes[4].action.From, 3)
+
+	s.Equal(m1.changes[5].action.Type, Move)
+	s.Equal(m1.changes[5].action.Index, 3)
+	s.Equal(m1.changes[5].action.From, 1)
+
+	// unkeyed
+	s.Equal(m1.changes[6].action.Type, Insertion)
+	s.Equal(m1.changes[6].action.Index, 2)
 }
 
 func TestDiff(t *testing.T) {
