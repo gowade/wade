@@ -11,18 +11,18 @@ func main() {
 	b := NewElement("div", nil, []Node{
 		NewElement("span", nil, []Node{}),
 		NewElement("ul", nil, []Node{
-			NewElement("notli", nil, []Node{NewTextNode("A")}),
-			NewElement("li", nil, []Node{NewTextNode("B")}),
-			NewElement("li", Attributes{"hidden": true}, []Node{NewTextNode("E")}),
-			NewElement("li", nil, []Node{NewTextNode("D")}),
+			NewElement("notli", Attributes{"key": 0}, []Node{NewTextNode("A")}),
+			NewElement("li", Attributes{"key": 5}, []Node{NewTextNode("B")}),
+			NewElement("li", Attributes{"key": 7, "hidden": true}, []Node{NewTextNode("E")}),
+			NewElement("li", Attributes{"key": 9}, []Node{NewTextNode("D")}),
 		})})
 
 	a := NewElement("div", nil, []Node{
 		NewElement("span", nil, []Node{NewTextNode("C")}),
 		NewElement("ul", nil, []Node{
-			NewElement("li", Attributes{"hidden": true}, []Node{NewTextNode("A")}),
-			NewElement("li", nil, []Node{NewTextNode("D")}),
-			NewElement("li", Attributes{"hidden": false}, []Node{NewTextNode("E")}),
+			NewElement("li", Attributes{"key": 5, "hidden": true}, []Node{NewTextNode("A")}),
+			NewElement("li", Attributes{"key": 9}, []Node{NewTextNode("D")}),
+			NewElement("li", Attributes{"key": 7, "hidden": false}, []Node{NewTextNode("E")}),
 		}),
 	})
 

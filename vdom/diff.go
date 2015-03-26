@@ -133,7 +133,7 @@ func (a actionPriority) Less(i, j int) bool {
 // to transform an old tree representation (b) to the new tree (a)
 func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 	if b == nil || a.Tag != b.Tag {
-		m.Do(dNode, Action{Type: Update, Index: 0, Content: a})
+		m.Do(dNode, Action{Type: Update, Content: a})
 		return
 	}
 
@@ -180,6 +180,11 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 
 		for _, action := range actions {
 			m.Do(dNode, action)
+			if action.Type == Move {
+				PerformDiff(a.Children[action.Index].(*Element),
+					b.Children[action.From].(*Element),
+					dNode.Child(action.Index), m)
+			}
 		}
 
 		for _, action := range unkeyed {
@@ -204,7 +209,7 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 				PerformDiff(aCh.(*Element), bCh.(*Element), dNode.Child(i), m)
 			}
 		} else {
-			m.Do(dNode, Action{Type: Update, Index: i, Content: aCh})
+			m.Do(dNode.Child(i), Action{Type: Update, Content: aCh})
 		}
 	}
 

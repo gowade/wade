@@ -72,9 +72,10 @@ func newModifier() *modifier {
 func (s *DiffTestSuite) TestDiff() {
 	m1 := newModifier()
 	a := NewElement("div", nil, nil)
-	PerformDiff(a, nil, nil, m1)
+	PerformDiff(a, nil, GoDomNode{NewElement("div", nil, nil)}, m1)
 	s.Len(m1.changes, 1)
-	s.Equal(Action{Type: Update, Index: 0, Content: a}, m1.changes[0].action)
+	s.Equal(m1.changes[0].action.Type, Update)
+	s.Equal(m1.changes[0].dNode.NodeData(), "div")
 
 	b := NewElement("div", Attributes{"title": "d"}, []Node{
 		NewElement("span", nil, []Node{NewTextNode("C")}),
@@ -97,7 +98,7 @@ func (s *DiffTestSuite) TestDiff() {
 
 	s.Equal(m1.changes[1].action.Type, Update)
 	s.Equal(m1.changes[1].action.Content.NodeData(), "notli")
-	s.Equal(m1.changes[1].affectedNode().NodeData(), "li")
+	s.Equal(m1.changes[1].dNode.NodeData(), "li")
 
 	s.Equal(m1.changes[2].action.Type, Insertion)
 	s.Equal(m1.changes[2].action.Content.(*Element).Children[0].NodeData(), "B")

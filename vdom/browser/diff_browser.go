@@ -35,7 +35,7 @@ func (d DomNode) Child(i int) vdom.DomNode {
 
 type TreeModifier struct{}
 
-func (m TreeModifier) renderElem(node vdom.Node) *js.Object {
+func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 	if !node.IsElement() {
 		return createTextNode(node.NodeData())
 	}
@@ -56,30 +56,39 @@ func (m TreeModifier) renderElem(node vdom.Node) *js.Object {
 	}
 
 	for _, c := range e.Children {
-		newElem.Call("appendChild", m.renderElem(c))
+		newElem.Call("appendChild", m.renderNode(c))
 	}
 
 	return newElem
 }
 
-func (m TreeModifier) Render(node vdom.Node, domNode vdom.DomNode) {
-	d := domNode.(DomNode).Object
+func (m TreeModifier) render(node vdom.Node, d *js.Object) {
 	if !node.IsElement() {
 		d.Set("nodeValue", node.NodeData())
 		return
 	}
 
-	d.Get("parentNode").Call("replaceChild", m.renderElem(node), d)
+	d.Get("parentNode").Call("replaceChild", m.renderNode(node), d)
 }
 
-func (m TreeModifier) Insert(node vdom.Node, parent vdom.DomNode) {
-	p := parent.(DomNode).Object
-	p.Call("appendChild", m.renderElem(node))
-}
+func (m TreeModifier) Do(dNode vdom.DomNode, action vdom.Action) {
+	d := dNode.(DomNode).Object
 
-func (m TreeModifier) Delete(domNode vdom.DomNode) {
-	d := domNode.(DomNode).Object
-	d.Get("parentNode").Call("removeChild", d)
+	switch action.Type {
+	case vdom.Deletion:
+		d.Call("removeChild", d.Get("childNodes").Index(action.Index))
+	case vdom.Insertion:
+		insertee := m.renderNode(action.Content)
+		if action.Index == -1 {
+			d.Call("appendChild", insertee)
+		} else {
+			d.Call("insertBefore", insertee, d.Get("childNodes").Index(action.Index))
+		}
+	case vdom.Move:
+		d.Call("insertBefore", action.Element, d.Get("childNodes").Index(action.Index))
+	case vdom.Update:
+		m.render(action.Content, d)
+	}
 }
 
 func (m TreeModifier) RemoveAttr(dNode vdom.DomNode, attr string) {

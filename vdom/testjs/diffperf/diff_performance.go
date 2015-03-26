@@ -23,14 +23,15 @@ func main() {
 				hidden = true
 			}
 			labels[j] = NewElement("p", Attributes{
-				"id":     rand.Intn(1000),
 				"hidden": hidden,
 			}, []Node{
 				NewTextNode(fmt.Sprint(rand.Intn(1000))),
 			})
 		}
 
-		list[i] = NewElement("li", nil, labels)
+		list[i] = NewElement("li", Attributes{
+			"key": fmt.Sprint(rand.Intn(1000)),
+		}, labels)
 	}
 
 	b := NewElement("div", nil, []Node{
