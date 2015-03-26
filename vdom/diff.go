@@ -29,31 +29,55 @@ func nodeCompat(a, b Node) bool {
 	return a.(*TextNode).Data == b.(*TextNode).Data
 }
 
-func equal(va, vb interface{}) bool {
-	switch va.(type) {
-	case string:
-		return va == vb.(string)
+// this function is copied from ssa/interp
+// equals returns true iff x and y are equal according to Go's
+// linguistic equivalence relation for type t.
+// In a well-typed program, the dynamic types of x and y are
+// guaranteed equal.
+func equals(x, y interface{}) bool {
+	switch x := x.(type) {
 	case bool:
-		return va == vb.(bool)
+		return x == y.(bool)
 	case int:
-		return va == vb.(int)
-	case int64:
-		return va == vb.(int64)
+		return x == y.(int)
+	case int8:
+		return x == y.(int8)
+	case int16:
+		return x == y.(int16)
 	case int32:
-		return va == vb.(int32)
+		return x == y.(int32)
+	case int64:
+		return x == y.(int64)
+	case uint:
+		return x == y.(uint)
+	case uint8:
+		return x == y.(uint8)
+	case uint16:
+		return x == y.(uint16)
+	case uint32:
+		return x == y.(uint32)
+	case uint64:
+		return x == y.(uint64)
+	case uintptr:
+		return x == y.(uintptr)
 	case float32:
-		return va == vb.(float32)
+		return x == y.(float32)
 	case float64:
-		return va == vb.(float64)
+		return x == y.(float64)
+	case complex64:
+		return x == y.(complex64)
+	case complex128:
+		return x == y.(complex128)
+	case string:
+		return x == y.(string)
 	}
 
-	panic(fmt.Sprintf("Unsupported attribute type %T", va))
-	return false
+	panic(fmt.Sprintf("comparing uncomparable type %T", x))
 }
 
 func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {
 	for attr, va := range a.Attrs {
-		if vb, ok := b.Attrs[attr]; !ok || !equal(va, vb) {
+		if vb, ok := b.Attrs[attr]; !ok || !equals(va, vb) {
 			m.SetAttr(dNode, attr, va)
 		}
 	}
