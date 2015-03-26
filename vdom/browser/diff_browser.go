@@ -76,7 +76,7 @@ func (m TreeModifier) Do(dNode vdom.DomNode, action vdom.Action) {
 
 	switch action.Type {
 	case vdom.Deletion:
-		d.Call("removeChild", d.Get("childNodes").Index(action.Index))
+		d.Call("removeChild", action.Element.(DomNode).Object)
 	case vdom.Insertion:
 		insertee := m.renderNode(action.Content)
 		if action.Index == -1 {

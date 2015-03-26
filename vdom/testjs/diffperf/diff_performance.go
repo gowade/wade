@@ -14,6 +14,7 @@ import (
 func main() {
 	rand.Seed(time.Now().Unix())
 	n := 1000
+	c := 0
 	list := make([]Node, n)
 	for i := range list {
 		labels := make([]Node, 5)
@@ -30,8 +31,9 @@ func main() {
 		}
 
 		list[i] = NewElement("li", Attributes{
-			"key": fmt.Sprint(rand.Intn(1000)),
+			"key": fmt.Sprint(c),
 		}, labels)
+		c++
 	}
 
 	b := NewElement("div", nil, []Node{
@@ -40,7 +42,7 @@ func main() {
 
 	a := NewElement("div", nil, []Node{
 		NewElement("span", nil, []Node{NewTextNode("C")}),
-		NewElement("ul", nil, list),
+		NewElement("ul", nil, list[10:]),
 	})
 
 	root := js.Global.Get("document").Call("getElementById", "container")

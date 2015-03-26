@@ -145,7 +145,7 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		key := getKey(bCh)
 		if key != "" {
 			keyedDiff = true
-			existing[key] = Action{Type: Deletion, Index: i}
+			existing[key] = Action{Type: Deletion, Index: i, Element: dNode.Child(i)}
 		}
 	}
 
