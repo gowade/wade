@@ -97,14 +97,17 @@ func forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 
 	varName := vda.newVar("for")
 	forVda := newVarDeclArea()
-	apList := []*codeNode{ncn(varName)}
+	apList := []*codeNode{{
+		typ:  SliceVarCodeNode,
+		code: varName,
+	}}
 	apList = append(apList, genChildren(node, forVda)...)
 
 	forVda.saveToCN()
 
 	vda.setVarDecl(
 		varName,
-		ncn(fmt.Sprintf(`%v := []*wade.Element{}`, varName)),
+		ncn(fmt.Sprintf(`%v := %v{}`, varName, ElementListOpener)),
 		&codeNode{
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`for __k, __v := range %v`, rangeVar),
@@ -150,7 +153,7 @@ func ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 
 	vda.setVarDecl(
 		varName,
-		ncn(fmt.Sprintf(`%v := []*wade.Element{}`, varName)),
+		ncn(fmt.Sprintf(`%v := %v{}`, varName, ElementListOpener)),
 		&codeNode{
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`if %v `, cond),

@@ -1,14 +1,14 @@
 package main
 
 const (
-	CreateElementOpener  = "createElement"
-	CreateTextNodeOpener = "createText"
-	AttributeMapOpener   = "wade.Attrs"
-	ElementListOpener    = "[]*wade.Element"
+	CreateElementOpener  = "vdom.NewElement"
+	CreateTextNodeOpener = "vdom.NewTextNode"
+	AttributeMapOpener   = "vdom.Attrs"
+	ElementListOpener    = "[]vdom.Node"
 	RenderFuncOpener     = "func Render() "
 )
 
 const Prelude = `package main
 
-import "github.com/phaikawl/wade"
+import "github.com/gowade/wade/vdom"
 `

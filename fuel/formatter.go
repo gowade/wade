@@ -73,61 +73,59 @@ func emitCodeNaive(w io.Writer, node *codeNode) {
 func handleElemListCN(w io.Writer, node *codeNode) {
 	opening := ElementListOpener + "{\n"
 	closing := "}"
-	svEnding := ""
-	if node.typ == AppendListCodeNode {
-		opening = "append(" + node.children[0].code + ", "
-		closing = ")"
-		svEnding = "..."
-		node.children = node.children[1:]
-	}
+
+	//isAppend := node.typ == AppendListCodeNode
 
 	// separate the list into parts to facilitate special constructs (for and if)
-	parts := [][]*codeNode{node.children}
+	rparts := [][]*codeNode{node.children}
 	if len(node.children) > 1 {
-		parts = [][]*codeNode{make([]*codeNode, 0)}
+		rparts = [][]*codeNode{make([]*codeNode, 0)}
 		i := 0
 		for _, c := range node.children {
 			if c.typ == SliceVarCodeNode {
-				parts = append(parts, []*codeNode{c})
-				parts = append(parts, []*codeNode{})
-				i = len(parts) - 1
+				rparts = append(rparts, []*codeNode{c})
+				rparts = append(rparts, []*codeNode{})
+				i = len(rparts) - 1
 			} else {
-				parts[i] = append(parts[i], c)
+				rparts[i] = append(rparts[i], c)
 			}
+		}
+	}
+
+	parts := make([][]*codeNode, 0, len(rparts))
+	for _, part := range rparts {
+		if len(part) > 0 {
+			parts = append(parts, part)
 		}
 	}
 
 	write(w, node.code)
-
-	if len(parts[0]) == 0 {
-		parts = parts[1:]
-	}
-
 	for i, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-
-		if i > 0 {
-			write(w, " + \n")
+		if i < len(parts)-1 {
+			write(w, "append(")
 		}
 
 		if len(part) == 1 && part[0].typ == SliceVarCodeNode {
-			if node.typ == AppendListCodeNode {
-				write(w, opening+part[0].code+svEnding+closing)
-			} else {
-				write(w, part[0].code)
+			write(w, part[0].code)
+		} else {
+			write(w, opening)
+			for i, c := range part {
+				emitCodeNaive(w, c)
+				if i < len(part)-1 {
+					write(w, ",\n")
+				}
 			}
-			continue
+			write(w, closing)
 		}
 
-		write(w, opening)
-		for i, c := range part {
-			emitCodeNaive(w, c)
-			if node.typ != AppendListCodeNode || i < len(part)-1 {
-				write(w, ",\n")
-			}
+		if i < len(parts)-1 {
+			write(w, ", ")
 		}
-		write(w, closing)
+	}
+
+	if len(parts) > 1 {
+		for range parts[1:] {
+			write(w, "...)")
+		}
 	}
 }
