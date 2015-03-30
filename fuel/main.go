@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
 
 	"github.com/gowade/wade/utils/htmlutils"
@@ -8,16 +10,23 @@ import (
 
 const (
 	TestFile = "test/test.html"
-	TestOut  = "test/test.go"
 )
 
 func main() {
-	ifile, err := os.Open(TestFile)
+	targetFilename := TestFile
+	flag.Parse()
+	if flag.Arg(0) != "" {
+		targetFilename = flag.Arg(0)
+	}
+
+	outputFileName := targetFilename + ".go"
+
+	ifile, err := os.Open(targetFilename)
 	if err != nil {
 		panic(err)
 	}
 
-	ofile, err := os.Create(TestOut)
+	ofile, err := os.Create(outputFileName)
 	if err != nil {
 		panic(err)
 	}
@@ -27,6 +36,12 @@ func main() {
 		panic(err)
 	}
 
-	ctree := generate(n[0])
-	writeCodeGofmt(ofile, TestOut, ctree)
+	c := NewCompiler()
+	ctree := c.generate(n[0])
+	writeCodeGofmt(ofile, outputFileName, ctree)
+
+	if mess := c.Error(); mess != "" {
+		fmt.Println(mess)
+		os.Exit(2)
+	}
 }

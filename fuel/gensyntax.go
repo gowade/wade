@@ -3,12 +3,14 @@ package main
 const (
 	CreateElementOpener  = "vdom.NewElement"
 	CreateTextNodeOpener = "vdom.NewTextNode"
-	AttributeMapOpener   = "vdom.Attrs"
+	AttributeMapOpener   = "vdom.Attributes"
 	ElementListOpener    = "[]vdom.Node"
 	RenderFuncOpener     = "func Render() "
 )
 
-const Prelude = `package main
-
-import "github.com/gowade/wade/vdom"
+const Prelude = `package template
+import (
+	"fmt"
+	"github.com/gowade/wade/vdom"
+)
 `

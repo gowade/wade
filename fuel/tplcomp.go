@@ -19,20 +19,20 @@ func textNodeCode(text string) []*codeNode {
 	ret := make([]*codeNode, len(parts))
 
 	for i, part := range parts {
-		cnType := StringCodeNode
+		var cn *codeNode
 		if part.isMustache {
-			cnType = NakedCodeNode
+			cn = ncn(fmt.Sprintf("fmt.Sprint(%v)", part.content))
+		} else {
+			cn = &codeNode{
+				typ:  StringCodeNode,
+				code: part.content,
+			}
 		}
 
 		ret[i] = &codeNode{
-			typ:  FuncCallCodeNode,
-			code: CreateTextNodeOpener,
-			children: []*codeNode{
-				{
-					typ:  cnType,
-					code: part.content,
-				},
-			},
+			typ:      FuncCallCodeNode,
+			code:     CreateTextNodeOpener,
+			children: []*codeNode{cn},
 		}
 	}
 
@@ -117,11 +117,11 @@ func filterTextStrings(list []*codeNode) []*codeNode {
 	return ret
 }
 
-func genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
+func (cpl *Compiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
 	children := make([]*codeNode, 0)
 	i := 0
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		chAppend(&children, generateRec(c, vda))
+		chAppend(&children, cpl.generateRec(c, vda))
 
 		i++
 	}
@@ -129,25 +129,30 @@ func genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
 	return filterTextStrings(children)
 }
 
-func elementCode(node *html.Node, vda *varDeclArea) *codeNode {
+func NewCompiler() *Compiler {
+	return &Compiler{[]error{}}
+}
+
+type Compiler struct {
+	errors []error
+}
+
+func (c *Compiler) Error() (s string) {
+	for _, e := range c.errors {
+		s += e.Error() + "\n"
+	}
+	return
+}
+
+func (c *Compiler) elementCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	switch node.Data {
 	case "for":
-		cn, err := forLoopCode(node, vda)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-		return cn
+		return c.forLoopCode(node, vda)
 	case "if":
-		cn, err := ifControlCode(node, vda)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-		return cn
+		return c.ifControlCode(node, vda)
 	}
 
-	children := genChildren(node, vda)
+	children := c.genChildren(node, vda)
 	childrenCode := nilCode
 	if len(children) != 0 {
 		childrenCode = &codeNode{
@@ -165,30 +170,36 @@ func elementCode(node *html.Node, vda *varDeclArea) *codeNode {
 			elementAttrsCode(node.Attr),
 			childrenCode,
 		},
-	}
+	}, nil
 }
 
-func generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
+func (c *Compiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
 	if node.Type == html.TextNode {
 		return textNodeCode(node.Data)
 	}
 
 	if node.Type == html.ElementNode {
-		return []*codeNode{elementCode(node, vda)}
+		cn, err := c.elementCode(node, vda)
+		if err != nil {
+			c.errors = append(c.errors, err)
+		}
+
+		return []*codeNode{cn}
 	}
 
 	return nil
 }
 
-func generate(node *html.Node) *codeNode {
+func (c *Compiler) generate(node *html.Node) *codeNode {
 	vda := newVarDeclArea()
+
 	ret := &codeNode{
 		typ:  BlockCodeNode,
 		code: RenderFuncOpener,
 		children: []*codeNode{
 			vda.codeNode,
 			ncn("return "),
-			generateRec(node, vda)[0],
+			c.generateRec(node, vda)[0],
 		},
 	}
 

@@ -17,13 +17,15 @@ type CompileTestSuite struct {
 }
 
 func (s *CompileTestSuite) TestBasicTree() {
-	root := generate(htmlutils.FragmentFromString(`
+	c := NewCompiler()
+	root := c.generate(htmlutils.FragmentFromString(`
 		<div>
-			<div class="wrapper {{ this.aClass }}">
+			<div class="wrapper {{ this.aClass{} }}">
 				<ul><li>Prefix: {{ this.HeadItem }}</li><li>Second</li></ul>
 			</div>
 		</div>
 	`))
+	s.Empty(c.Error())
 
 	root = root.children[RETURN_START]
 	s.Equal(root.typ, FuncCallCodeNode)
@@ -40,7 +42,7 @@ func (s *CompileTestSuite) TestBasicTree() {
 	s.Equal(rchild.typ, FuncCallCodeNode)
 	attrCode := rchild.children[1].children[0].code
 	s.Contains(attrCode, `class`)
-	s.Contains(attrCode, "`wrapper %v`, this.aClass)")
+	s.Contains(attrCode, "`wrapper %v`, this.aClass{})")
 
 	// ul should contain 2 li
 	ulChildren := rchild.dCh(0).dChn()
@@ -58,11 +60,12 @@ func (s *CompileTestSuite) TestBasicTree() {
 	// {{ this.HeadItem }} part
 	liMustache := ulChildren[0].dCh(1)
 	s.Equal(liMustache.children[0].typ, NakedCodeNode)
-	s.Equal(liMustache.children[0].code, "this.HeadItem")
+	s.Equal(liMustache.children[0].code, "fmt.Sprint(this.HeadItem)")
 }
 
 func (s *CompileTestSuite) TestForAndIf() {
-	root := generate(htmlutils.FragmentFromString(`
+	c := NewCompiler()
+	root := c.generate(htmlutils.FragmentFromString(`
 		<ul>
 			<for k="i" v="item" range="{{ this.Items }}">
 				<if cond="{{ i == 0 }}">
@@ -72,6 +75,7 @@ func (s *CompileTestSuite) TestForAndIf() {
 			</for>
 		</ul>
 	`))
+	s.Empty(c.Error())
 
 	varDecls := root.children[0]
 

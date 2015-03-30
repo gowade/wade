@@ -1,0 +1,35 @@
+<div>
+	<div class="wrapper {{ `ZZZz` }}">
+		<ul>
+			<li>Prefix: {{ 2323 }}</li>
+			<li>fdfd</li>
+		</ul>
+		<ul>
+			<wtf></wtf>
+			<for k="i" v="item" range="{{ []string{} }}">
+				<if cond="{{ i == 0 }}">
+					<li>Even {{ i }}</li>
+				</if>
+				<li>{{ item }}</li>	
+			</for>
+		</ul>
+		<ul>
+			<wtf></wtf>
+			<for k="i" v="item" range="{{ []string{} }}">
+				<li>{{ item }}</li>	
+				<if cond="{{ i == 0 }}">
+					<li>Even {{ i }}</li>
+					<li>{{ item }}</li>	
+				</if>
+				<li>{{ item }}</li>	
+			
+				<ul>	
+					<li>{{ item }}</li>	
+					<for v="subitem" range="{{ []string{} }}">
+						<li>{{ subitem }}</li>
+					</for>
+				</ul>
+			</for>
+		</ul>
+	</div>
+</div>

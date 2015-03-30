@@ -12,7 +12,7 @@ type textPart struct {
 }
 
 var (
-	MustacheRegex = regexp.MustCompile("{{([^{}]+)}}")
+	MustacheRegex = regexp.MustCompile("{{((?:[^{}]|{[^{]|}[^}])+)}}")
 )
 
 // parseTextMustache splits HTML text into a list of text and mustaches.

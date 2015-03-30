@@ -70,7 +70,7 @@ func extractSingleMustache(attrVal string) string {
 	return parts[0].content
 }
 
-func forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *Compiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	keyName, valName := "_", "_"
 	rrv := ""
 	for _, attr := range node.Attr {
@@ -101,7 +101,7 @@ func forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 		typ:  SliceVarCodeNode,
 		code: varName,
 	}}
-	apList = append(apList, genChildren(node, forVda)...)
+	apList = append(apList, c.genChildren(node, forVda)...)
 
 	forVda.saveToCN()
 
@@ -125,7 +125,7 @@ func forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	return lnode(fmt.Sprintf(varName)), nil
 }
 
-func ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *Compiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	rcond := ""
 	for _, attr := range node.Attr {
 		switch attr.Key {
@@ -147,7 +147,7 @@ func ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 
 	varName := vda.newVar("if")
 	ifVda := newVarDeclArea()
-	children := genChildren(node, ifVda)
+	children := c.genChildren(node, ifVda)
 
 	ifVda.saveToCN()
 

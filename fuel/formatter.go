@@ -18,7 +18,7 @@ func writeCodeGofmt(w io.WriteCloser, file string, root *codeNode) {
 
 	cmd := exec.Command("go", "fmt", file)
 	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
+	fmt.Println("creating output file: ", string(out))
 	if err != nil {
 		fmt.Println(`fuel requires that the standard go command is available.` +
 			`Please make sure it works.`)
