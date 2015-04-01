@@ -13,7 +13,7 @@ type GenTestSuite struct {
 }
 
 func (s *GenTestSuite) test(filename string) {
-	cmd := exec.Command("fuel", filename)
+	cmd := exec.Command("fuel", "build", filename)
 	op, err := cmd.CombinedOutput()
 	fmt.Println(string(op))
 	s.NoError(err)

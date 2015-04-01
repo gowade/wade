@@ -117,7 +117,7 @@ func filterTextStrings(list []*codeNode) []*codeNode {
 	return ret
 }
 
-func (cpl *Compiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
+func (cpl *HtmlCompiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
 	children := make([]*codeNode, 0)
 	i := 0
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -129,22 +129,22 @@ func (cpl *Compiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode 
 	return filterTextStrings(children)
 }
 
-func NewCompiler() *Compiler {
-	return &Compiler{[]error{}}
+func NewHtmlCompiler() *HtmlCompiler {
+	return &HtmlCompiler{[]error{}}
 }
 
-type Compiler struct {
+type HtmlCompiler struct {
 	errors []error
 }
 
-func (c *Compiler) Error() (s string) {
+func (c *HtmlCompiler) Error() (s string) {
 	for _, e := range c.errors {
 		s += e.Error() + "\n"
 	}
 	return
 }
 
-func (c *Compiler) elementCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *HtmlCompiler) elementCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	switch node.Data {
 	case "for":
 		return c.forLoopCode(node, vda)
@@ -173,7 +173,7 @@ func (c *Compiler) elementCode(node *html.Node, vda *varDeclArea) (*codeNode, er
 	}, nil
 }
 
-func (c *Compiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
+func (c *HtmlCompiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
 	if node.Type == html.TextNode {
 		return textNodeCode(node.Data)
 	}
@@ -190,7 +190,7 @@ func (c *Compiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
 	return nil
 }
 
-func (c *Compiler) generate(node *html.Node) *codeNode {
+func (c *HtmlCompiler) generate(node *html.Node) *codeNode {
 	vda := newVarDeclArea()
 
 	ret := &codeNode{

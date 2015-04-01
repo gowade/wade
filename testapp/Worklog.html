@@ -1,0 +1,32 @@
+<Worklog>
+    <div>
+        <h2>Worklog</h2>
+        <SearchBar FilterText="{{ this.FilterText }}" Handle="{{ this.handleSearch }}"></SearchBar>
+        <LogTable FilterText="{{ this.FilterText }}"
+                  Projects="{{ this.Projects }}"></LogTable>
+    </div>
+</Worklog>
+
+<SearchBar>
+    <div class="form-group">
+        <input type="text" 
+               class="form-control"
+               placeholder="Search for a project..."
+               value="{{ this.FilterText }}"
+               onchange="{{ this.Handle }}"
+               ref="filterTextInput"
+         />
+    </div>
+</SearchBar>
+
+<LogTable>
+    <for v="project" range="{{ this.Projects }}">
+        <LogRow Project="{{ project }}"></LogRow>
+    </for>
+</LogTable>
+
+<LogRow>
+    <div class="row" key="{{ this.ID }}">
+         <div className="col-xs-7"><h4>{{ this.Title }}</h4></div>
+    </div>
+</LogRow>

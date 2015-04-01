@@ -70,7 +70,7 @@ func extractSingleMustache(attrVal string) string {
 	return parts[0].content
 }
 
-func (c *Compiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *HtmlCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	keyName, valName := "_", "_"
 	rrv := ""
 	for _, attr := range node.Attr {
@@ -125,7 +125,7 @@ func (c *Compiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, er
 	return lnode(fmt.Sprintf(varName)), nil
 }
 
-func (c *Compiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *HtmlCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	rcond := ""
 	for _, attr := range node.Attr {
 		switch attr.Key {

@@ -17,7 +17,7 @@ type CompileTestSuite struct {
 }
 
 func (s *CompileTestSuite) TestBasicTree() {
-	c := NewCompiler()
+	c := NewHtmlCompiler()
 	root := c.generate(htmlutils.FragmentFromString(`
 		<div>
 			<div class="wrapper {{ this.aClass{} }}">
@@ -64,7 +64,7 @@ func (s *CompileTestSuite) TestBasicTree() {
 }
 
 func (s *CompileTestSuite) TestForAndIf() {
-	c := NewCompiler()
+	c := NewHtmlCompiler()
 	root := c.generate(htmlutils.FragmentFromString(`
 		<ul>
 			<for k="i" v="item" range="{{ this.Items }}">
