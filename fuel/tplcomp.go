@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/net/html"
+	"github.com/gowade/html"
 )
 
 var (

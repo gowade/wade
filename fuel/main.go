@@ -10,8 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/net/html"
-
+	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
 )
 
@@ -94,7 +93,7 @@ func buildComponents(dir string, file *ast.File) {
 					name := spec.Name.Name
 					switch stype := spec.Type.(type) {
 					case *ast.StructType:
-						if htmlnode, ok := components[strings.ToLower(name)]; ok {
+						if htmlnode, ok := components[name]; ok {
 							buildComponent(compiler, name, htmlnode, stype.Fields.List)
 						}
 					}

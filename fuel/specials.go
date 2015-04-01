@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"golang.org/x/net/html"
+	"github.com/gowade/html"
 )
 
 type varDeclArea struct {

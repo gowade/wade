@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"golang.org/x/net/html"
+	"github.com/gowade/html"
 	"golang.org/x/net/html/atom"
 )
 
