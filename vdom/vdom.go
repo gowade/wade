@@ -32,6 +32,15 @@ type Element struct {
 	Children    []Node
 	EvtHandlers map[string]EvtHandler
 	rendered    interface{}
+	Component   Component
+	rendCache   *Element
+	oldElem     *Element
+	Key         string
+}
+
+type Component interface {
+	Render(interface{}) *Element
+	InternalState() interface{}
 }
 
 func (t *Element) IsElement() bool {
@@ -40,6 +49,31 @@ func (t *Element) IsElement() bool {
 
 func (t *Element) NodeData() string {
 	return t.Tag
+}
+
+func (t *Element) Render() *Element {
+	if t.Component != nil {
+		if t.rendCache != nil {
+			return t.rendCache
+		}
+
+		var state interface{}
+		if t.oldElem != nil && t.oldElem.Component != nil {
+			state = t.oldElem.Component.InternalState()
+		}
+
+		t.rendCache = t.Component.Render(state)
+		return t.rendCache
+	}
+
+	return t
+}
+
+func NewComElement(comName string, com Component) *Element {
+	return &Element{
+		Tag:       comName,
+		Component: com,
+	}
 }
 
 func NewElement(tag string, attrs Attributes, children []Node) *Element {

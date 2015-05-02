@@ -145,18 +145,25 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		key := getKey(bCh)
 		if key != "" {
 			keyedDiff = true
-			existing[key] = Action{Type: Deletion, Index: i, Element: dNode.Child(i)}
+			existing[key] = Action{Type: Deletion, Index: i, Element: dNode.Child(i), Content: bCh}
 		}
 	}
 
 	if keyedDiff { // Algorithm inspired by Mithril.js
 		var unkeyed []Action
-		for i, aCh := range a.Children {
-			key := getKey(aCh)
+		for i, ac := range a.Children {
+			aCh, ok := ac.(*Element)
+			if !ok {
+				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh})
+				continue
+			}
+
+			key := aCh.Key
 			if key != "" {
 				if action, ok := existing[key]; !ok {
-					existing[key] = Action{Type: Insertion, Index: i, Content: aCh}
+					existing[key] = Action{Type: Insertion, Index: i, Content: aCh.Render()}
 				} else {
+					aCh.oldElem = action.Content.(*Element)
 					existing[key] = Action{
 						Type:    Move,
 						Index:   i,
@@ -165,7 +172,7 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 					}
 				}
 			} else {
-				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh})
+				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh.Render()})
 			}
 		}
 
@@ -181,8 +188,8 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		for _, action := range actions {
 			m.Do(dNode, action)
 			if action.Type == Move {
-				PerformDiff(a.Children[action.Index].(*Element),
-					b.Children[action.From].(*Element),
+				PerformDiff(a.Children[action.Index].(*Element).Render(),
+					b.Children[action.From].(*Element).Render(),
 					dNode.Child(action.Index), m)
 			}
 		}
@@ -192,24 +199,36 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		}
 
 		return
-	}
+	} // end keyed diff
 
 	i := 0
 	for ; i < len(a.Children); i++ {
 		aCh := a.Children[i]
+		if aCh == nil {
+			m.Do(dNode, Action{Type: Deletion, Index: i})
+			continue
+		}
+
+		var ar Node = aCh
+		ae, ok := aCh.(*Element)
+		if ok {
+			ar = ae.Render()
+		}
 
 		if i > len(b.Children)-1 {
-			m.Do(dNode, Action{Type: Insertion, Index: -1, Content: aCh})
+			m.Do(dNode, Action{Type: Insertion, Index: -1, Content: ar})
 			continue
 		}
 
 		bCh := b.Children[i]
-		if nodeCompat(aCh, bCh) {
+		if bCh != nil && nodeCompat(aCh, bCh) {
 			if aCh.IsElement() {
-				PerformDiff(aCh.(*Element), bCh.(*Element), dNode.Child(i), m)
+				be := bCh.(*Element)
+				ae.oldElem = be
+				PerformDiff(ae.Render(), be.Render(), dNode.Child(i), m)
 			}
 		} else {
-			m.Do(dNode.Child(i), Action{Type: Update, Content: aCh})
+			m.Do(dNode.Child(i), Action{Type: Update, Content: ar})
 		}
 	}
 

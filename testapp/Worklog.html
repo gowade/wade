@@ -1,9 +1,9 @@
 <Worklog>
     <div>
         <h2>Worklog</h2>
-        <SearchBar FilterText="{{ this.FilterText }}" Handle="{{ this.handleSearch }}"></SearchBar>
-        <LogTable FilterText="{{ this.FilterText }}"
-                  Projects="{{ this.Projects }}"></LogTable>
+        <SearchBar FilterText="{{ this.State.FilterText }}" Handler="{{ this.handleSearch }}"></SearchBar>
+        <LogTable FilterText="{{ this.State.FilterText }}"
+                  Projects="{{ this.State.Projects }}"></LogTable>
     </div>
 </Worklog>
 
@@ -20,9 +20,11 @@
 </SearchBar>
 
 <LogTable>
-    <for v="project" range="{{ this.Projects }}">
-        <LogRow Project="{{ project }}"></LogRow>
-    </for>
+    <div class="logtable">
+        <for v="project" range="{{ this.Projects }}">
+            <LogRow Project="{{ project }}"></LogRow>
+        </for>
+    </div>
 </LogTable>
 
 <LogRow>

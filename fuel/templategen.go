@@ -14,6 +14,53 @@ var (
 	}
 )
 
+func componentInstCode(com componentInfo, uNode *html.Node, instChildren *codeNode) (*codeNode, error) {
+	fields := make([]*codeNode, 0, len(com.argFields)+1)
+	instChildren.code = fmt.Sprintf("Children: %v", instChildren.code)
+	fields = append(fields, &codeNode{
+		typ:  CompositeCodeNode,
+		code: "Com: " + ComponentDataOpener,
+		children: []*codeNode{
+			{
+				typ:  NakedCodeNode,
+				code: fmt.Sprintf(`Name: "%v"`, com.name),
+			},
+			instChildren,
+		},
+	})
+
+	for _, attr := range uNode.Attr {
+		if com.argFields[attr.Key] {
+			vcode := attributeValueCode(parseTextMustache(attr.Val))
+			fields = append(fields, &codeNode{
+				typ:  NakedCodeNode,
+				code: fmt.Sprintf("%v: %v", attr.Key, vcode),
+			})
+
+			continue
+		}
+
+		return nil, fmt.Errorf(`Invalid field "%v" for component %v`, attr.Key, com.name)
+	}
+
+	typeIns := com.name
+	return &codeNode{
+		typ:  FuncCallCodeNode,
+		code: CreateComElementOpener,
+		children: []*codeNode{
+			{
+				typ:  StringCodeNode,
+				code: com.name,
+			},
+			{
+				typ:      CompositeCodeNode,
+				code:     typeIns,
+				children: fields,
+			},
+		},
+	}, nil
+}
+
 func textNodeCode(text string) []*codeNode {
 	parts := parseTextMustache(text)
 	ret := make([]*codeNode, len(parts))
@@ -40,6 +87,15 @@ func textNodeCode(text string) []*codeNode {
 }
 
 func attributeValueCode(parts []textPart) string {
+	if len(parts) == 1 {
+		p0 := parts[0]
+		if p0.isMustache {
+			return p0.content
+		} else {
+			return "`" + p0.content + "`"
+		}
+	}
+
 	fmtStr := ""
 	mustaches := []string{}
 	for _, part := range parts {
@@ -114,95 +170,5 @@ func filterTextStrings(list []*codeNode) []*codeNode {
 		}
 	}
 
-	return ret
-}
-
-func (cpl *HtmlCompiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
-	children := make([]*codeNode, 0)
-	i := 0
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		chAppend(&children, cpl.generateRec(c, vda))
-
-		i++
-	}
-
-	return filterTextStrings(children)
-}
-
-func NewHtmlCompiler() *HtmlCompiler {
-	return &HtmlCompiler{[]error{}}
-}
-
-type HtmlCompiler struct {
-	errors []error
-}
-
-func (c *HtmlCompiler) Error() (s string) {
-	for _, e := range c.errors {
-		s += e.Error() + "\n"
-	}
-	return
-}
-
-func (c *HtmlCompiler) elementCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	switch node.Data {
-	case "for":
-		return c.forLoopCode(node, vda)
-	case "if":
-		return c.ifControlCode(node, vda)
-	}
-
-	children := c.genChildren(node, vda)
-	childrenCode := nilCode
-	if len(children) != 0 {
-		childrenCode = &codeNode{
-			typ:      ElemListCodeNode,
-			code:     "",
-			children: children,
-		}
-	}
-
-	return &codeNode{
-		typ:  FuncCallCodeNode,
-		code: CreateElementOpener,
-		children: []*codeNode{
-			&codeNode{typ: StringCodeNode, code: node.Data}, // element tag name
-			elementAttrsCode(node.Attr),
-			childrenCode,
-		},
-	}, nil
-}
-
-func (c *HtmlCompiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
-	if node.Type == html.TextNode {
-		return textNodeCode(node.Data)
-	}
-
-	if node.Type == html.ElementNode {
-		cn, err := c.elementCode(node, vda)
-		if err != nil {
-			c.errors = append(c.errors, err)
-		}
-
-		return []*codeNode{cn}
-	}
-
-	return nil
-}
-
-func (c *HtmlCompiler) generate(node *html.Node) *codeNode {
-	vda := newVarDeclArea()
-
-	ret := &codeNode{
-		typ:  BlockCodeNode,
-		code: RenderFuncOpener,
-		children: []*codeNode{
-			vda.codeNode,
-			ncn("return "),
-			c.generateRec(node, vda)[0],
-		},
-	}
-
-	vda.saveToCN()
 	return ret
 }

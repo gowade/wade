@@ -11,11 +11,7 @@ func write(w io.Writer, content string) {
 	w.Write([]byte(content))
 }
 
-func writeCodeGofmt(w io.WriteCloser, file string, root *codeNode) {
-	write(w, Prelude)
-	emitCodeNaive(w, root)
-	w.Close()
-
+func runGofmt(file string) {
 	cmd := exec.Command("go", "fmt", file)
 	out, err := cmd.CombinedOutput()
 	fmt.Printf(`Running "go fmt" on file "%v". Output: %v`+"\n", file, string(out))
@@ -26,7 +22,18 @@ func writeCodeGofmt(w io.WriteCloser, file string, root *codeNode) {
 	}
 }
 
+func writeCodeNaive(w io.WriteCloser, file string, root *codeNode) {
+	write(w, Prelude("main"))
+	emitCodeNaive(w, root)
+	w.Close()
+}
+
 func emitCodeNaive(w io.Writer, node *codeNode) {
+	if node == nil {
+		write(w, "<<NIL>>")
+		return
+	}
+
 	switch node.typ {
 	case StringCodeNode:
 		write(w, fmt.Sprintf(`%q`, node.code))
@@ -71,7 +78,7 @@ func emitCodeNaive(w io.Writer, node *codeNode) {
 }
 
 func handleElemListCN(w io.Writer, node *codeNode) {
-	opening := ElementListOpener + "{\n"
+	opening := NodeListOpener + "{\n"
 	closing := "}"
 
 	//isAppend := node.typ == AppendListCodeNode

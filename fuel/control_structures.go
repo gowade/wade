@@ -70,7 +70,7 @@ func extractSingleMustache(attrVal string) string {
 	return parts[0].content
 }
 
-func (c *HtmlCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	keyName, valName := "_", "_"
 	rrv := ""
 	for _, attr := range node.Attr {
@@ -107,7 +107,7 @@ func (c *HtmlCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 
 	vda.setVarDecl(
 		varName,
-		ncn(fmt.Sprintf(`%v := %v{}`, varName, ElementListOpener)),
+		ncn(fmt.Sprintf(`%v := %v{}`, varName, NodeListOpener)),
 		&codeNode{
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`for __k, __v := range %v`, rangeVar),
@@ -125,7 +125,7 @@ func (c *HtmlCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 	return lnode(fmt.Sprintf(varName)), nil
 }
 
-func (c *HtmlCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	rcond := ""
 	for _, attr := range node.Attr {
 		switch attr.Key {
@@ -153,7 +153,7 @@ func (c *HtmlCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 
 	vda.setVarDecl(
 		varName,
-		ncn(fmt.Sprintf(`%v := %v{}`, varName, ElementListOpener)),
+		ncn(fmt.Sprintf(`var %v = %v{}`, varName, NodeListOpener)),
 		&codeNode{
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`if %v `, cond),

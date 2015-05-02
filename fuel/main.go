@@ -3,36 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/ioutil"
 	"os"
-	"strings"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
 )
-
-const (
-	fuelSuffix = ".fuel.go"
-)
-
-func main() {
-	flag.Parse()
-	command := flag.Arg(0)
-	switch command {
-	case "build":
-		bTarget := flag.Arg(1)
-		if bTarget != "" {
-			buildHtmlFile(bTarget)
-		} else {
-			buildPackage()
-		}
-	default:
-		fatal("Please specify a command.")
-	}
-}
 
 func fatal(msg string, fmtargs ...interface{}) {
 	fmt.Fprintf(os.Stdout, msg+"\n", fmtargs...)
@@ -45,94 +20,36 @@ func checkFatal(err error) {
 	}
 }
 
-func getHtmlComponents(dir string) map[string]*html.Node {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		checkFatal(err)
-	}
-
-	m := make(map[string]*html.Node)
-	for _, fileInfo := range files {
-		if !strings.HasSuffix(fileInfo.Name(), ".html") {
-			continue
-		}
-
-		file, err := os.Open(fileInfo.Name())
-		checkFatal(err)
-		nodes, err := htmlutils.ParseFragment(file)
-		checkFatal(err)
-
-		for _, node := range nodes {
-			if node.Type == html.ElementNode {
-				if _, exists := m[node.Data]; exists {
-					fatal(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
-				}
-
-				m[node.Data] = node
+func main() {
+	flag.Parse()
+	command := flag.Arg(0)
+	switch command {
+	case "build":
+		bTarget := flag.Arg(1)
+		if bTarget != "" {
+			buildHtmlFile(bTarget)
+		} else {
+			dir, err := os.Getwd()
+			if err != nil {
+				fatal(err.Error())
 			}
+			fuel := NewFuel(dir)
+			fuel.BuildPackage()
 		}
-	}
-
-	return m
-}
-
-func buildComponent(compiler *HtmlCompiler, name string, htmlNode *html.Node, fields []*ast.Field) {
-	writeGoDomFile(compiler, htmlNode, "c_"+name+fuelSuffix)
-}
-
-func buildComponents(dir string, file *ast.File) {
-	components := getHtmlComponents(dir)
-	compiler := NewHtmlCompiler()
-
-	for _, decl := range file.Decls {
-		switch gdecl := decl.(type) {
-		case *ast.GenDecl:
-			if gdecl.Tok == token.TYPE {
-				for _, ospec := range gdecl.Specs {
-					spec := ospec.(*ast.TypeSpec)
-					name := spec.Name.Name
-					switch stype := spec.Type.(type) {
-					case *ast.StructType:
-						if htmlnode, ok := components[name]; ok {
-							buildComponent(compiler, name, htmlnode, stype.Fields.List)
-						}
-					}
-				}
-			}
-		}
+	default:
+		fatal("Please specify a command.")
 	}
 }
 
-func buildPackage() {
-	fset := token.NewFileSet()
-	wd, err := os.Getwd()
-	checkFatal(err)
-
-	pkgs, err := parser.ParseDir(fset, wd, func(fi os.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), fuelSuffix)
-	}, 0)
-
-	checkFatal(err)
-
-	for _, pkg := range pkgs {
-		ast.PackageExports(pkg)
-		for _, file := range pkg.Files {
-			buildComponents(wd, file)
-		}
-	}
-}
-
-func writeGoDomFile(compiler *HtmlCompiler, htmlNode *html.Node, outputFileName string) {
+func writeGoDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName string, com *componentInfo) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
 
-	ctree := compiler.generate(htmlNode)
-	writeCodeGofmt(ofile, outputFileName, ctree)
+	ctree := compiler.Generate(htmlNode, com)
+	writeCodeNaive(ofile, outputFileName, ctree)
 
-	if mess := compiler.Error(); mess != "" {
-		fatal(mess)
-	}
+	return compiler.Error()
 }
 
 func buildHtmlFile(filename string) {
@@ -145,5 +62,10 @@ func buildHtmlFile(filename string) {
 	n, err := htmlutils.ParseFragment(ifile)
 	checkFatal(err)
 
-	writeGoDomFile(NewHtmlCompiler(), n[0], outputFileName)
+	err = writeGoDomFile(NewHTMLCompiler(nil), n[0], outputFileName, nil)
+	if err != nil {
+		fatal(err.Error())
+	}
+
+	runGofmt(outputFileName)
 }
