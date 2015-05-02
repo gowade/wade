@@ -35,5 +35,5 @@ type LogTable struct {
 
 type LogRow struct {
 	wade.Com
-	Project
+	*Project
 }

@@ -41,6 +41,7 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 	}
 
 	e := node.(*vdom.Element)
+	e = e.Render()
 	newElem := createElement(e.Tag)
 	for attr, v := range e.Attrs {
 		switch v := v.(type) {

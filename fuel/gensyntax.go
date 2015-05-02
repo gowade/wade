@@ -10,7 +10,7 @@ const (
 	RenderFuncOpener       = "func %vRender(stateData interface{}) *vdom.Element "
 	RenderEmbedString      = "(this %v) "
 	ComponentDataOpener    = "wade.Com"
-	ComponentSetStateCode  = "this.%v = stateData.(%v)"
+	ComponentSetStateCode  = "if stateData != nil { this.%v = stateData.(%v) }"
 )
 
 func Prelude(pkgName string) string {

@@ -71,7 +71,7 @@ func equals(x, y interface{}) bool {
 		return x == y.(string)
 	}
 
-	panic(fmt.Sprintf("comparing uncomparable type %T", x))
+	return true
 }
 
 func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {

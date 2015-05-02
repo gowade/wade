@@ -1,4 +1,6 @@
 fuel/fuel
+testapp/testapp
+*.fuel.go
 *.js
 *.js.map
 *.swp
