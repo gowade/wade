@@ -4,4 +4,4 @@ testapp/testapp
 *.js
 *.js.map
 *.swp
-tags
+.tags

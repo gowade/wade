@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 const (
 	CreateElementOpener    = "vdom.NewElement"
 	CreateTextNodeOpener   = "vdom.NewTextNode"
@@ -10,8 +12,30 @@ const (
 	RenderFuncOpener       = "func %vRender(stateData interface{}) *vdom.Element "
 	RenderEmbedString      = "(this %v) "
 	ComponentDataOpener    = "wade.Com"
-	ComponentSetStateCode  = "if stateData != nil { this.%v = stateData.(%v) }"
 )
+
+func domElType(elTag string) (string, string) {
+	switch elTag {
+	case "input":
+		return "wade.DOMInputEl", "wade.MakeDOMInputEl"
+	}
+
+	return "*js.Object", ""
+}
+
+func componentSetStateCode(sField, sType string) string {
+	return fmt.Sprintf("if stateData != nil { this.%v = stateData.(%v) }", sField, sType)
+}
+
+func componentRefsVarCode(comName string) string {
+	return fmt.Sprintf("refs := this.Com.InternalRefsHolder.(*%vRefs)", comName)
+}
+
+func componentSetRefCode(refName string, varName string, elTag string) string {
+	_, elMk := domElType(elTag)
+	return fmt.Sprintf("%v.OnRendered = func(dNode *js.Object) { refs.%v = %v(dNode) }",
+		varName, refName, elMk)
+}
 
 func Prelude(pkgName string) string {
 	return `package ` + pkgName + `
@@ -21,12 +45,14 @@ func Prelude(pkgName string) string {
 import (
 	"fmt"
 
+	"github.com/gopherjs/gopherjs/js"
+
 	"github.com/gowade/wade/vdom"
 	"github.com/gowade/wade"
 )
 
 func init() {
-	_, _, _ = fmt.Printf, vdom.NewElement, wade.CreateComponent
+	_, _, _, _ = js.Global, fmt.Printf, vdom.NewElement, wade.Render
 }
 
 `

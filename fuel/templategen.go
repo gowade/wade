@@ -14,19 +14,24 @@ var (
 	}
 )
 
-func componentInstCode(com componentInfo, uNode *html.Node, instChildren *codeNode) (*codeNode, error) {
+func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, vda *varDeclArea, instChildren *codeNode) (*codeNode, error) {
+	varName := vda.newVar("com")
+
 	fields := make([]*codeNode, 0, len(com.argFields)+1)
 	instChildren.code = fmt.Sprintf("Children: %v", instChildren.code)
+
+	comCh := []*codeNode{
+		ncn(fmt.Sprintf(`Name: "%v"`, com.name)),
+		ncn(fmt.Sprintf(`VNode: &wade.VNodeHolder{%v}`, varName)),
+		instChildren,
+	}
+
+	comCh = append(comCh, ncn(fmt.Sprintf("InternalRefsHolder: &%v{}", com.name+"Refs")))
+
 	fields = append(fields, &codeNode{
-		typ:  CompositeCodeNode,
-		code: "Com: " + ComponentDataOpener,
-		children: []*codeNode{
-			{
-				typ:  NakedCodeNode,
-				code: fmt.Sprintf(`Name: "%v"`, com.name),
-			},
-			instChildren,
-		},
+		typ:      CompositeCodeNode,
+		code:     "Com: " + ComponentDataOpener,
+		children: comCh,
 	})
 
 	for _, attr := range uNode.Attr {
@@ -44,21 +49,17 @@ func componentInstCode(com componentInfo, uNode *html.Node, instChildren *codeNo
 	}
 
 	typeIns := com.name
-	return &codeNode{
-		typ:  FuncCallCodeNode,
-		code: CreateComElementOpener,
-		children: []*codeNode{
-			{
-				typ:  StringCodeNode,
-				code: com.name,
-			},
-			{
-				typ:      CompositeCodeNode,
-				code:     typeIns,
-				children: fields,
-			},
-		},
-	}, nil
+	cn := &codeNode{
+		typ:      CompositeCodeNode,
+		code:     typeIns,
+		children: fields,
+	}
+
+	cn.code = varName + fmt.Sprintf(` := %v("%v", nil)`, CreateComElementOpener, com.name) +
+		fmt.Sprintf("\n%v.Component = ", varName) + cn.code
+	vda.setVarDecl(varName, cn)
+
+	return ncn(varName), nil
 }
 
 func textNodeCode(text string) []*codeNode {
@@ -120,13 +121,17 @@ func elementAttrsCode(attrs []html.Attribute) *codeNode {
 		return nilCode
 	}
 
-	assignments := make([]*codeNode, len(attrs))
-	for i, attr := range attrs {
+	assignments := make([]*codeNode, 0, len(attrs))
+	for _, attr := range attrs {
+		if attr.Key == "ref" {
+			continue
+		}
+
 		valueCode := attributeValueCode(parseTextMustache(attr.Val))
-		assignments[i] = &codeNode{
+		assignments = append(assignments, &codeNode{
 			typ:  NakedCodeNode,
 			code: mapFieldAssignmentCode(attr.Key, valueCode),
-		}
+		})
 	}
 
 	return &codeNode{

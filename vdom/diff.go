@@ -3,16 +3,22 @@ package vdom
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 type TreeModifier interface {
 	SetAttr(DomNode, string, interface{})
+	SetProp(DomNode, string, interface{})
 	RemoveAttr(DomNode, string)
 	Do(DomNode, Action)
 }
 
 type DomNode interface {
 	Child(int) DomNode
+}
+
+func IsEvent(attr string) bool {
+	return strings.HasPrefix(strings.ToLower(attr), "on")
 }
 
 func nodeCompat(a, b Node) bool {
@@ -71,11 +77,17 @@ func equals(x, y interface{}) bool {
 		return x == y.(string)
 	}
 
-	return true
+	panic(fmt.Sprintf("Unhandled HTML attribute type %T", x))
+	return false
 }
 
 func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {
 	for attr, va := range a.Attrs {
+		if IsEvent(attr) {
+			m.SetProp(dNode, strings.ToLower(attr), va)
+			continue
+		}
+
 		if vb, ok := b.Attrs[attr]; !ok || !equals(va, vb) {
 			m.SetAttr(dNode, attr, va)
 		}
@@ -137,6 +149,7 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		return
 	}
 
+	a.SetRenderedDOMNode(b.DOMNode())
 	diffProps(a, b, dNode, m)
 
 	existing := make(map[string]Action)
@@ -202,15 +215,33 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 	} // end keyed diff
 
 	i := 0
-	for ; i < len(a.Children); i++ {
+	for c := 0; i < len(a.Children); i++ {
+		if a.Children[i] == nil && b.Children[i] != nil {
+			m.Do(dNode, Action{Type: Deletion, Index: i - c, Element: dNode.Child(i - c)})
+			c++
+		}
+	}
+
+	for i = 0; i < len(a.Children); i++ {
 		aCh := a.Children[i]
 		if aCh == nil {
-			m.Do(dNode, Action{Type: Deletion, Index: i})
 			continue
 		}
 
-		var ar Node = aCh
 		ae, ok := aCh.(*Element)
+		if i <= len(b.Children)-1 {
+			bCh := b.Children[i]
+			if bCh != nil && nodeCompat(aCh, bCh) {
+				if aCh.IsElement() {
+					be := bCh.(*Element)
+					ae.oldElem = be
+					PerformDiff(ae.Render(), be.Render(), dNode.Child(i), m)
+				}
+				continue
+			}
+		}
+
+		ar := aCh
 		if ok {
 			ar = ae.Render()
 		}
@@ -218,21 +249,12 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		if i > len(b.Children)-1 {
 			m.Do(dNode, Action{Type: Insertion, Index: -1, Content: ar})
 			continue
-		}
-
-		bCh := b.Children[i]
-		if bCh != nil && nodeCompat(aCh, bCh) {
-			if aCh.IsElement() {
-				be := bCh.(*Element)
-				ae.oldElem = be
-				PerformDiff(ae.Render(), be.Render(), dNode.Child(i), m)
-			}
 		} else {
 			m.Do(dNode.Child(i), Action{Type: Update, Content: ar})
 		}
 	}
 
-	for ; i < len(b.Children); i++ {
-		m.Do(dNode, Action{Type: Deletion, Index: i})
+	for ii := i; i < len(b.Children); i++ {
+		m.Do(dNode, Action{Type: Deletion, Index: i, Element: dNode.Child(ii)})
 	}
 }

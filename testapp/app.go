@@ -4,10 +4,6 @@ import (
 	"github.com/gowade/wade"
 )
 
-func render(component wade.Component) {
-	wade.Render(component.Render(nil), "container")
-}
-
 func main() {
 	worklog := &Worklog{
 		State: &WorklogState{
@@ -32,7 +28,13 @@ func main() {
 		},
 	}
 
-	render(worklog)
+	wade.Render(worklog, "container")
+
 	worklog.State.Projects[0].Title = "Oh Yeah"
-	render(worklog)
+	worklog.Rerender()
+	worklog.Rerender()
+	worklog.Rerender()
+	worklog.Rerender()
+	worklog.Rerender()
+	worklog.Rerender()
 }

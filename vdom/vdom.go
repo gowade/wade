@@ -1,5 +1,7 @@
 package vdom
 
+import "github.com/gopherjs/gopherjs/js"
+
 type Attributes map[string]interface{}
 
 type EvtHandler func(Event)
@@ -26,21 +28,34 @@ func NewTextNode(data string) *TextNode {
 	return &TextNode{Data: data}
 }
 
+type Component interface {
+	Render(interface{}) *Element
+	InternalState() interface{}
+}
+
 type Element struct {
 	Tag         string
 	Attrs       Attributes
 	Children    []Node
 	EvtHandlers map[string]EvtHandler
-	rendered    interface{}
 	Component   Component
 	rendCache   *Element
 	oldElem     *Element
 	Key         string
+
+	domNode    *js.Object // the rendered node in DOM
+	OnRendered func(*js.Object)
 }
 
-type Component interface {
-	Render(interface{}) *Element
-	InternalState() interface{}
+func (t *Element) DOMNode() *js.Object {
+	return t.domNode
+}
+
+func (t *Element) SetRenderedDOMNode(node *js.Object) {
+	t.domNode = node
+	if t.OnRendered != nil {
+		t.OnRendered(t.domNode)
+	}
 }
 
 func (t *Element) IsElement() bool {

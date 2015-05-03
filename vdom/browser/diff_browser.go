@@ -2,6 +2,7 @@ package browser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
 
@@ -9,13 +10,9 @@ import (
 )
 
 var (
-	document     = js.Global.Get("document")
-	treeModifier = TreeModifier{}
+	document = js.Global.Get("document")
+	Adapter  = TreeModifier{}
 )
-
-func NewModifier() TreeModifier {
-	return TreeModifier{}
-}
 
 func createElement(tag string) *js.Object {
 	return document.Call("createElement", tag)
@@ -40,10 +37,15 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 		return createTextNode(node.NodeData())
 	}
 
-	e := node.(*vdom.Element)
-	e = e.Render()
+	oe := node.(*vdom.Element)
+	e := oe.Render()
 	newElem := createElement(e.Tag)
 	for attr, v := range e.Attrs {
+		if vdom.IsEvent(attr) {
+			newElem.Set(strings.ToLower(attr), v)
+			continue
+		}
+
 		switch v := v.(type) {
 		case bool:
 			if v {
@@ -60,6 +62,8 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 		newElem.Call("appendChild", m.renderNode(c))
 	}
 
+	e.SetRenderedDOMNode(newElem)
+	oe.SetRenderedDOMNode(newElem)
 	return newElem
 }
 
@@ -96,6 +100,10 @@ func (m TreeModifier) RemoveAttr(dNode vdom.DomNode, attr string) {
 	dNode.(DomNode).Call("removeAttribute", attr)
 }
 
+func (m TreeModifier) SetProp(dNode vdom.DomNode, prop string, value interface{}) {
+	dNode.(DomNode).Object.Set(prop, value)
+}
+
 func (m TreeModifier) SetAttr(dNode vdom.DomNode, attr string, value interface{}) {
 	d := dNode.(DomNode).Object
 
@@ -126,5 +134,5 @@ func PerformDiff(a, b *vdom.Element, root *js.Object) {
 		root.Call("appendChild", createElement(a.Tag))
 	}
 
-	vdom.PerformDiff(a, b, DomNode{root.Get("childNodes").Index(0)}, treeModifier)
+	vdom.PerformDiff(a, b, DomNode{root.Get("childNodes").Index(0)}, Adapter)
 }

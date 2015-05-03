@@ -9,13 +9,38 @@ import (
 
 func NewHTMLCompiler(coms componentMap) *HTMLCompiler {
 	return &HTMLCompiler{
-		coms: coms,
+		coms:    coms,
+		comRefs: make(map[string][]comRef),
 	}
 }
 
 type HTMLCompiler struct {
-	errors []error
-	coms   componentMap
+	errors  []error
+	coms    componentMap
+	comRefs map[string][]comRef
+}
+
+type comRef struct {
+	name    string
+	varName string
+	elTag   string
+}
+
+type comRefs struct {
+	refs []comRef
+	vda  *varDeclArea
+}
+
+func newComRefs(vda *varDeclArea) *comRefs {
+	return &comRefs{make([]comRef, 0), vda}
+}
+
+func (r *comRefs) add(refName string, elTag string, code *codeNode) string {
+	vname := r.vda.newVar("ref")
+	code.code = vname + " := " + code.code
+	r.vda.setVarDecl(vname, code)
+	r.refs = append(r.refs, comRef{refName, vname, elTag})
+	return vname
 }
 
 func (c *HTMLCompiler) Errors() []error {
@@ -30,8 +55,8 @@ func (c *HTMLCompiler) Error() error {
 	return c.errors[0]
 }
 
-func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea) *codeNode {
-	children := c.genChildren(node, vda)
+func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea, comRefs *comRefs) *codeNode {
+	children := c.genChildren(node, vda, comRefs)
 	childrenCode := nilCode
 	if len(children) != 0 {
 		childrenCode = &codeNode{
@@ -41,7 +66,7 @@ func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea) *codeNode 
 		}
 	}
 
-	return &codeNode{
+	cn := &codeNode{
 		typ:  FuncCallCodeNode,
 		code: CreateElementOpener,
 		children: []*codeNode{
@@ -50,13 +75,15 @@ func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea) *codeNode 
 			childrenCode,
 		},
 	}
+
+	return cn
 }
 
-func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea) []*codeNode {
+func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *comRefs) []*codeNode {
 	children := make([]*codeNode, 0)
 	i := 0
 	for ch := node.FirstChild; ch != nil; ch = ch.NextSibling {
-		chAppend(&children, c.generateRec(ch, vda))
+		chAppend(&children, c.generateRec(ch, vda, comRefs))
 
 		i++
 	}
@@ -78,7 +105,7 @@ func (c *HTMLCompiler) getComponent(tagName string) (i componentInfo, ok bool) {
 	return
 }
 
-func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNode {
+func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *comRefs) []*codeNode {
 	if node.Type == html.TextNode {
 		return textNodeCode(node.Data)
 	}
@@ -96,13 +123,20 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea) []*codeNod
 
 		default:
 			if com, ok := c.getComponent(node.Data); ok {
-				cn, err = componentInstCode(com, node, &codeNode{
+				children := c.genChildren(node, vda, nil)
+				cn, err = c.componentInstCode(com, node, vda, &codeNode{
 					typ:      CompositeCodeNode,
 					code:     NodeListOpener,
-					children: c.genChildren(node, vda),
+					children: children,
 				})
 			} else {
-				cn = c.elementCode(node, vda)
+				cn = c.elementCode(node, vda, comRefs)
+			}
+
+			for _, attr := range node.Attr {
+				if attr.Key == "ref" {
+					cn = ncn(comRefs.add(attr.Val, node.Data, cn))
+				}
 			}
 		}
 
@@ -120,7 +154,7 @@ func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) stri
 	embedStr := ""
 	if com != nil {
 		tname := com.name
-		if com.stateField != "" {
+		if com.state.field != "" {
 			tname = "*" + tname
 		}
 		embedStr = fmt.Sprintf(RenderEmbedString, tname)
@@ -143,25 +177,41 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 
 		renderNode = node.FirstChild
 
-		if com.stateField != "" {
-			children = append(children, ncn(
-				fmt.Sprintf(ComponentSetStateCode, com.stateField, com.stateType)))
+		if com.state.field != "" {
+			children = append(children, ncn(componentSetStateCode(com.state.field, com.state.typ)))
 		}
 	}
 
 	c.errors = make([]error, 0)
 	vda := newVarDeclArea()
 
-	cnode := c.generateRec(renderNode, vda)[0]
-	cnode.code = "return " + cnode.code
-	ret := &codeNode{
-		typ:  BlockCodeNode,
-		code: c.renderFuncOpener(node.Data, com),
-		children: append(children,
-			vda.codeNode,
-			cnode),
+	var cnode *codeNode
+	if com != nil {
+		refs := newComRefs(vda)
+		cnode = c.generateRec(renderNode, vda, refs)[0]
+		if len(refs.refs) > 0 {
+			c.comRefs[com.name] = refs.refs
+			children = append(children, ncn(componentRefsVarCode(com.name)))
+		}
+
+		vda.saveToCN()
+		children = append(children, vda.codeNode)
+
+		for _, ref := range refs.refs {
+			children = append(children, ncn(componentSetRefCode(ref.name, ref.varName, ref.elTag)))
+		}
+	} else {
+		cnode = c.generateRec(renderNode, vda, nil)[0]
+		vda.saveToCN()
+		children = append(children, vda.codeNode)
 	}
 
-	vda.saveToCN()
+	cnode.code = "return " + cnode.code
+	ret := &codeNode{
+		typ:      BlockCodeNode,
+		code:     c.renderFuncOpener(node.Data, com),
+		children: append(children, cnode),
+	}
+
 	return ret
 }

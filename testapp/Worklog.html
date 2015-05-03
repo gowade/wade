@@ -1,7 +1,7 @@
 <Worklog>
     <div>
         <h2>Worklog</h2>
-        <SearchBar FilterText="{{ this.State.FilterText }}" Handler="{{ this.handleSearch }}"></SearchBar>
+        <SearchBar FilterText="{{ this.State.FilterText }}" OnSearch="{{ this.handleSearch }}"></SearchBar>
         <LogTable FilterText="{{ this.State.FilterText }}"
                   Projects="{{ this.State.Projects }}"></LogTable>
     </div>
@@ -13,7 +13,7 @@
                class="form-control"
                placeholder="Search for a project..."
                value="{{ this.FilterText }}"
-               onchange="{{ this.Handler }}"
+               onChange="{{ this.handleSearch }}"
                ref="filterTextInput"
          />
     </div>
@@ -22,7 +22,9 @@
 <LogTable>
     <div class="logtable">
         <for v="project" range="{{ this.Projects }}">
-            <LogRow Project="{{ project }}"></LogRow>
+            <if cond="{{ this.filterCheck(project.Title) }}">
+                <LogRow Project="{{ project }}"></LogRow>
+            </if>
         </for>
     </div>
 </LogTable>
