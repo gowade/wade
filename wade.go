@@ -1,10 +1,20 @@
 package wade
 
 import (
+	"fmt"
+
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gowade/wade/vdom"
 	"github.com/gowade/wade/vdom/browser"
 )
+
+func Str(value interface{}) string {
+	if s, ok := value.(string); ok {
+		return s
+	}
+
+	return fmt.Sprint(value)
+}
 
 func MakeDOMInputEl(jso *js.Object) DOMInputEl {
 	return DOMInputEl{jso}

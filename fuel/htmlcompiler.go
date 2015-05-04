@@ -55,7 +55,7 @@ func (c *HTMLCompiler) Error() error {
 	return c.errors[0]
 }
 
-func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea, comRefs *comRefs) *codeNode {
+func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea, comRefs *comRefs) *codeNode {
 	children := c.genChildren(node, vda, comRefs)
 	childrenCode := nilCode
 	if len(children) != 0 {
@@ -71,6 +71,7 @@ func (c *HTMLCompiler) elementCode(node *html.Node, vda *varDeclArea, comRefs *c
 		code: CreateElementOpener,
 		children: []*codeNode{
 			&codeNode{typ: StringCodeNode, code: node.Data}, // element tag name
+			ncn(key),
 			elementAttrsCode(node.Attr),
 			childrenCode,
 		},
@@ -122,15 +123,22 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 			cn, err = c.ifControlCode(node, vda)
 
 		default:
+			key := `""`
+			for _, attr := range node.Attr {
+				if attr.Key == "key" {
+					key = valueToStringCode(attributeValueCode(parseTextMustache(attr.Val)))
+				}
+			}
+
 			if com, ok := c.getComponent(node.Data); ok {
 				children := c.genChildren(node, vda, nil)
-				cn, err = c.componentInstCode(com, node, vda, &codeNode{
+				cn, err = c.componentInstCode(com, node, key, vda, &codeNode{
 					typ:      CompositeCodeNode,
 					code:     NodeListOpener,
 					children: children,
 				})
 			} else {
-				cn = c.elementCode(node, vda, comRefs)
+				cn = c.elementCode(node, key, vda, comRefs)
 			}
 
 			for _, attr := range node.Attr {

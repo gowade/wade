@@ -78,22 +78,25 @@ func (t *Element) Render() *Element {
 		}
 
 		t.rendCache = t.Component.Render(state)
+		t.rendCache.Key = t.Key
 		return t.rendCache
 	}
 
 	return t
 }
 
-func NewComElement(comName string, com Component) *Element {
+func NewComElement(comName, key string, com Component) *Element {
 	return &Element{
 		Tag:       comName,
+		Key:       key,
 		Component: com,
 	}
 }
 
-func NewElement(tag string, attrs Attributes, children []Node) *Element {
+func NewElement(tag, key string, attrs Attributes, children []Node) *Element {
 	return &Element{
 		Tag:      tag,
+		Key:      key,
 		Attrs:    attrs,
 		Children: children,
 	}

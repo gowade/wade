@@ -23,26 +23,24 @@ func main() {
 			if rand.Intn(2) == 1 {
 				hidden = true
 			}
-			labels[j] = NewElement("p", Attributes{
+			labels[j] = NewElement("p", "", Attributes{
 				"hidden": hidden,
 			}, []Node{
-				NewTextNode(fmt.Sprint(rand.Intn(1000))),
+				NewTextNode(fmt.Sprint(rand.Intn(n))),
 			})
 		}
 
-		list[i] = NewElement("li", Attributes{
-			"key": fmt.Sprint(c),
-		}, labels)
+		list[i] = NewElement("li", fmt.Sprint(c), nil, labels)
 		c++
 	}
 
-	b := NewElement("div", nil, []Node{
-		NewElement("span", nil, []Node{}),
-		NewElement("ul", nil, list)})
+	b := NewElement("div", "", nil, []Node{
+		NewElement("span", "", nil, []Node{}),
+		NewElement("ul", "", nil, list)})
 
-	a := NewElement("div", nil, []Node{
-		NewElement("span", nil, []Node{NewTextNode("C")}),
-		NewElement("ul", nil, list[10:]),
+	a := NewElement("div", "", nil, []Node{
+		NewElement("span", "", nil, []Node{NewTextNode("C")}),
+		NewElement("ul", "", nil, list[10:]),
 	})
 
 	root := js.Global.Get("document").Call("getElementById", "container")

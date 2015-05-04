@@ -14,7 +14,7 @@ var (
 	}
 )
 
-func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, vda *varDeclArea, instChildren *codeNode) (*codeNode, error) {
+func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key string, vda *varDeclArea, instChildren *codeNode) (*codeNode, error) {
 	varName := vda.newVar("com")
 
 	fields := make([]*codeNode, 0, len(com.argFields)+1)
@@ -55,7 +55,10 @@ func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, vda
 		children: fields,
 	}
 
-	cn.code = varName + fmt.Sprintf(` := %v("%v", nil)`, CreateComElementOpener, com.name) +
+	cn.code = varName + fmt.Sprintf(` := %v("%v", %v, nil)`,
+		CreateComElementOpener,
+		ncn(key),
+		com.name) +
 		fmt.Sprintf("\n%v.Component = ", varName) + cn.code
 	vda.setVarDecl(varName, cn)
 
@@ -69,7 +72,7 @@ func textNodeCode(text string) []*codeNode {
 	for i, part := range parts {
 		var cn *codeNode
 		if part.isMustache {
-			cn = ncn(fmt.Sprintf("fmt.Sprint(%v)", part.content))
+			cn = ncn(valueToStringCode(part.content))
 		} else {
 			cn = &codeNode{
 				typ:  StringCodeNode,
@@ -123,7 +126,7 @@ func elementAttrsCode(attrs []html.Attribute) *codeNode {
 
 	assignments := make([]*codeNode, 0, len(attrs))
 	for _, attr := range attrs {
-		if attr.Key == "ref" {
+		if attr.Key == "ref" || attr.Key == "key" {
 			continue
 		}
 

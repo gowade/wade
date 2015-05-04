@@ -8,21 +8,21 @@ import (
 )
 
 func main() {
-	b := NewElement("div", nil, []Node{
-		NewElement("span", nil, []Node{}),
-		NewElement("ul", nil, []Node{
-			NewElement("notli", Attributes{"key": 0}, []Node{NewTextNode("A")}),
-			NewElement("li", Attributes{"key": 5}, []Node{NewTextNode("B")}),
-			NewElement("li", Attributes{"key": 7, "hidden": true}, []Node{NewTextNode("E")}),
-			NewElement("li", Attributes{"key": 9}, []Node{NewTextNode("D")}),
+	b := NewElement("div", "", nil, []Node{
+		NewElement("span", "", nil, []Node{}),
+		NewElement("ul", "", nil, []Node{
+			NewElement("notli", "0", nil, []Node{NewTextNode("A")}),
+			NewElement("li", "5", nil, []Node{NewTextNode("B")}),
+			NewElement("li", "7", Attributes{"hidden": true}, []Node{NewTextNode("E")}),
+			NewElement("li", "9", nil, []Node{NewTextNode("D")}),
 		})})
 
-	a := NewElement("div", nil, []Node{
-		NewElement("span", nil, []Node{NewTextNode("C")}),
-		NewElement("ul", nil, []Node{
-			NewElement("li", Attributes{"key": 5, "hidden": true}, []Node{NewTextNode("A")}),
-			NewElement("li", Attributes{"key": 9}, []Node{NewTextNode("D")}),
-			NewElement("li", Attributes{"key": 7, "hidden": false}, []Node{NewTextNode("E")}),
+	a := NewElement("div", "", nil, []Node{
+		NewElement("span", "", nil, []Node{NewTextNode("C")}),
+		NewElement("ul", "", nil, []Node{
+			NewElement("li", "5", Attributes{"hidden": true}, []Node{NewTextNode("A")}),
+			NewElement("li", "9", nil, []Node{NewTextNode("D")}),
+			NewElement("li", "7", Attributes{"hidden": false}, []Node{NewTextNode("E")}),
 		}),
 	})
 

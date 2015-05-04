@@ -53,6 +53,9 @@ func (m *modifier) Do(d DomNode, action Action) {
 	m.changes = append(m.changes, change)
 }
 
+func (m *modifier) SetProp(d DomNode, attr string, v interface{}) {
+}
+
 func (m *modifier) SetAttr(d DomNode, attr string, v interface{}) {
 	if b, ok := v.(bool); ok && b == false {
 		m.RemoveAttr(d, attr)
@@ -71,29 +74,30 @@ func newModifier() *modifier {
 }
 func (s *DiffTestSuite) TestDiff() {
 	m1 := newModifier()
-	a := NewElement("div", nil, nil)
-	PerformDiff(a, nil, GoDomNode{NewElement("div", nil, nil)}, m1)
+	a := NewElement("div", "", nil, nil)
+	PerformDiff(a, nil, GoDomNode{NewElement("div", "", nil, nil)}, m1)
 	s.Len(m1.changes, 1)
 	s.Equal(m1.changes[0].action.Type, Update)
 	s.Equal(m1.changes[0].dNode.NodeData(), "div")
 
-	b := NewElement("div", Attributes{"title": "d"}, []Node{
-		NewElement("span", nil, []Node{NewTextNode("C")}),
-		NewElement("ul", Attributes{"disabled": true}, []Node{
-			NewElement("li", nil, []Node{NewTextNode("A")}),
+	b := NewElement("div", "", Attributes{"title": "d"}, []Node{
+		NewElement("span", "", nil, []Node{NewTextNode("C")}),
+		NewElement("ul", "", Attributes{"disabled": true}, []Node{
+			NewElement("li", "", nil, []Node{NewTextNode("A")}),
 		}),
 	})
 	d := GoDomNode{b}
-	a = NewElement("div", nil, []Node{
-		NewElement("span", nil, []Node{}),
-		NewElement("ul", Attributes{"disabled": false, "value": "0"}, []Node{
-			NewElement("notli", Attributes{"id": "11"}, []Node{NewTextNode("A")}),
-			NewElement("li", nil, []Node{NewTextNode("B")}),
+	a = NewElement("div", "", nil, []Node{
+		NewElement("span", "", nil, []Node{}),
+		NewElement("ul", "", Attributes{"disabled": false, "value": "0"}, []Node{
+			NewElement("notli", "", Attributes{"id": "11"}, []Node{NewTextNode("A")}),
+			NewElement("li", "", nil, []Node{NewTextNode("B")}),
 		})})
 
 	m1 = newModifier()
 	PerformDiff(a, b, d, m1)
-	s.Equal(m1.changes[0].action, Action{Type: Deletion, Index: 0})
+	s.Equal(m1.changes[0].action.Type, Deletion)
+	s.Equal(m1.changes[0].action.Index, 0)
 	s.Equal(m1.changes[0].affectedNode().NodeData(), "C")
 
 	s.Equal(m1.changes[1].action.Type, Update)
@@ -125,37 +129,39 @@ func (s *DiffTestSuite) TestDiff() {
 
 func (s *DiffTestSuite) TestKeyedDiff() {
 	m1 := newModifier()
-	b := NewElement("div", nil, []Node{
-		NewElement("ul", nil, []Node{
-			NewElement("li", Attributes{"key": 1}, nil),
-			NewElement("li", Attributes{"key": 2}, nil),
-			NewElement("li", Attributes{"key": 3}, nil),
-			NewElement("li", Attributes{"key": 4}, nil),
+	b := NewElement("div", "", nil, []Node{
+		NewElement("ul", "", nil, []Node{
+			NewElement("li", "1", nil, nil),
+			NewElement("li", "2", nil, nil),
+			NewElement("li", "3", nil, nil),
+			NewElement("li", "4", nil, nil),
 		}),
 	})
 	d := GoDomNode{b}
-	a := NewElement("div", nil, []Node{
-		NewElement("ul", nil, []Node{
-			NewElement("li", Attributes{"key": 0}, nil),
-			NewElement("li", Attributes{"key": 4}, nil),
-			NewElement("li", nil, nil),
-			NewElement("li", Attributes{"key": 2}, nil),
-			NewElement("li", Attributes{"key": 5}, nil),
+	a := NewElement("div", "", nil, []Node{
+		NewElement("ul", "", nil, []Node{
+			NewElement("li", "0", nil, nil),
+			NewElement("li", "4", nil, nil),
+			NewElement("li", "", nil, nil),
+			NewElement("li", "2", nil, nil),
+			NewElement("li", "5", nil, nil),
 		}),
 	})
 
 	PerformDiff(a, b, d, m1)
 
-	s.Equal(m1.changes[0].action, Action{Type: Deletion, Index: 0})
-	s.Equal(m1.changes[1].action, Action{Type: Deletion, Index: 2})
+	s.Equal(m1.changes[0].action.Type, Deletion)
+	s.Equal(m1.changes[0].action.Index, 0)
+	s.Equal(m1.changes[1].action.Type, Deletion)
+	s.Equal(m1.changes[1].action.Index, 2)
 
 	s.Equal(m1.changes[2].action.Type, Insertion)
 	s.Equal(m1.changes[2].action.Index, 0)
-	s.Equal(m1.changes[2].action.Content.(*Element).Attrs["key"], 0)
+	s.Equal(m1.changes[2].action.Content.(*Element).Key, "0")
 
 	s.Equal(m1.changes[3].action.Type, Insertion)
 	s.Equal(m1.changes[3].action.Index, 4)
-	s.Equal(m1.changes[3].action.Content.(*Element).Attrs["key"], 5)
+	s.Equal(m1.changes[3].action.Content.(*Element).Key, "5")
 
 	s.Equal(m1.changes[4].action.Type, Move)
 	s.Equal(m1.changes[4].action.Index, 1)

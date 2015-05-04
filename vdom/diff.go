@@ -102,11 +102,7 @@ func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {
 
 func getKey(node Node) string {
 	if e, ok := node.(*Element); ok {
-		if e.Attrs != nil {
-			if key, ok := e.Attrs["key"]; ok {
-				return fmt.Sprint(key)
-			}
-		}
+		return e.Key
 	}
 
 	return ""

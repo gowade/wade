@@ -23,6 +23,10 @@ func domElType(elTag string) (string, string) {
 	return "*js.Object", ""
 }
 
+func valueToStringCode(vcode string) string {
+	return fmt.Sprintf(`wade.Str(%v)`, vcode)
+}
+
 func componentSetStateCode(sField, sType string) string {
 	return fmt.Sprintf("if stateData != nil { this.%v = stateData.(%v) }", sField, sType)
 }
