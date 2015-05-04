@@ -1,13 +1,17 @@
 package main
 
 import (
-	"github.com/gopherjs/gopherjs/js"
+	"github.com/gopherjs/jquery"
+	. "github.com/phaikawl/busterjs"
 
+	. "github.com/gowade/wade/utils/testutils"
 	. "github.com/gowade/wade/vdom"
 	"github.com/gowade/wade/vdom/browser"
 )
 
-func main() {
+var JQ = jquery.NewJQuery
+
+func testBasic() {
 	b := NewElement("div", "", nil, []Node{
 		NewElement("span", "", nil, []Node{}),
 		NewElement("ul", "", nil, []Node{
@@ -26,7 +30,19 @@ func main() {
 		}),
 	})
 
-	root := js.Global.Get("document").Call("getElementById", "container")
-	browser.PerformDiff(b, nil, root)
-	browser.PerformDiff(a, b, root)
+	root := JQ("body")
+	It("should show the right elements", func() {
+		browser.PerformDiff(b, nil, root.Get(0))
+		Expect(root.Find("ul").Children("").Eq(0).Prop("tagName")).ToEqual("NOTLI")
+		Expect(SpacesRemoved(root.Text())).ToEqual("ABED")
+		Expect(SpacesRemoved(root.Find("li:visible").Text())).ToEqual("BD")
+
+		browser.PerformDiff(a, b, root.Get(0))
+		Expect(SpacesRemoved(root.Text())).ToEqual("CADE")
+		Expect(SpacesRemoved(root.Find("li:visible").Text())).ToEqual("DE")
+	})
+}
+
+func main() {
+	Describe("basic list diff", testBasic)
 }

@@ -1,7 +1,9 @@
 fuel/fuel
 testapp/testapp
 *.fuel.go
-*.js
 *.js.map
+vdom/**/*.js
+app.js
 *.swp
 .tags
+out

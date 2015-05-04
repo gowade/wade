@@ -1,0 +1,19 @@
+{
+  "name": "browser_tests",
+  "version": "0.0.0",
+  "homepage": "https://github.com/gowade/wade",
+  "authors": [
+    "Hai Thanh Nguyen <phaikawl@gmail.com>"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.4"
+  }
+}
