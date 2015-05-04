@@ -3,23 +3,24 @@ Wade.Go is an upcoming brand new way to develop web sites and applications.
 It's a *client-centric* web development library, but NOT for Javascript!
 
 Isomorphic Javascript is cool but what could be better than that? **Isomorphic Go**.  
-And with that, comes:
-* Isomorphism: Write ui/client once, in Go, render seemlessly on both client and server (no SEO problems).
-* Pleasure: Modern **React**-like development model, in Go.
+Advantages:
+* Isomorphism: Write ui/client once, in Go and HTML, render seemlessly on both client and server (no SEO problems). Go code is transpiled to Javascript on browser.
+* Pleasure: Modern **React**-like development model, in Go (strict types ftw!).
 * Maintainability: No more maintainability headache like with Javascript, and we could *go easy* on tests.
-It helps tremendously to have types and a compiler, especially for large projects.
+It helps tremendously to have strict typing and a nice compiler, especially for large projects.
 * Convenience: Easy collaboration between client and server since they use the same great programming language.
 
 # Development Status
-Development has been reset, we have more than 1 people now (for real) and we came up with great new ideas.
-We get rid of the old code base and mechanisms, which still contain a lot of mediorce things
-influenced by Wade.Go's Angular-ish root. The new model we proposed is **much** more robust, we are very excited.
+* Mar 12, 2015: Iteration 5 starts.
+* May 03, 2015: Core rendering and template/component functionalities working. Still early stage, not yet have end-to-end tests for the DOM diff engine.
 
-It's going to take yet much longer to release, but we are thrilled to think that the released product will be
-much more awesome. Our ambitious goal is to make the best thing ever for web development,
-very difficult, but we're shooting for no less.
+# Run the test app
+Make sure you have a working Go installation and [Gopherjs](https://github.com/gopherjs/gopherjs), then
 
-Hope you like the idea and also want that dream become reality.
+1. `go get -u github.com/gowade/wade`
+2. Install `fuel` the code generator: `go install github.com/gowade/wade/fuel`
+3. Go to "testapp", run `fuel build`, then run `./run_gopherjs`
+4. Use browser to open the file `testapp/public/index.html`
 
 # LICENSE
 Wade.Go is [BSD licensed](https://github.com/gowade/wade/blob/master/LICENSE)
