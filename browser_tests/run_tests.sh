@@ -1,2 +1,4 @@
+cd diff
 gopherjs build -o out/test.js
-buster-test -o
+cd ..
+karma run

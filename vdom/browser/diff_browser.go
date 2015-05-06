@@ -38,7 +38,7 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 	}
 
 	oe := node.(*vdom.Element)
-	e := oe.Render()
+	e := oe.Render().(*vdom.Element)
 	newElem := createElement(e.Tag)
 	for attr, v := range e.Attrs {
 		if vdom.IsEvent(attr) {
@@ -59,7 +59,9 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 	}
 
 	for _, c := range e.Children {
-		newElem.Call("appendChild", m.renderNode(c))
+		if c != nil {
+			newElem.Call("appendChild", m.renderNode(c))
+		}
 	}
 
 	e.SetRenderedDOMNode(newElem)
@@ -90,9 +92,13 @@ func (m TreeModifier) Do(dNode vdom.DomNode, action vdom.Action) {
 			d.Call("insertBefore", insertee, d.Get("childNodes").Index(action.Index))
 		}
 	case vdom.Move:
-		d.Call("insertBefore", action.Element, d.Get("childNodes").Index(action.Index))
+		d.Call("insertBefore", action.Element.(DomNode).Object, d.Get("childNodes").Index(action.Index))
 	case vdom.Update:
-		m.render(action.Content, d)
+		if action.Element != nil {
+			m.render(action.Content, action.Element.(DomNode).Object)
+		} else {
+			m.render(action.Content, d)
+		}
 	}
 }
 
@@ -129,9 +135,9 @@ func (m TreeModifier) SetAttr(dNode vdom.DomNode, attr string, value interface{}
 	d.Call("setAttribute", attr, vstr)
 }
 
-func PerformDiff(a, b *vdom.Element, root *js.Object) {
+func PerformDiff(a, b vdom.Node, root *js.Object) {
 	if root.Get("childNodes").Get("length").Int() == 0 || b == nil {
-		root.Call("appendChild", createElement(a.Tag))
+		root.Call("appendChild", createElement(a.(*vdom.Element).Tag))
 	}
 
 	vdom.PerformDiff(a, b, DomNode{root.Get("childNodes").Index(0)}, Adapter)

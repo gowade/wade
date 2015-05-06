@@ -21,19 +21,6 @@ func IsEvent(attr string) bool {
 	return strings.HasPrefix(strings.ToLower(attr), "on")
 }
 
-func nodeCompat(a, b Node) bool {
-	aie, bie := a.IsElement(), b.IsElement()
-	if aie != bie {
-		return false
-	}
-
-	if aie {
-		return a.(*Element).Tag == b.(*Element).Tag
-	}
-
-	return a.(*TextNode).Data == b.(*TextNode).Data
-}
-
 // this function is copied from ssa/interp
 // equals returns true iff x and y are equal according to Go's
 // linguistic equivalence relation for type t.
@@ -120,8 +107,8 @@ const (
 type Action struct {
 	Type    ActionType
 	Index   int
-	From    int
 	Element DomNode
+	From    Node
 	Content Node
 }
 
@@ -139,36 +126,70 @@ func (a actionPriority) Less(i, j int) bool {
 
 // PerformDiff calculates and performs operations on the DOM tree dNode
 // to transform an old tree representation (b) to the new tree (a)
-func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
-	if b == nil || a.Tag != b.Tag {
-		m.Do(dNode, Action{Type: Update, Content: a})
+func PerformDiff(an, bn Node, dNode DomNode, m TreeModifier) {
+	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() {
+		m.Do(dNode, Action{Type: Update, Content: an})
 		return
 	}
+
+	if !an.IsElement() {
+		return
+	}
+
+	a, b := an.(*Element), bn.(*Element)
 
 	a.SetRenderedDOMNode(b.DOMNode())
 	diffProps(a, b, dNode, m)
 
 	existing := make(map[string]Action)
 	keyedDiff := false
-	for i, bCh := range b.Children {
-		key := getKey(bCh)
-		if key != "" {
+	var unkeyed []Action
+
+	for _, bCh := range b.Children {
+		if bCh != nil && getKey(bCh) != "" {
 			keyedDiff = true
-			existing[key] = Action{Type: Deletion, Index: i, Element: dNode.Child(i), Content: bCh}
 		}
 	}
 
+	uki := 0
 	if keyedDiff { // Algorithm inspired by Mithril.js
-		var unkeyed []Action
-		for i, ac := range a.Children {
-			aCh, ok := ac.(*Element)
-			if !ok {
-				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh})
+
+		offset := 0
+		for ii, bCh := range b.Children {
+			i := ii - offset
+			if bCh == nil {
+				offset++
 				continue
 			}
 
-			key := aCh.Key
+			if key := getKey(bCh); key != "" {
+				existing[key] = Action{
+					Type:    Deletion,
+					Index:   i,
+					Element: dNode.Child(i),
+					Content: bCh.Render(),
+				}
+			} else {
+				unkeyed = append(unkeyed, Action{
+					Type:    Deletion,
+					Index:   i,
+					Element: dNode.Child(i),
+					Content: bCh.Render(),
+				})
+			}
+		}
+
+		offset = 0
+		for ii, ac := range a.Children {
+			i := ii - offset
+			if ac == nil {
+				offset++
+				continue
+			}
+
+			key := getKey(ac)
 			if key != "" {
+				aCh := ac.(*Element)
 				if action, ok := existing[key]; !ok {
 					existing[key] = Action{Type: Insertion, Index: i, Content: aCh.Render()}
 				} else {
@@ -176,19 +197,42 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 					existing[key] = Action{
 						Type:    Move,
 						Index:   i,
-						From:    action.Index,
-						Element: dNode.Child(action.Index),
+						From:    action.Content,
+						Element: action.Element,
+						Content: aCh.Render(),
 					}
 				}
 			} else {
-				unkeyed = append(unkeyed, Action{Type: Insertion, Index: i, Content: aCh.Render()})
+				if len(unkeyed) > uki {
+					action := &unkeyed[uki]
+					if ac.IsElement() && action.Content.IsElement() {
+						ac.(*Element).oldElem = action.Content.(*Element)
+					}
+
+					*action = Action{
+						Type:    Move,
+						Index:   i,
+						From:    action.Content,
+						Element: action.Element,
+						Content: ac.Render(),
+					}
+				} else {
+					unkeyed = append(unkeyed,
+						Action{Type: Insertion, Index: i, Content: ac.Render()})
+				}
+				uki++
 			}
 		}
 
-		actions := make([]Action, len(existing))
+		actions := make([]Action, len(existing)+len(unkeyed))
 		i := 0
-		for _, action := range existing {
-			actions[i] = action
+		for k := range existing {
+			actions[i] = existing[k]
+			i++
+		}
+
+		for k := range unkeyed {
+			actions[i] = unkeyed[k]
 			i++
 		}
 
@@ -197,60 +241,57 @@ func PerformDiff(a, b *Element, dNode DomNode, m TreeModifier) {
 		for _, action := range actions {
 			m.Do(dNode, action)
 			if action.Type == Move {
-				PerformDiff(a.Children[action.Index].(*Element).Render(),
-					b.Children[action.From].(*Element).Render(),
-					dNode.Child(action.Index), m)
+				PerformDiff(action.Content,
+					action.From,
+					action.Element, m)
 			}
-		}
-
-		for _, action := range unkeyed {
-			m.Do(dNode, action)
 		}
 
 		return
 	} // end keyed diff
 
-	i := 0
-	for c := 0; i < len(a.Children); i++ {
-		if a.Children[i] == nil && b.Children[i] != nil {
-			m.Do(dNode, Action{Type: Deletion, Index: i - c, Element: dNode.Child(i - c)})
+	bd := make([]DomNode, len(b.Children))
+	bp := make([]int, len(b.Children))
+	c := 0
+	for i, bCh := range b.Children {
+		if bCh != nil {
+			bd[i] = dNode.Child(c)
 			c++
-		}
-	}
-
-	for i = 0; i < len(a.Children); i++ {
-		aCh := a.Children[i]
-		if aCh == nil {
-			continue
-		}
-
-		ae, ok := aCh.(*Element)
-		if i <= len(b.Children)-1 {
-			bCh := b.Children[i]
-			if bCh != nil && nodeCompat(aCh, bCh) {
-				if aCh.IsElement() {
-					be := bCh.(*Element)
-					ae.oldElem = be
-					PerformDiff(ae.Render(), be.Render(), dNode.Child(i), m)
-				}
-				continue
-			}
-		}
-
-		ar := aCh
-		if ok {
-			ar = ae.Render()
-		}
-
-		if i > len(b.Children)-1 {
-			m.Do(dNode, Action{Type: Insertion, Index: -1, Content: ar})
-			continue
 		} else {
-			m.Do(dNode.Child(i), Action{Type: Update, Content: ar})
+			bp[i] = c
 		}
 	}
 
-	for ii := i; i < len(b.Children); i++ {
-		m.Do(dNode, Action{Type: Deletion, Index: i, Element: dNode.Child(ii)})
+	for i := len(bd) - 1; i >= 0; i-- {
+		var aCh Node
+		if i < len(a.Children) {
+			aCh = a.Children[i]
+		}
+
+		if bd[i] != nil {
+			if aCh != nil {
+				bCh := b.Children[i]
+				if aCh.IsElement() && bCh.IsElement() {
+					bCh = bCh.Render()
+					aCh.(*Element).oldElem = bCh.(*Element)
+				}
+
+				PerformDiff(aCh.Render(), bCh, bd[i], m)
+			} else {
+				m.Do(dNode, Action{Type: Deletion, Element: bd[i]})
+			}
+		} else if aCh != nil {
+			m.Do(dNode, Action{Type: Insertion, Index: bp[i], Content: aCh})
+		}
+	}
+
+	for i := len(b.Children); i < len(a.Children); i++ {
+		if a.Children[i] != nil {
+			m.Do(dNode, Action{
+				Type:    Insertion,
+				Index:   -1,
+				Content: a.Children[i],
+			})
+		}
 	}
 }
