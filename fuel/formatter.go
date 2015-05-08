@@ -22,8 +22,8 @@ func runGofmt(file string) {
 	}
 }
 
-func writeCodeNaive(w io.WriteCloser, file string, root *codeNode) {
-	write(w, Prelude("main"))
+func writeCodeNaive(w io.WriteCloser, file, pkgName string, root *codeNode) {
+	write(w, Prelude(pkgName))
 	emitCodeNaive(w, root)
 	w.Close()
 }

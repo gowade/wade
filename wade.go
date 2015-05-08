@@ -3,10 +3,22 @@ package wade
 import (
 	"fmt"
 
-	"github.com/gopherjs/gopherjs/js"
 	"github.com/gowade/wade/vdom"
-	"github.com/gowade/wade/vdom/browser"
 )
+
+var domDriver vdom.Driver
+
+func SetDOMDriver(d vdom.Driver) {
+	domDriver = d
+}
+
+func DOM() vdom.Driver {
+	if domDriver == nil {
+		panic("DOM driver not set.")
+	}
+
+	return domDriver
+}
 
 func Str(value interface{}) string {
 	if s, ok := value.(string); ok {
@@ -14,20 +26,6 @@ func Str(value interface{}) string {
 	}
 
 	return fmt.Sprint(value)
-}
-
-func MakeDOMInputEl(jso *js.Object) DOMInputEl {
-	return DOMInputEl{jso}
-}
-
-type DOMInputEl struct{ *js.Object }
-
-func (e DOMInputEl) Value() string {
-	return e.Get("value").String()
-}
-
-func (e DOMInputEl) SetValue(value string) {
-	e.Set("value", value)
 }
 
 func MakeCom(name string, children []vdom.Node) Com {
@@ -67,15 +65,10 @@ type RootComponent interface {
 	InternalComPtr() *Com
 }
 
-func PerformDiff(a, b *vdom.Element, domNode *js.Object) {
-	vdom.PerformDiff(a, b, browser.DomNode{domNode}, browser.Adapter)
-}
-
-func Render(com RootComponent, elemId string) {
-	domNode := js.Global.Get("document").Call("getElementById", elemId)
+func Render(com RootComponent, d vdom.DOMNode) {
 	vnode := com.Render(nil)
-	browser.PerformDiff(vnode, nil, domNode)
-
 	c := com.InternalComPtr()
 	c.VNode = &VNodeHolder{vnode}
+
+	DOM().PerformDiff(vnode, nil, d)
 }

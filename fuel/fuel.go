@@ -61,7 +61,13 @@ func (f *Fuel) BuildPackage() {
 	checkFatal(err)
 
 	htmlComs, comList := f.getHtmlComponents()
+	var pkgName string
+
 	for _, pkg := range pkgs {
+		if pkgName == "" && !strings.HasSuffix(pkg.Name, "_test") {
+			pkgName = pkg.Name
+		}
+
 		ast.PackageExports(pkg)
 		for _, file := range pkg.Files {
 			f.getComponents(file, htmlComs)
@@ -70,7 +76,7 @@ func (f *Fuel) BuildPackage() {
 
 	htmlCompiler := NewHTMLCompiler(f.components)
 	for _, comName := range comList {
-		f.buildComponent(htmlCompiler, f.components[comName])
+		f.buildComponent(htmlCompiler, f.components[comName], pkgName)
 	}
 
 	mfile, err := os.Create("autogen.fuel.go")
@@ -78,7 +84,7 @@ func (f *Fuel) BuildPackage() {
 		fatal(err.Error())
 	}
 
-	write(mfile, Prelude("main"))
+	write(mfile, Prelude(pkgName))
 	for _, com := range f.components {
 		if com.state.field != "" {
 			write(mfile, stateMethsCode(com, fset))
@@ -88,7 +94,7 @@ func (f *Fuel) BuildPackage() {
 		write(mfile, comRefsMethsCode(com.name))
 		write(mfile, fmt.Sprintf(`func (this %v) Rerender() {
 	r := this.Render(nil)
-	wade.PerformDiff(r, this.VNode.Element, this.VNode.DOMNode())
+	wade.DOM().PerformDiff(r, this.VNode.Element, this.VNode.DOMNode())
 	this.VNode.Element = r
 }
 
@@ -152,9 +158,9 @@ func stateMethsCode(com componentInfo, fset *token.FileSet) string {
 		com.name, com.state.field) + setters
 }
 
-func (f *Fuel) buildComponent(compiler *HTMLCompiler, com componentInfo) {
+func (f *Fuel) buildComponent(compiler *HTMLCompiler, com componentInfo, pkgName string) {
 	fileName := com.name + fuelSuffix
-	err := writeGoDomFile(compiler, com.htmlInfo.markup, fileName, &com)
+	err := writeGoDomFile(compiler, com.htmlInfo.markup, fileName, pkgName, &com)
 	if err != nil {
 		fatal("Error building component %v, HTML file %v:\n`%v`", com.name, com.htmlInfo.file, err.Error())
 	}

@@ -6,13 +6,51 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 
+	"github.com/gowade/wade"
 	"github.com/gowade/wade/vdom"
 )
 
 var (
-	document = js.Global.Get("document")
-	Adapter  = TreeModifier{}
+	document *js.Object
 )
+
+type DOMInputEl struct{ *js.Object }
+
+func (e DOMInputEl) Value() string {
+	return e.Get("value").String()
+}
+
+func (e DOMInputEl) SetValue(value string) {
+	e.Set("value", value)
+}
+
+func init() {
+	if js.Global == nil || js.Global.Get("document") == js.Undefined {
+		panic("This package is only available in browser environment.")
+	}
+
+	wade.SetDOMDriver(driver{})
+	document = js.Global.Get("document")
+}
+
+func ElementById(id string) vdom.DOMNode {
+	elem := document.Call("getElementById", id)
+	if elem == js.Undefined || elem == nil {
+		panic(fmt.Sprintf("No element with id %v found", id))
+	}
+
+	return DOMNode{elem}
+}
+
+type driver struct{}
+
+func (d driver) PerformDiff(a, b vdom.Node, dNode vdom.DOMNode) {
+	vdom.PerformDiff(a, b, dNode.(DOMNode))
+}
+
+func (d driver) ToInputEl(el vdom.DOMNode) vdom.DOMInputEl {
+	return DOMInputEl{el.(DOMNode).Object}
+}
 
 func createElement(tag string) *js.Object {
 	return document.Call("createElement", tag)
@@ -22,17 +60,15 @@ func createTextNode(data string) *js.Object {
 	return document.Call("createTextNode", data)
 }
 
-type DomNode struct {
+type DOMNode struct {
 	*js.Object
 }
 
-func (d DomNode) Child(i int) vdom.DomNode {
-	return DomNode{d.Get("childNodes").Index(i)}
+func (d DOMNode) Child(i int) vdom.DOMNode {
+	return DOMNode{d.Get("childNodes").Index(i)}
 }
 
-type TreeModifier struct{}
-
-func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
+func renderNode(node vdom.Node) *js.Object {
 	if !node.IsElement() {
 		return createTextNode(node.NodeData())
 	}
@@ -60,58 +96,58 @@ func (m TreeModifier) renderNode(node vdom.Node) *js.Object {
 
 	for _, c := range e.Children {
 		if c != nil {
-			newElem.Call("appendChild", m.renderNode(c))
+			newElem.Call("appendChild", renderNode(c))
 		}
 	}
 
-	e.SetRenderedDOMNode(newElem)
-	oe.SetRenderedDOMNode(newElem)
+	e.SetRenderedDOMNode(DOMNode{newElem})
+	oe.SetRenderedDOMNode(DOMNode{newElem})
 	return newElem
 }
 
-func (m TreeModifier) render(node vdom.Node, d *js.Object) {
+func render(node vdom.Node, d *js.Object) {
 	if !node.IsElement() {
 		d.Set("nodeValue", node.NodeData())
 		return
 	}
 
-	d.Get("parentNode").Call("replaceChild", m.renderNode(node), d)
+	d.Get("parentNode").Call("replaceChild", renderNode(node), d)
 }
 
-func (m TreeModifier) Do(dNode vdom.DomNode, action vdom.Action) {
-	d := dNode.(DomNode).Object
+func (dNode DOMNode) Do(action vdom.Action) {
+	d := dNode.Object
 
 	switch action.Type {
 	case vdom.Deletion:
-		d.Call("removeChild", action.Element.(DomNode).Object)
+		d.Call("removeChild", action.Element.(DOMNode).Object)
 	case vdom.Insertion:
-		insertee := m.renderNode(action.Content)
+		insertee := renderNode(action.Content)
 		if action.Index == -1 {
 			d.Call("appendChild", insertee)
 		} else {
 			d.Call("insertBefore", insertee, d.Get("childNodes").Index(action.Index))
 		}
 	case vdom.Move:
-		d.Call("insertBefore", action.Element.(DomNode).Object, d.Get("childNodes").Index(action.Index))
+		d.Call("insertBefore", action.Element.(DOMNode).Object, d.Get("childNodes").Index(action.Index))
 	case vdom.Update:
 		if action.Element != nil {
-			m.render(action.Content, action.Element.(DomNode).Object)
+			render(action.Content, action.Element.(DOMNode).Object)
 		} else {
-			m.render(action.Content, d)
+			render(action.Content, d)
 		}
 	}
 }
 
-func (m TreeModifier) RemoveAttr(dNode vdom.DomNode, attr string) {
-	dNode.(DomNode).Call("removeAttribute", attr)
+func (dNode DOMNode) RemoveAttr(attr string) {
+	dNode.Object.Call("removeAttribute", attr)
 }
 
-func (m TreeModifier) SetProp(dNode vdom.DomNode, prop string, value interface{}) {
-	dNode.(DomNode).Object.Set(prop, value)
+func (dNode DOMNode) SetProp(prop string, value interface{}) {
+	dNode.Object.Set(prop, value)
 }
 
-func (m TreeModifier) SetAttr(dNode vdom.DomNode, attr string, value interface{}) {
-	d := dNode.(DomNode).Object
+func (dNode DOMNode) SetAttr(attr string, value interface{}) {
+	d := dNode.Object
 
 	var vstr string
 	switch v := value.(type) {
@@ -133,12 +169,4 @@ func (m TreeModifier) SetAttr(dNode vdom.DomNode, attr string, value interface{}
 	}
 
 	d.Call("setAttribute", attr, vstr)
-}
-
-func PerformDiff(a, b vdom.Node, root *js.Object) {
-	if root.Get("childNodes").Get("length").Int() == 0 || b == nil {
-		root.Call("appendChild", createElement(a.(*vdom.Element).Tag))
-	}
-
-	vdom.PerformDiff(a, b, DomNode{root.Get("childNodes").Index(0)}, Adapter)
 }

@@ -2,6 +2,9 @@ package main
 
 import (
 	"github.com/gowade/wade"
+	"github.com/gowade/wade/vdom/browser"
+
+	. "github.com/gowade/wade/browser_tests/worklog"
 )
 
 func main() {
@@ -28,9 +31,9 @@ func main() {
 		},
 	}
 
-	wade.Render(worklog, "container")
-
+	wade.Render(worklog, browser.ElementById("container"))
 	worklog.State.Projects[0].Title = "Oh Yeah"
+
 	worklog.Rerender()
 	worklog.Rerender()
 	worklog.Rerender()

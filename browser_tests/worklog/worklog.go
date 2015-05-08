@@ -1,4 +1,4 @@
-package main
+package worklog
 
 import (
 	"strings"
@@ -33,7 +33,7 @@ type SearchBar struct {
 }
 
 func (this *SearchBar) handleSearch() {
-	this.OnSearch(this.Refs().filterTextInput.Get("value").String())
+	this.OnSearch(this.Refs().filterTextInput.Value())
 }
 
 type LogTable struct {

@@ -6,17 +6,6 @@ import (
 	"strings"
 )
 
-type TreeModifier interface {
-	SetAttr(DomNode, string, interface{})
-	SetProp(DomNode, string, interface{})
-	RemoveAttr(DomNode, string)
-	Do(DomNode, Action)
-}
-
-type DomNode interface {
-	Child(int) DomNode
-}
-
 func IsEvent(attr string) bool {
 	return strings.HasPrefix(strings.ToLower(attr), "on")
 }
@@ -68,21 +57,21 @@ func equals(x, y interface{}) bool {
 	return false
 }
 
-func diffProps(a, b *Element, dNode DomNode, m TreeModifier) {
+func diffProps(a, b *Element, dNode DOMNode) {
 	for attr, va := range a.Attrs {
 		if IsEvent(attr) {
-			m.SetProp(dNode, strings.ToLower(attr), va)
+			dNode.SetProp(strings.ToLower(attr), va)
 			continue
 		}
 
 		if vb, ok := b.Attrs[attr]; !ok || !equals(va, vb) {
-			m.SetAttr(dNode, attr, va)
+			dNode.SetAttr(attr, va)
 		}
 	}
 
 	for attr, _ := range b.Attrs {
 		if _, ok := a.Attrs[attr]; !ok {
-			m.RemoveAttr(dNode, attr)
+			dNode.RemoveAttr(attr)
 		}
 	}
 }
@@ -107,7 +96,7 @@ const (
 type Action struct {
 	Type    ActionType
 	Index   int
-	Element DomNode
+	Element DOMNode
 	From    Node
 	Content Node
 }
@@ -126,9 +115,9 @@ func (a actionPriority) Less(i, j int) bool {
 
 // PerformDiff calculates and performs operations on the DOM tree dNode
 // to transform an old tree representation (b) to the new tree (a)
-func PerformDiff(an, bn Node, dNode DomNode, m TreeModifier) {
+func PerformDiff(an, bn Node, dNode DOMNode) {
 	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() {
-		m.Do(dNode, Action{Type: Update, Content: an})
+		dNode.Do(Action{Type: Update, Content: an})
 		return
 	}
 
@@ -139,7 +128,7 @@ func PerformDiff(an, bn Node, dNode DomNode, m TreeModifier) {
 	a, b := an.(*Element), bn.(*Element)
 
 	a.SetRenderedDOMNode(b.DOMNode())
-	diffProps(a, b, dNode, m)
+	diffProps(a, b, dNode)
 
 	existing := make(map[string]Action)
 	keyedDiff := false
@@ -239,18 +228,18 @@ func PerformDiff(an, bn Node, dNode DomNode, m TreeModifier) {
 		sort.Sort(actionPriority(actions))
 
 		for _, action := range actions {
-			m.Do(dNode, action)
+			dNode.Do(action)
 			if action.Type == Move {
 				PerformDiff(action.Content,
 					action.From,
-					action.Element, m)
+					action.Element)
 			}
 		}
 
 		return
 	} // end keyed diff
 
-	bd := make([]DomNode, len(b.Children))
+	bd := make([]DOMNode, len(b.Children))
 	bp := make([]int, len(b.Children))
 	c := 0
 	for i, bCh := range b.Children {
@@ -276,18 +265,18 @@ func PerformDiff(an, bn Node, dNode DomNode, m TreeModifier) {
 					aCh.(*Element).oldElem = bCh.(*Element)
 				}
 
-				PerformDiff(aCh.Render(), bCh, bd[i], m)
+				PerformDiff(aCh.Render(), bCh, bd[i])
 			} else {
-				m.Do(dNode, Action{Type: Deletion, Element: bd[i]})
+				dNode.Do(Action{Type: Deletion, Element: bd[i]})
 			}
 		} else if aCh != nil {
-			m.Do(dNode, Action{Type: Insertion, Index: bp[i], Content: aCh})
+			dNode.Do(Action{Type: Insertion, Index: bp[i], Content: aCh})
 		}
 	}
 
 	for i := len(b.Children); i < len(a.Children); i++ {
 		if a.Children[i] != nil {
-			m.Do(dNode, Action{
+			dNode.Do(Action{
 				Type:    Insertion,
 				Index:   -1,
 				Content: a.Children[i],

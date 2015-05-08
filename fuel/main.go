@@ -41,13 +41,13 @@ func main() {
 	}
 }
 
-func writeGoDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName string, com *componentInfo) error {
+func writeGoDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName, pkgName string, com *componentInfo) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
 
 	ctree := compiler.Generate(htmlNode, com)
-	writeCodeNaive(ofile, outputFileName, ctree)
+	writeCodeNaive(ofile, outputFileName, pkgName, ctree)
 
 	return compiler.Error()
 }
@@ -62,7 +62,7 @@ func buildHtmlFile(filename string) {
 	n, err := htmlutils.ParseFragment(ifile)
 	checkFatal(err)
 
-	err = writeGoDomFile(NewHTMLCompiler(nil), n[0], outputFileName, nil)
+	err = writeGoDomFile(NewHTMLCompiler(nil), n[0], outputFileName, "main", nil)
 	if err != nil {
 		fatal(err.Error())
 	}

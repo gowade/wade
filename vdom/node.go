@@ -1,7 +1,5 @@
 package vdom
 
-import "github.com/gopherjs/gopherjs/js"
-
 type Attributes map[string]interface{}
 
 type EvtHandler func(Event)
@@ -53,8 +51,8 @@ type Element struct {
 	oldElem     *Element
 	Key         string
 
-	domNode    *js.Object // the rendered node in DOM
-	OnRendered func(*js.Object)
+	domNode    DOMNode // the rendered node in DOM
+	OnRendered func(DOMNode)
 }
 
 func (t *Element) Text() string {
@@ -68,11 +66,11 @@ func (t *Element) Text() string {
 	return s
 }
 
-func (t *Element) DOMNode() *js.Object {
+func (t *Element) DOMNode() DOMNode {
 	return t.domNode
 }
 
-func (t *Element) SetRenderedDOMNode(node *js.Object) {
+func (t *Element) SetRenderedDOMNode(node DOMNode) {
 	t.domNode = node
 	if t.OnRendered != nil {
 		t.OnRendered(t.domNode)

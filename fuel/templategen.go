@@ -57,8 +57,8 @@ func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key
 
 	cn.code = varName + fmt.Sprintf(` := %v("%v", %v, nil)`,
 		CreateComElementOpener,
-		ncn(key),
-		com.name) +
+		com.name,
+		key) +
 		fmt.Sprintf("\n%v.Component = ", varName) + cn.code
 	vda.setVarDecl(varName, cn)
 

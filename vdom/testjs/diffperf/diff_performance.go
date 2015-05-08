@@ -13,7 +13,7 @@ import (
 
 func main() {
 	rand.Seed(time.Now().Unix())
-	n := 1000
+	n := 5000
 	c := 0
 	list := make([]Node, n)
 	for i := range list {

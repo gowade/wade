@@ -17,10 +17,10 @@ const (
 func domElType(elTag string) (string, string) {
 	switch elTag {
 	case "input":
-		return "wade.DOMInputEl", "wade.MakeDOMInputEl"
+		return "vdom.DOMInputEl", "wade.DOM().ToInputEl"
 	}
 
-	return "*js.Object", ""
+	return "vdom.DOMNode", ""
 }
 
 func valueToStringCode(vcode string) string {
@@ -37,7 +37,7 @@ func componentRefsVarCode(comName string) string {
 
 func componentSetRefCode(refName string, varName string, elTag string) string {
 	_, elMk := domElType(elTag)
-	return fmt.Sprintf("%v.OnRendered = func(dNode *js.Object) { refs.%v = %v(dNode) }",
+	return fmt.Sprintf("%v.OnRendered = func(dNode vdom.DOMNode) { refs.%v = %v(dNode) }",
 		varName, refName, elMk)
 }
 
@@ -49,14 +49,12 @@ func Prelude(pkgName string) string {
 import (
 	"fmt"
 
-	"github.com/gopherjs/gopherjs/js"
-
 	"github.com/gowade/wade/vdom"
 	"github.com/gowade/wade"
 )
 
 func init() {
-	_, _, _, _ = js.Global, fmt.Printf, vdom.NewElement, wade.Render
+	_, _, _ = fmt.Printf, vdom.NewElement, wade.Str
 }
 
 `
