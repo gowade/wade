@@ -6,6 +6,7 @@ type DOMNode interface {
 	SetProp(string, interface{})
 	RemoveAttr(string)
 	Do(Action)
+	Render(Node, bool)
 }
 
 type Driver interface {

@@ -19,8 +19,8 @@ Make sure you have a working Go installation and [Gopherjs](https://github.com/g
 
 1. `go get -u github.com/gowade/wade`
 2. Install `fuel` the code generator: `go install github.com/gowade/wade/fuel`
-3. Go to "testapp", run `fuel build`, then run `./run_gopherjs`
-4. Use browser to open the file `testapp/public/index.html`
+3. Go to "browser_tests/worklog/main", run `fuel build`, then run `./run_gopherjs`
+4. Use browser to open the file `browser_tests/worklog/main/public/index.html`
 
 # LICENSE
 Wade.Go is [BSD licensed](https://github.com/gowade/wade/blob/master/LICENSE)

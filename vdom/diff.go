@@ -90,7 +90,6 @@ const (
 	Deletion  ActionType = 0
 	Insertion            = 1
 	Move                 = 2
-	Update               = 3
 )
 
 type Action struct {
@@ -115,9 +114,14 @@ func (a actionPriority) Less(i, j int) bool {
 
 // PerformDiff calculates and performs operations on the DOM tree dNode
 // to transform an old tree representation (b) to the new tree (a)
-func PerformDiff(an, bn Node, dNode DOMNode) {
+// The root node will not be replaced (even if its tag name isn't compatible)
+func PerformDiff(a, b Node, dNode DOMNode) {
+	performDiff(a, b, dNode, true)
+}
+
+func performDiff(an, bn Node, dNode DOMNode, root bool) {
 	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() {
-		dNode.Do(Action{Type: Update, Content: an})
+		dNode.Render(an, root)
 		return
 	}
 
@@ -230,9 +234,9 @@ func PerformDiff(an, bn Node, dNode DOMNode) {
 		for _, action := range actions {
 			dNode.Do(action)
 			if action.Type == Move {
-				PerformDiff(action.Content,
+				performDiff(action.Content,
 					action.From,
-					action.Element)
+					action.Element, false)
 			}
 		}
 
@@ -265,7 +269,7 @@ func PerformDiff(an, bn Node, dNode DOMNode) {
 					aCh.(*Element).oldElem = bCh.(*Element)
 				}
 
-				PerformDiff(aCh.Render(), bCh, bd[i])
+				performDiff(aCh.Render(), bCh, bd[i], false)
 			} else {
 				dNode.Do(Action{Type: Deletion, Element: bd[i]})
 			}

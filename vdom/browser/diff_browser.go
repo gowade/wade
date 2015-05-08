@@ -68,50 +68,55 @@ func (d DOMNode) Child(i int) vdom.DOMNode {
 	return DOMNode{d.Get("childNodes").Index(i)}
 }
 
-func renderNode(node vdom.Node) *js.Object {
+func renderNew(node vdom.Node) *js.Object {
 	if !node.IsElement() {
 		return createTextNode(node.NodeData())
 	}
 
+	return renderTo(node, createElement(node.NodeData()))
+}
+
+func renderTo(node vdom.Node, d *js.Object) *js.Object {
 	oe := node.(*vdom.Element)
 	e := oe.Render().(*vdom.Element)
-	newElem := createElement(e.Tag)
 	for attr, v := range e.Attrs {
 		if vdom.IsEvent(attr) {
-			newElem.Set(strings.ToLower(attr), v)
+			d.Set(strings.ToLower(attr), v)
 			continue
 		}
 
 		switch v := v.(type) {
 		case bool:
 			if v {
-				newElem.Call("setAttribute", attr, attr)
+				d.Call("setAttribute", attr, attr)
 			}
 		case string:
-			newElem.Call("setAttribute", attr, v)
+			d.Call("setAttribute", attr, v)
 		default:
-			newElem.Call("setAttribute", attr, fmt.Sprint(v))
+			d.Call("setAttribute", attr, fmt.Sprint(v))
 		}
 	}
 
 	for _, c := range e.Children {
 		if c != nil {
-			newElem.Call("appendChild", renderNode(c))
+			d.Call("appendChild", renderNew(c))
 		}
 	}
 
-	e.SetRenderedDOMNode(DOMNode{newElem})
-	oe.SetRenderedDOMNode(DOMNode{newElem})
-	return newElem
-}
-
-func render(node vdom.Node, d *js.Object) {
-	if !node.IsElement() {
-		d.Set("nodeValue", node.NodeData())
-		return
+	e.SetRenderedDOMNode(DOMNode{d})
+	if oe != e {
+		oe.SetRenderedDOMNode(DOMNode{d})
 	}
 
-	d.Get("parentNode").Call("replaceChild", renderNode(node), d)
+	return d
+}
+
+func (d DOMNode) Render(content vdom.Node, root bool) {
+	if !root {
+		d.Get("parentNode").Call("replaceChild", renderNew(content), d.Object)
+	} else {
+		renderTo(content, d.Object)
+	}
 }
 
 func (dNode DOMNode) Do(action vdom.Action) {
@@ -121,7 +126,7 @@ func (dNode DOMNode) Do(action vdom.Action) {
 	case vdom.Deletion:
 		d.Call("removeChild", action.Element.(DOMNode).Object)
 	case vdom.Insertion:
-		insertee := renderNode(action.Content)
+		insertee := renderNew(action.Content)
 		if action.Index == -1 {
 			d.Call("appendChild", insertee)
 		} else {
@@ -129,12 +134,6 @@ func (dNode DOMNode) Do(action vdom.Action) {
 		}
 	case vdom.Move:
 		d.Call("insertBefore", action.Element.(DOMNode).Object, d.Get("childNodes").Index(action.Index))
-	case vdom.Update:
-		if action.Element != nil {
-			render(action.Content, action.Element.(DOMNode).Object)
-		} else {
-			render(action.Content, d)
-		}
 	}
 }
 

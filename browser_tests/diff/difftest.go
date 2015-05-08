@@ -40,16 +40,15 @@ func testKeyed() {
 		}),
 	})
 
-	qroot := JQ("<div/>")
-	JQ("body").Append(qroot)
-	root := qroot.Get(0)
+	qroot := JQ("<div/>").AppendTo(JQ("body"))
+	root := browser.DOMNode{qroot.Get(0)}
 	It("should show the right elements", func() {
-		browser.PerformDiff(b, nil, root)
+		PerformDiff(b, nil, root)
 		Expect(qroot.Find("ul").Children("").Eq(0).Prop("tagName")).ToBe("NOTLI")
 		Expect(SpacesRemoved(qroot.Text())).ToBe("ABEXD")
 		Expect(SpacesRemoved(qroot.Find("li:visible").Text())).ToBe("BXD")
 
-		browser.PerformDiff(a, b, root)
+		PerformDiff(a, b, root)
 		Expect(SpacesRemoved(qroot.Text())).ToBe("CADXYE")
 		Expect(SpacesRemoved(qroot.Find("li:visible").Text())).ToBe("DXYE")
 	})
@@ -91,14 +90,13 @@ func testUnkeyed() {
 		}),
 	})
 
-	qroot := JQ("<div/>")
-	JQ("body").Append(qroot)
-	root := qroot.Get(0)
+	qroot := JQ("<div/>").AppendTo(JQ("body"))
+	root := browser.DOMNode{qroot.Get(0)}
 	It("should show the right elements", func() {
-		browser.PerformDiff(b, nil, root)
+		PerformDiff(b, nil, root)
 		Expect(SpacesRemoved(qroot.Text())).ToBe("ABE")
 
-		browser.PerformDiff(a, b, root)
+		PerformDiff(a, b, root)
 		Expect(qroot.Find("ul").Children("").Eq(0).Prop("tagName")).ToBe("LI")
 		Expect(SpacesRemoved(qroot.Text())).ToBe("CADXYE")
 	})
