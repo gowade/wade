@@ -32,12 +32,7 @@ func main() {
 	}
 
 	wade.Render(worklog, browser.ElementById("container"))
-	worklog.State.Projects[0].Title = "Oh Yeah"
+	//worklog.State.Projects[0].Title = "Oh Yeah"
 
-	worklog.Rerender()
-	worklog.Rerender()
-	worklog.Rerender()
-	worklog.Rerender()
-	worklog.Rerender()
-	worklog.Rerender()
+	//worklog.Rerender()
 }

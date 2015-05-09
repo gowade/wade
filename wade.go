@@ -41,17 +41,26 @@ type Com struct {
 	Name     string
 	Children []vdom.Node
 
-	VNode *VNodeHolder
+	VNode *vdom.Element
 
 	InternalRefsHolder interface{} // please don't touch, this is for use by Fuel's generated code
+	unmounted          bool
 }
 
-func (c Com) InternalState() interface{} {
+func (c *Com) InternalState() interface{} {
 	return nil
 }
 
 func (c *Com) InternalComPtr() *Com {
 	return c
+}
+
+func (c *Com) InternalUnmount() {
+	c.unmounted = true
+}
+
+func (c *Com) InternalUnmounted() bool {
+	return c.unmounted
 }
 
 type Component interface {
@@ -68,7 +77,7 @@ type RootComponent interface {
 func Render(com RootComponent, d vdom.DOMNode) {
 	vnode := com.Render(nil)
 	c := com.InternalComPtr()
-	c.VNode = &VNodeHolder{vnode}
+	c.VNode = vnode
 
-	DOM().PerformDiff(vnode, nil, d)
+	vdom.PerformDiff(vnode, nil, d)
 }

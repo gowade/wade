@@ -186,7 +186,8 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 		renderNode = node.FirstChild
 
 		if com.state.field != "" {
-			children = append(children, ncn(componentSetStateCode(com.state.field, com.state.typ)))
+			children = append(children,
+				ncn(componentSetStateCode(com.state.field, com.state.typ, com.state.isPointer)))
 		}
 	}
 
@@ -197,9 +198,10 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 	if com != nil {
 		refs := newComRefs(vda)
 		cnode = c.generateRec(renderNode, vda, refs)[0]
+		refsVar, refsSet := componentRefsVarCode(com.name)
 		if len(refs.refs) > 0 {
 			c.comRefs[com.name] = refs.refs
-			children = append(children, ncn(componentRefsVarCode(com.name)))
+			children = append(children, ncn(refsVar))
 		}
 
 		vda.saveToCN()
@@ -207,6 +209,10 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 
 		for _, ref := range refs.refs {
 			children = append(children, ncn(componentSetRefCode(ref.name, ref.varName, ref.elTag)))
+		}
+
+		if len(refs.refs) > 0 {
+			children = append(children, ncn(refsSet))
 		}
 	} else {
 		cnode = c.generateRec(renderNode, vda, nil)[0]

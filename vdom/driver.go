@@ -1,16 +1,19 @@
 package vdom
 
+import "github.com/gopherjs/gopherjs/js"
+
 type DOMNode interface {
 	Child(int) DOMNode
 	SetAttr(string, interface{})
 	SetProp(string, interface{})
 	RemoveAttr(string)
 	Do(Action)
+	Clear()
 	Render(Node, bool)
+	JS() *js.Object
 }
 
 type Driver interface {
-	PerformDiff(a, b Node, dNode DOMNode)
 	ToInputEl(DOMNode) DOMInputEl
 }
 

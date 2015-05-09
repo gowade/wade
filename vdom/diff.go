@@ -116,11 +116,22 @@ func (a actionPriority) Less(i, j int) bool {
 // to transform an old tree representation (b) to the new tree (a)
 // The root node will not be replaced (even if its tag name isn't compatible)
 func PerformDiff(a, b Node, dNode DOMNode) {
+	if b == nil {
+		dNode.Clear()
+	}
+
+	if dNode == nil {
+		panic("target DOM node is nil.")
+	}
+
 	performDiff(a, b, dNode, true)
 }
 
 func performDiff(an, bn Node, dNode DOMNode, root bool) {
 	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() {
+		if bn != nil {
+			//println("->", an.NodeData(), bn.NodeData())
+		}
 		dNode.Render(an, root)
 		return
 	}
@@ -129,8 +140,7 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 		return
 	}
 
-	a, b := an.(*Element), bn.(*Element)
-
+	a, b := an.Render().(*Element), bn.Render().(*Element)
 	a.SetRenderedDOMNode(b.DOMNode())
 	diffProps(a, b, dNode)
 
@@ -160,14 +170,14 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 					Type:    Deletion,
 					Index:   i,
 					Element: dNode.Child(i),
-					Content: bCh.Render(),
+					Content: bCh,
 				}
 			} else {
 				unkeyed = append(unkeyed, Action{
 					Type:    Deletion,
 					Index:   i,
 					Element: dNode.Child(i),
-					Content: bCh.Render(),
+					Content: bCh,
 				})
 			}
 		}
@@ -184,7 +194,7 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 			if key != "" {
 				aCh := ac.(*Element)
 				if action, ok := existing[key]; !ok {
-					existing[key] = Action{Type: Insertion, Index: i, Content: aCh.Render()}
+					existing[key] = Action{Type: Insertion, Index: i, Content: aCh}
 				} else {
 					aCh.oldElem = action.Content.(*Element)
 					existing[key] = Action{
@@ -192,7 +202,7 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 						Index:   i,
 						From:    action.Content,
 						Element: action.Element,
-						Content: aCh.Render(),
+						Content: aCh,
 					}
 				}
 			} else {
@@ -207,11 +217,11 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 						Index:   i,
 						From:    action.Content,
 						Element: action.Element,
-						Content: ac.Render(),
+						Content: ac,
 					}
 				} else {
 					unkeyed = append(unkeyed,
-						Action{Type: Insertion, Index: i, Content: ac.Render()})
+						Action{Type: Insertion, Index: i, Content: ac})
 				}
 				uki++
 			}
@@ -245,36 +255,51 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 
 	bd := make([]DOMNode, len(b.Children))
 	bp := make([]int, len(b.Children))
+
+	var bCh, aCh Node
 	c := 0
 	for i, bCh := range b.Children {
 		if bCh != nil {
 			bd[i] = dNode.Child(c)
+			//println("<<", bCh.NodeData(), bd[i].JS(), i, dNode.JS().Get("childNodes"))
 			c++
 		} else {
 			bp[i] = c
 		}
 	}
 
-	for i := len(bd) - 1; i >= 0; i-- {
-		var aCh Node
+	for i := len(b.Children) - 1; i >= 0; i-- {
+		bCh = b.Children[i]
+
 		if i < len(a.Children) {
 			aCh = a.Children[i]
+		} else {
+			aCh = nil
 		}
 
-		if bd[i] != nil {
-			if aCh != nil {
-				bCh := b.Children[i]
-				if aCh.IsElement() && bCh.IsElement() {
-					bCh = bCh.Render()
-					aCh.(*Element).oldElem = bCh.(*Element)
-				}
-
-				performDiff(aCh.Render(), bCh, bd[i], false)
-			} else {
-				dNode.Do(Action{Type: Deletion, Element: bd[i]})
+		if bCh != nil && aCh == nil {
+			dNode.Do(Action{Type: Deletion, Element: bd[i]})
+			if bCh.IsElement() {
+				bCh.(*Element).Unmount()
 			}
-		} else if aCh != nil {
+		} else if bCh == nil && aCh != nil {
 			dNode.Do(Action{Type: Insertion, Index: bp[i], Content: aCh})
+		}
+	}
+
+	for i, aCh := range a.Children {
+		if i >= len(b.Children) {
+			break
+		}
+
+		bCh = b.Children[i]
+		if aCh != nil && bCh != nil {
+			if aCh.IsElement() && bCh.IsElement() {
+				aCh.(*Element).oldElem = bCh.(*Element)
+			}
+
+			//println(aCh.Text(), bCh.Text(), bd[i].JS().Get("innerHTML"))
+			performDiff(aCh, bCh, bd[i], false)
 		}
 	}
 

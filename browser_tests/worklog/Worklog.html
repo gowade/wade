@@ -31,6 +31,13 @@
 
 <LogRow>
     <div class="row" key="{{ this.ID }}">
-         <div class="col-xs-7"><h4>{{ this.Title }}</h4></div>
+        <div class="col-md-7"><h4>{{ this.Title }}</h4></div>
+        <div class="col-md-2">
+            <button type="button" hidden="{{ this.State.Running }}"
+                onclick="{{ this.toggleClock }}">Start</button>
+            <button type="button" hidden="{{ !this.State.Running }}"
+                onclick="{{ this.toggleClock }}">Stop</button>
+        </div>
+        <div class="col-md-3 elapsed">{{ this.State.Elapsed }}</div>
     </div>
 </LogRow>

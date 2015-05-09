@@ -41,7 +41,12 @@ func main() {
 
 		ctn := JQ("<div/>").AppendTo(JQ("body"))
 		wade.Render(worklog, browser.DOMNode{ctn.Get(0)})
+
 		logTable := ctn.Find(".logtable")
+		It("Should not render component tags", func() {
+			Expect(ctn.Find("logtable").Length).ToBe(0)
+		})
+
 		It("Should show the page and update when an item is changed", func() {
 			Expect(strings.HasPrefix(logTable.Find("h4").Text(), "ABCXYZ")).ToBe(true)
 			Expect(ctn.Find("h4").Length).ToBe(4)

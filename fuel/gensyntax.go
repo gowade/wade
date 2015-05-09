@@ -27,12 +27,18 @@ func valueToStringCode(vcode string) string {
 	return fmt.Sprintf(`wade.Str(%v)`, vcode)
 }
 
-func componentSetStateCode(sField, sType string) string {
-	return fmt.Sprintf("if stateData != nil { this.%v = stateData.(%v) }", sField, sType)
+func componentSetStateCode(sField, sType string, isPointer bool) string {
+	typ := sType
+	if isPointer {
+		typ = "*" + sType
+	}
+
+	return fmt.Sprintf("if stateData != nil { this.%v = stateData.(%v) }", sField, typ)
 }
 
-func componentRefsVarCode(comName string) string {
-	return fmt.Sprintf("refs := this.Com.InternalRefsHolder.(*%vRefs)", comName)
+func componentRefsVarCode(comName string) (string, string) {
+	return fmt.Sprintf("refs := %vRefs{}", comName),
+		"this.Com.InternalRefsHolder = refs"
 }
 
 func componentSetRefCode(refName string, varName string, elTag string) string {

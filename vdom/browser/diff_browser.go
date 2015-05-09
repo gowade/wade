@@ -44,10 +44,6 @@ func ElementById(id string) vdom.DOMNode {
 
 type driver struct{}
 
-func (d driver) PerformDiff(a, b vdom.Node, dNode vdom.DOMNode) {
-	vdom.PerformDiff(a, b, dNode.(DOMNode))
-}
-
 func (d driver) ToInputEl(el vdom.DOMNode) vdom.DOMInputEl {
 	return DOMInputEl{el.(DOMNode).Object}
 }
@@ -68,17 +64,22 @@ func (d DOMNode) Child(i int) vdom.DOMNode {
 	return DOMNode{d.Get("childNodes").Index(i)}
 }
 
-func renderNew(node vdom.Node) *js.Object {
+func render(node vdom.Node, d *js.Object) *js.Object {
 	if !node.IsElement() {
-		return createTextNode(node.NodeData())
+		if d == nil {
+			return createTextNode(node.NodeData())
+		} else {
+			d.Set("nodeValue", node.NodeData())
+			return d
+		}
 	}
 
-	return renderTo(node, createElement(node.NodeData()))
-}
-
-func renderTo(node vdom.Node, d *js.Object) *js.Object {
 	oe := node.(*vdom.Element)
-	e := oe.Render().(*vdom.Element)
+	e := node.Render().(*vdom.Element)
+	if d == nil {
+		d = createElement(e.Tag)
+	}
+
 	for attr, v := range e.Attrs {
 		if vdom.IsEvent(attr) {
 			d.Set(strings.ToLower(attr), v)
@@ -99,7 +100,7 @@ func renderTo(node vdom.Node, d *js.Object) *js.Object {
 
 	for _, c := range e.Children {
 		if c != nil {
-			d.Call("appendChild", renderNew(c))
+			d.Call("appendChild", render(c, nil))
 		}
 	}
 
@@ -111,11 +112,19 @@ func renderTo(node vdom.Node, d *js.Object) *js.Object {
 	return d
 }
 
+func (d DOMNode) JS() *js.Object {
+	return d.Object
+}
+
 func (d DOMNode) Render(content vdom.Node, root bool) {
 	if !root {
-		d.Get("parentNode").Call("replaceChild", renderNew(content), d.Object)
+		d.Get("parentNode").Call("replaceChild", render(content, d.Object), d.Object)
 	} else {
-		renderTo(content, d.Object)
+		if !content.IsElement() {
+			panic("root render being called on a text node.")
+		}
+
+		render(content, d.Object)
 	}
 }
 
@@ -126,7 +135,7 @@ func (dNode DOMNode) Do(action vdom.Action) {
 	case vdom.Deletion:
 		d.Call("removeChild", action.Element.(DOMNode).Object)
 	case vdom.Insertion:
-		insertee := renderNew(action.Content)
+		insertee := render(action.Content, nil)
 		if action.Index == -1 {
 			d.Call("appendChild", insertee)
 		} else {
@@ -143,6 +152,18 @@ func (dNode DOMNode) RemoveAttr(attr string) {
 
 func (dNode DOMNode) SetProp(prop string, value interface{}) {
 	dNode.Object.Set(prop, value)
+}
+
+func (d DOMNode) Clear() {
+	var c *js.Object
+	for {
+		c = d.Get("lastChild")
+		if c == nil {
+			return
+		}
+
+		d.Call("removeChild", c)
+	}
 }
 
 func (dNode DOMNode) SetAttr(attr string, value interface{}) {

@@ -39,6 +39,8 @@ func NewTextNode(data string) *TextNode {
 type Component interface {
 	Render(interface{}) *Element
 	InternalState() interface{}
+	InternalUnmount()
+	InternalUnmounted() bool
 }
 
 type Element struct {
@@ -47,19 +49,20 @@ type Element struct {
 	Children    []Node
 	EvtHandlers map[string]EvtHandler
 	Component   Component
-	rendCache   *Element
-	oldElem     *Element
 	Key         string
 
 	domNode    DOMNode // the rendered node in DOM
 	OnRendered func(DOMNode)
+
+	ComRend *Element
+	oldElem *Element
 }
 
 func (t *Element) Text() string {
 	s := ""
 	for _, c := range t.Children {
 		if c != nil {
-			s += c.Text()
+			s += c.Render().Text()
 		}
 	}
 
@@ -67,6 +70,9 @@ func (t *Element) Text() string {
 }
 
 func (t *Element) DOMNode() DOMNode {
+	if t.Component != nil && t.ComRend != nil {
+		return t.ComRend.DOMNode()
+	}
 	return t.domNode
 }
 
@@ -75,6 +81,10 @@ func (t *Element) SetRenderedDOMNode(node DOMNode) {
 	if t.OnRendered != nil {
 		t.OnRendered(t.domNode)
 	}
+}
+
+func (t *Element) Unmount() {
+	t.Component.InternalUnmount()
 }
 
 func (t *Element) IsElement() bool {
@@ -87,18 +97,21 @@ func (t *Element) NodeData() string {
 
 func (t *Element) Render() Node {
 	if t.Component != nil {
-		if t.rendCache != nil {
-			return t.rendCache
+		if t.ComRend != nil {
+			return t.ComRend
 		}
 
 		var state interface{}
-		if t.oldElem != nil && t.oldElem.Component != nil {
+		//if t.oldElem != nil {
+		//println(t.oldElem.Deleted, t.oldElem.Component)
+		//}
+		if t.oldElem != nil && !t.Component.InternalUnmounted() && t.oldElem.Component != nil {
 			state = t.oldElem.Component.InternalState()
 		}
 
-		t.rendCache = t.Component.Render(state)
-		t.rendCache.Key = t.Key
-		return t.rendCache
+		t.ComRend = t.Component.Render(state)
+		t.ComRend.Key = t.Key
+		return t.ComRend
 	}
 
 	return t

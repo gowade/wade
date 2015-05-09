@@ -90,25 +90,22 @@ func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 
 	varName := vda.newVar("if")
 	ifVda := newVarDeclArea()
-	children := c.genChildren(node, ifVda, nil)
 
+	child := c.generateRec(node.FirstChild, ifVda, nil)[0]
 	ifVda.saveToCN()
 
+	child.code = fmt.Sprintf("%v = ", varName) + child.code
 	vda.setVarDecl(
 		varName,
-		ncn(fmt.Sprintf(`var %v = %v{}`, varName, NodeListOpener)),
+		ncn(fmt.Sprintf(`var %v vdom.Node`, varName)),
 		&codeNode{
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`if %v `, cond),
 			children: []*codeNode{
 				ifVda.codeNode,
-				&codeNode{
-					typ:      ElemListCodeNode,
-					code:     fmt.Sprintf("%v = ", varName),
-					children: children,
-				},
+				child,
 			},
 		})
 
-	return lnode(fmt.Sprintf(varName)), nil
+	return ncn(varName), nil
 }

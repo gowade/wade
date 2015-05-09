@@ -2,6 +2,7 @@ package worklog
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gowade/wade"
 )
@@ -46,7 +47,31 @@ func (this LogTable) filterCheck(text string) bool {
 	return strings.Contains(strings.ToLower(text), this.FilterText)
 }
 
+type LogRowTimerState struct {
+	Elapsed float32
+	Running bool
+}
+
 type LogRow struct {
 	wade.Com
 	*Project
+
+	ticker *time.Ticker
+	State  *LogRowTimerState `fuel:"state"`
+}
+
+func (this *LogRow) toggleClock() {
+	if !this.State.Running {
+		this.State.Running = true
+		this.ticker = time.NewTicker(100 * time.Millisecond)
+		go func() {
+			for {
+				<-this.ticker.C
+				this.SetElapsed(this.State.Elapsed + 0.1)
+			}
+		}()
+	} else {
+		this.ticker.Stop()
+		this.SetRunning(false)
+	}
 }

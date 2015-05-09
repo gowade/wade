@@ -28,6 +28,7 @@ type stateInfo struct {
 	field     string
 	typ       string
 	structTyp *ast.StructType
+	isPointer bool
 }
 
 type componentInfo struct {
@@ -92,10 +93,11 @@ func (f *Fuel) BuildPackage() {
 
 		write(mfile, comRefsDeclCode(com.name, htmlCompiler.comRefs[com.name]))
 		write(mfile, comRefsMethsCode(com.name))
-		write(mfile, fmt.Sprintf(`func (this %v) Rerender() {
+		write(mfile, fmt.Sprintf(`func (this *%v) Rerender() {
 	r := this.Render(nil)
-	wade.DOM().PerformDiff(r, this.VNode.Element, this.VNode.DOMNode())
-	this.VNode.Element = r
+	vdom.PerformDiff(r, this.VNode.Render(), this.VNode.DOMNode())
+	this.VNode.ComRend = r
+	this.VNode = r
 }
 
 `, com.name))
@@ -103,8 +105,8 @@ func (f *Fuel) BuildPackage() {
 }
 
 func comRefsMethsCode(comName string) string {
-	return fmt.Sprintf(`func (this %v) Refs() *%vRefs {
-	return this.Com.InternalRefsHolder.(*%vRefs)	
+	return fmt.Sprintf(`func (this *%v) Refs() %vRefs {
+	return this.Com.InternalRefsHolder.(%vRefs)	
 }
 
 `, comName, comName, comName)
@@ -141,7 +143,7 @@ func stateMethsCode(com componentInfo, fset *token.FileSet) string {
 		}
 
 		fname := fieldName(f)
-		setters += fmt.Sprintf(`func (this %v) Set%v(v %v) {
+		setters += fmt.Sprintf(`func (this *%v) Set%v(v %v) {
 	this.%v.%v = v
 	this.Rerender()
 }
@@ -149,7 +151,7 @@ func stateMethsCode(com componentInfo, fset *token.FileSet) string {
 `, com.name, fname, string(buf), com.state.field, fname)
 	}
 
-	return fmt.Sprintf(`func (this %v) InternalState() interface{} {
+	return fmt.Sprintf(`func (this *%v) InternalState() interface{} {
 	return this.%v
 }
 
@@ -238,20 +240,31 @@ func extractFields(comName string, fields []*ast.Field) (map[string]bool, stateI
 					fatal("Error processing component %v: component can only have 1 state field.", comName)
 				}
 
+				var typIden *ast.Ident
 				if pt, ok := f.Type.(*ast.StarExpr); ok {
 					if ftype, ok := pt.X.(*ast.Ident); ok {
-						state.field = fname
-						state.typ = "*" + ftype.Name
-						if spec, ok := ftype.Obj.Decl.(*ast.TypeSpec); ok {
-							if st, ok := spec.Type.(*ast.StructType); ok {
-								state.structTyp = st
-							}
-						}
-						continue
+						typIden = ftype
+						state.isPointer = true
+					}
+				} else {
+					if ftype, ok := f.Type.(*ast.Ident); ok {
+						typIden = ftype
+						state.isPointer = false
 					}
 				}
-				fatal(`Error processing field "%v" of component %v: state field's type must be pointer,
-pointing to a named type (anonymous struct is forbidden).`, fname, comName)
+
+				if typIden != nil {
+					state.field = fname
+					state.typ = typIden.Name
+					if spec, ok := typIden.Obj.Decl.(*ast.TypeSpec); ok {
+						if st, ok := spec.Type.(*ast.StructType); ok {
+							state.structTyp = st
+						}
+					}
+					continue
+				}
+
+				fatal(`Error processing field "%v" of component %v: state field's type must be a named type (anonymous struct is forbidden).`, fname, comName)
 			}
 		}
 
