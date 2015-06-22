@@ -64,6 +64,13 @@ func emitCodeNaive(w io.Writer, node *codeNode) {
 			write(w, "\n")
 		}
 
+	case WrapperCodeNode:
+		write(w, node.code)
+		for _, c := range node.children {
+			emitCodeNaive(w, c)
+			write(w, "\n")
+		}
+
 	case CompositeCodeNode, BlockCodeNode:
 		write(w, node.code+"{\n")
 		for _, c := range node.children {

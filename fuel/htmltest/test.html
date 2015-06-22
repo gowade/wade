@@ -7,6 +7,18 @@
 		<ul>
 			<wtf></wtf>
 			<for k="i" v="item" range={{ []string{} }}>
+                <switch expr={{ i }}>
+                    <case expr={{ 0 }}>0</case>
+                    <case expr={{ 1 }}>1</case>
+                    <default>&gt;1</default>
+                </switch>
+
+                <switch>
+                    <case expr={{ i == 0 }}>0</case>
+                    <case expr={{ i == 1 }}>1</case>
+                    <default>&gt;1</default>
+                </switch>
+
 				<if cond={{ i >= 0 }}>
 					<li key="{{ i }}" test="{{ i }}th">Even {{ i }}</li>
 				</if>

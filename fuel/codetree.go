@@ -1,13 +1,14 @@
 package main
 
 const (
-	StringCodeNode      = "string code"          // "<code>"
-	NakedCodeNode       = "naked code"           // <code>
-	FuncCallCodeNode    = "function call"        // funcName(<children>)
-	CompositeCodeNode   = "composite literal"    // typeName{<children>}
-	ElemListCodeNode    = "element list"         // []*Element{<children>}
-	AppendListCodeNode  = "append list"          // for1 = append(for1, if1...)
-	BlockCodeNode       = "function declaration" // func (m *A) funcName() {<children>}
+	StringCodeNode      = "string code"       // "<code>"
+	NakedCodeNode       = "naked code"        // <code>
+	FuncCallCodeNode    = "function call"     // funcName(<children>)
+	CompositeCodeNode   = "composite literal" // typeName{<children>}
+	ElemListCodeNode    = "element list"      // []*Element{<children>}
+	AppendListCodeNode  = "append list"       // for1 = append(for1, if1...)
+	BlockCodeNode       = "block"             // {<children>}
+	WrapperCodeNode     = "wrapper"           // e.g. case block
 	VarDeclAreaCodeNode = "var declaration area"
 	SliceVarCodeNode    = "list variable" // a list of nodes represented as a variable
 )

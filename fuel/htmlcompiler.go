@@ -121,6 +121,9 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 		case "if":
 			htmlutils.RemoveGarbageTextChildren(node)
 			cn, err = c.ifControlCode(node, vda)
+		case "switch":
+			htmlutils.RemoveGarbageTextChildren(node)
+			cn, err = c.switchControlCode(node, vda)
 
 		default:
 			key := `""`
