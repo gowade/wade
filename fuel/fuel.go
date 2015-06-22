@@ -9,7 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	//"unicode"
+	"unicode"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
@@ -77,7 +77,11 @@ func (f *Fuel) BuildPackage() {
 
 	htmlCompiler := NewHTMLCompiler(f.components)
 	for _, comName := range comList {
-		f.buildComponent(htmlCompiler, f.components[comName], pkgName)
+		if com, ok := f.components[comName]; ok {
+			f.buildComponent(htmlCompiler, com, pkgName)
+		} else {
+			fatal("No struct definition for %v component.", comName)
+		}
 	}
 
 	mfile, err := os.Create("autogen.fuel.go")
@@ -189,7 +193,7 @@ func (f *Fuel) getHtmlComponents() (map[string]htmlInfo, []string) {
 		checkFatal(err)
 
 		for _, node := range nodes {
-			if node.Type == html.ElementNode {
+			if node.Type == html.ElementNode && unicode.IsUpper([]rune(node.Data)[0]) {
 				if _, exists := m[node.Data]; exists {
 					fatal(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
 				}

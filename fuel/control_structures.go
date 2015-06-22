@@ -15,7 +15,7 @@ func lnode(code string) *codeNode {
 
 func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	keyName, valName := "_", "_"
-	rrv := ""
+	var rangeAttr html.Attribute
 	for _, attr := range node.Attr {
 		switch attr.Key {
 		case "k":
@@ -23,18 +23,22 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 		case "v":
 			valName = attr.Val
 		case "range":
-			rrv = attr.Val
+			rangeAttr = attr
 
 		default:
 			return nil, fmt.Errorf(`Invalid attribute "%v" for for loop.`, attr.Key)
 		}
 	}
 
-	rangeVar := extractSingleMustache(rrv)
-	if rangeVar == "" {
+	if rangeAttr.Val == "" {
+		return nil, fmt.Errorf(`for loop's "range" attribute cannot be empty.`)
+	}
+
+	if !rangeAttr.IsMustache {
 		return nil, fmt.Errorf(
-			`For loop's "range" attribute must be assigned to a `+
-				`mustache representing a Go slice value. Got "%v" instead.`, rrv)
+			`for loop's "range" attribute must be assigned to a `+
+				`mustache representing a Go slice value. Got string value "%v" instead.`,
+			rangeAttr.Val)
 
 	}
 
@@ -53,7 +57,7 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 		ncn(fmt.Sprintf(`%v := %v{}`, varName, NodeListOpener)),
 		&codeNode{
 			typ:  BlockCodeNode,
-			code: fmt.Sprintf(`for __k, __v := range %v`, rangeVar),
+			code: fmt.Sprintf(`for __k, __v := range %v`, rangeAttr.Val),
 			children: []*codeNode{
 				ncn(fmt.Sprintf(`%v, %v := __k, __v`, keyName, valName)),
 				forVda.codeNode,
@@ -69,23 +73,26 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 }
 
 func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	rcond := ""
+	var rcond html.Attribute
 	for _, attr := range node.Attr {
 		switch attr.Key {
 		case "cond":
-			rcond = attr.Val
+			rcond = attr
 
 		default:
 			return nil, fmt.Errorf(`Invalid attribute "%v" for if.`, attr.Key)
 		}
 	}
 
-	cond := extractSingleMustache(rcond)
+	cond := rcond.Val
 	if cond == "" {
-		return nil, fmt.Errorf(
-			`If's "cond" attribute must be assigned to a `+
-				`mustache respresenting a Go boolean expression. Got "%v" instead.`, rcond)
+		return nil, fmt.Errorf(`if structure's "cond" attribute cannot be empty`)
+	}
 
+	if !rcond.IsMustache {
+		return nil, fmt.Errorf(
+			`if structure's "cond" attribute must be assigned to a `+
+				`mustache respresenting a Go boolean expression. Got string value "%v" instead.`, cond)
 	}
 
 	varName := vda.newVar("if")

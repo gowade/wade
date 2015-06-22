@@ -48,13 +48,3 @@ func ncn(code string) *codeNode {
 		code: code,
 	}
 }
-
-func extractSingleMustache(attrVal string) string {
-	parts := parseTextMustache(attrVal)
-
-	if len(parts) != 1 || !parts[0].isMustache {
-		return ""
-	}
-
-	return parts[0].content
-}

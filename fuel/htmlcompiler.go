@@ -89,7 +89,7 @@ func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *c
 		i++
 	}
 
-	return filterTextStrings(children)
+	return children
 }
 
 func (c *HTMLCompiler) addError(err error) {
@@ -126,7 +126,7 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 			key := `""`
 			for _, attr := range node.Attr {
 				if attr.Key == "key" {
-					key = valueToStringCode(attributeValueCode(parseTextMustache(attr.Val)))
+					key = valueToStringCode(attributeValueCode(attr))
 				}
 			}
 

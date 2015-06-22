@@ -6,19 +6,19 @@
 		</ul>
 		<ul>
 			<wtf></wtf>
-			<for k="i" v="item" range="{{ []string{} }}">
-				<if cond="{{ i >= 0 }}">
-					<li key="tt">Even {{ i }}</li>
+			<for k="i" v="item" range={{ []string{} }}>
+				<if cond={{ i >= 0 }}>
+					<li key="{{ i }}" test="{{ i }}th">Even {{ i }}</li>
 				</if>
 				<li key="zz">{{ item }}</li>	
 			</for>
 		</ul>
 		<ul>
 			<wtf></wtf>
-			<for k="i" v="item" range="{{ []string{} }}">
+			<for k="i" v="item" range={{ []string{} }}>
                 <div key="{{ i }}">
                     <li>{{ item }}</li>	
-                    <if cond="{{ i == 0 }}">
+                    <if cond={{ i == 0 }}>
                         <li>Even {{ i }}</li>
                         <li>{{ item }}</li>	
                     </if>
@@ -26,7 +26,7 @@
                 
                     <ul>	
                         <li>{{ item }}</li>	
-                        <for v="subitem" range="{{ []string{} }}">
+                        <for v="subitem" range={{ []string{} }}>
                             <li>{{ subitem }}</li>
                         </for>
                     </ul>
