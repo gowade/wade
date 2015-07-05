@@ -24,7 +24,7 @@ type Worklog struct {
 }
 
 func (this *Worklog) handleSearch(filterText string) {
-	this.SetFilterText(strings.ToLower(filterText))
+	this.SetFilterText(filterText)
 }
 
 type SearchBar struct {

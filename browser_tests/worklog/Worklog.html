@@ -1,9 +1,10 @@
+<import from="strings" as="str"></import>
+
 <Worklog>
     <div>
         <h2>Worklog</h2>
         <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}></SearchBar>
-        <LogTable FilterText={{ this.State.FilterText }}
-                  Projects={{ this.State.Projects }}></LogTable>
+        <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}></LogTable>
     </div>
 </Worklog>
 
@@ -12,7 +13,7 @@
         <input type="text" 
                class="form-control"
                placeholder="Search for a project..."
-               value={{ this.FilterText }}
+               value={{ str.ToLower(this.FilterText) }}
                onChange={{ this.handleSearch }}
                ref="filterTextInput"
          />

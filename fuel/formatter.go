@@ -22,13 +22,10 @@ func runGofmt(file string) {
 	}
 }
 
-func writeCodeNaive(w io.WriteCloser, file, pkgName string, root *codeNode) {
-	write(w, Prelude(pkgName))
-	emitCodeNaive(w, root)
-	w.Close()
+func writeDomCodeFile(w io.WriteCloser, pkgName string, root *codeNode) {
 }
 
-func emitCodeNaive(w io.Writer, node *codeNode) {
+func emitDomCode(w io.Writer, node *codeNode) {
 	if node == nil {
 		write(w, "<<NIL>>")
 		return
@@ -44,7 +41,7 @@ func emitCodeNaive(w io.Writer, node *codeNode) {
 	case FuncCallCodeNode:
 		write(w, node.code+"(")
 		for i, c := range node.children {
-			emitCodeNaive(w, c)
+			emitDomCode(w, c)
 			if i < len(node.children)-1 {
 				write(w, ",")
 			}
@@ -60,21 +57,21 @@ func emitCodeNaive(w io.Writer, node *codeNode) {
 	case VarDeclAreaCodeNode:
 		write(w, "\n")
 		for _, c := range node.children {
-			emitCodeNaive(w, c)
+			emitDomCode(w, c)
 			write(w, "\n")
 		}
 
 	case WrapperCodeNode:
 		write(w, node.code)
 		for _, c := range node.children {
-			emitCodeNaive(w, c)
+			emitDomCode(w, c)
 			write(w, "\n")
 		}
 
 	case CompositeCodeNode, BlockCodeNode:
 		write(w, node.code+"{\n")
 		for _, c := range node.children {
-			emitCodeNaive(w, c)
+			emitDomCode(w, c)
 			if node.typ == CompositeCodeNode {
 				write(w, ",")
 			}
@@ -124,7 +121,7 @@ func handleElemListCN(w io.Writer, node *codeNode) {
 		} else {
 			write(w, opening)
 			for i, c := range part {
-				emitCodeNaive(w, c)
+				emitDomCode(w, c)
 				if i < len(part)-1 {
 					write(w, ",\n")
 				}

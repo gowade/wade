@@ -61,7 +61,7 @@ func (f *Fuel) BuildPackage() {
 
 	checkFatal(err)
 
-	htmlComs, comList := f.getHtmlComponents()
+	htmlComs, htmlFiles := f.parseHtmlTemplates()
 	var pkgName string
 
 	for _, pkg := range pkgs {
@@ -76,20 +76,36 @@ func (f *Fuel) BuildPackage() {
 	}
 
 	htmlCompiler := NewHTMLCompiler(f.components)
-	for _, comName := range comList {
-		if com, ok := f.components[comName]; ok {
-			f.buildComponent(htmlCompiler, com, pkgName)
-		} else {
-			fatal("No struct definition for %v component.", comName)
+	for _, htmlFile := range htmlFiles {
+		extcut := len(htmlFile.name) - len(".html")
+		ofilename := string([]rune(htmlFile.name[:extcut])) + fuelSuffix
+		w, err := os.Create(ofilename)
+		if err != nil {
+			fatal(err.Error())
 		}
+		defer w.Close()
+		write(w, prelude(pkgName, htmlFile.imports))
+
+		for _, comName := range htmlFile.components {
+			if com, ok := f.components[comName]; ok {
+				write(w, "\n\n")
+				ctree := htmlCompiler.Generate(com.htmlInfo.markup, &com)
+				emitDomCode(w, ctree)
+			} else {
+				fatal("No struct definition for %v component.", comName)
+			}
+		}
+
+		runGofmt(ofilename)
 	}
 
-	mfile, err := os.Create("autogen.fuel.go")
+	mfile, err := os.Create("generated.fuel.go")
 	if err != nil {
 		fatal(err.Error())
 	}
+	defer mfile.Close()
 
-	write(mfile, Prelude(pkgName))
+	write(mfile, prelude(pkgName, nil))
 	for _, com := range f.components {
 		if com.state.field != "" {
 			write(mfile, stateMethsCode(com, fset))
@@ -164,28 +180,32 @@ func stateMethsCode(com componentInfo, fset *token.FileSet) string {
 		com.name, com.state.field) + setters
 }
 
-func (f *Fuel) buildComponent(compiler *HTMLCompiler, com componentInfo, pkgName string) {
-	fileName := com.name + fuelSuffix
-	err := writeGoDomFile(compiler, com.htmlInfo.markup, fileName, pkgName, &com)
-	if err != nil {
-		fatal("Error building component %v, HTML file %v:\n`%v`", com.name, com.htmlInfo.file, err.Error())
-	}
-
-	runGofmt(fileName)
+type importInfo struct {
+	path string
+	as   string
 }
 
-func (f *Fuel) getHtmlComponents() (map[string]htmlInfo, []string) {
+type htmlFileInfo struct {
+	name       string
+	imports    []importInfo
+	components []string
+}
+
+func (f *Fuel) parseHtmlTemplates() (map[string]htmlInfo, []htmlFileInfo) {
 	files, err := ioutil.ReadDir(f.dir)
 	if err != nil {
 		checkFatal(err)
 	}
 
 	m := make(map[string]htmlInfo)
-	comList := make([]string, 0)
+	hfs := make([]htmlFileInfo, 0)
 	for _, fileInfo := range files {
 		if !strings.HasSuffix(fileInfo.Name(), ".html") {
 			continue
 		}
+
+		var impList []importInfo
+		var comList []string
 
 		file, err := os.Open(fileInfo.Name())
 		checkFatal(err)
@@ -193,21 +213,47 @@ func (f *Fuel) getHtmlComponents() (map[string]htmlInfo, []string) {
 		checkFatal(err)
 
 		for _, node := range nodes {
-			if node.Type == html.ElementNode && unicode.IsUpper([]rune(node.Data)[0]) {
-				if _, exists := m[node.Data]; exists {
-					fatal(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
+			if node.Type == html.ElementNode {
+				if node.Data == "import" {
+					var imp importInfo
+					for _, attr := range node.Attr {
+						switch attr.Key {
+						case "from":
+							imp.path = attr.Val
+						case "as":
+							imp.as = attr.Val
+						}
+					}
+
+					if imp.path == "" {
+						fatal(`%v: <import>'s "from" attribute must be set.`, fileInfo.Name())
+					}
+
+					impList = append(impList, imp)
 				}
 
-				comList = append(comList, node.Data)
-				m[node.Data] = htmlInfo{
-					markup: node,
-					file:   fileInfo.Name(),
+				if unicode.IsUpper([]rune(node.Data)[0]) {
+					if _, exists := m[node.Data]; exists {
+						fatal(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
+					}
+
+					comList = append(comList, node.Data)
+					m[node.Data] = htmlInfo{
+						markup: node,
+						file:   fileInfo.Name(),
+					}
 				}
 			}
 		}
+
+		hfs = append(hfs, htmlFileInfo{
+			name:       fileInfo.Name(),
+			components: comList,
+			imports:    impList,
+		})
 	}
 
-	return m, comList
+	return m, hfs
 }
 
 func anonFieldName(typ ast.Expr) string {
