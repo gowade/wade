@@ -64,7 +64,7 @@ func main() {
 
 			searchBar.SetVal("EPI")
 			searchBar.Trigger("change")
-			Expect(logTable.Find("h4").Text()).ToBe("Project Epic")
+			Expect(logTable.Find("h4").Text()).ToBe("PROJECT EPIC")
 		})
 	})
 }

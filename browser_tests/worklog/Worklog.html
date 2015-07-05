@@ -1,10 +1,10 @@
-<import from="strings" as="str"></import>
+<import from="strings" as="str"/>
 
 <Worklog>
     <div>
         <h2>Worklog</h2>
-        <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}></SearchBar>
-        <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}></LogTable>
+        <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}/>
+        <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}/>
     </div>
 </Worklog>
 
@@ -13,7 +13,7 @@
         <input type="text" 
                class="form-control"
                placeholder="Search for a project..."
-               value={{ str.ToLower(this.FilterText) }}
+               value={{ this.FilterText }}
                onChange={{ this.handleSearch }}
                ref="filterTextInput"
          />
@@ -24,7 +24,7 @@
     <div class="logtable">
         <for v="project" range={{ this.Projects }}>
             <if cond={{ this.filterCheck(project.Title) }}>
-                <LogRow Project={{ project }}></LogRow>
+                <LogRow Project={{ project }}/>
             </if>
         </for>
     </div>
@@ -32,7 +32,7 @@
 
 <LogRow>
     <div class="row" key={{ this.ID }}>
-        <div class="col-md-7"><h4>{{ this.Title }}</h4></div>
+        <div class="col-md-7"><h4>{{ str.ToUpper(this.Title) }}</h4></div>
         <div class="col-md-2">
             <button type="button" hidden={{ this.State.Running }}
                 onclick={{ this.toggleClock }}>Start</button>
