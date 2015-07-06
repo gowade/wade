@@ -54,7 +54,7 @@ func prelude(pkgName string, imports []importInfo) string {
 	var importCode bytes.Buffer
 	if imports != nil {
 		for _, imp := range imports {
-			importCode.WriteString(fmt.Sprintf(`%v "%v"`, imp.as, imp.path))
+			importCode.WriteString(fmt.Sprintf(`%v "%v"`+"\n", imp.as, imp.path))
 		}
 	}
 	return `package ` + pkgName + `

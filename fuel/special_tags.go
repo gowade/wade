@@ -14,6 +14,54 @@ func lnode(code string) *codeNode {
 	}
 }
 
+func (c *HTMLCompiler) renderTagCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+	var contentAttr html.Attribute
+	for _, attr := range node.Attr {
+		switch attr.Key {
+		case "content":
+			contentAttr = attr
+
+		default:
+			return nil, fmt.Errorf(`Invalid attribute "%v" for "render" tag.`, attr.Key)
+		}
+	}
+
+	if contentAttr.Val == "" {
+		return nil, fmt.Errorf(`"render" tag's "range" attribute cannot be empty.`)
+	}
+
+	if !contentAttr.IsMustache {
+		return nil, fmt.Errorf(
+			`for loop's "range" attribute must be assigned to a `+
+				`vdom.Node or []vdom.Node. Got string value "%v" instead.`,
+			contentAttr.Val)
+
+	}
+
+	if contentAttr.Val == "this.Children" {
+		return lnode(contentAttr.Val), nil
+	}
+
+	varName := vda.newVar("render")
+	vda.setVarDecl(
+		varName,
+		ncn(fmt.Sprintf(`var %v []vdom.Node`, varName)),
+		&codeNode{
+			typ:  BlockCodeNode,
+			code: fmt.Sprintf(`switch t := (interface{})(%v).(type)`, contentAttr.Val),
+			children: []*codeNode{
+				ncn(fmt.Sprintf("case []vdom.Node: %v = %v\n", varName, contentAttr.Val)),
+				ncn(fmt.Sprintf("case *vdom.Element, *vdom.TextNode:"+
+					" %v = []vdom.Node{t.(vdom.Node)}\n", varName)),
+				ncn(`default: panic(fmt.Sprintf("` +
+					`Value for \"render\" tag's \"content\" attribute must be of type ` +
+					`vdom.Node or []vdom.Node"))`),
+			},
+		})
+
+	return lnode(varName), nil
+}
+
 func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	keyName, valName := "_", "_"
 	var rangeAttr html.Attribute
@@ -70,7 +118,7 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 			},
 		})
 
-	return lnode(fmt.Sprintf(varName)), nil
+	return lnode(varName), nil
 }
 
 func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {

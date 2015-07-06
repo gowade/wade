@@ -1,8 +1,9 @@
 <import from="strings" as="str"/>
+<import from="github.com/gowade/wade/browser_tests/worklog/dummypkg" as="dummy"/>
 
 <Worklog>
     <div>
-        <h2>Worklog</h2>
+        <dummy:H2>Worklog</dummy:H2>
         <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}/>
         <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}/>
     </div>

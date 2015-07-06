@@ -115,6 +115,9 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 		var cn *codeNode
 		var err error
 		switch node.Data {
+		case "render":
+			cn, err = c.renderTagCode(node, vda)
+
 		case "for":
 			htmlutils.RemoveGarbageTextChildren(node)
 			cn, err = c.forLoopCode(node, vda)
