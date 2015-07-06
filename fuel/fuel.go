@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"unicode"
@@ -18,6 +19,23 @@ import (
 const (
 	fuelSuffix = ".fuel.go"
 )
+
+var (
+	gSrcPath string
+)
+
+func srcPath() string {
+	if gSrcPath == "" {
+		gopath := os.Getenv("GOPATH")
+		if gopath == "" {
+			fatal("GOPATH environment variable has not been set, please set it to a correct value.")
+		}
+
+		gSrcPath = filepath.Join(gopath, "src")
+	}
+
+	return gSrcPath
+}
 
 type htmlInfo struct {
 	file   string
@@ -45,23 +63,22 @@ type Fuel struct {
 	components componentMap
 }
 
-func NewFuel(dir string) *Fuel {
+func NewFuel() *Fuel {
 	return &Fuel{
-		dir:        dir,
 		components: componentMap{},
 	}
 }
 
-func (f *Fuel) BuildPackage() {
+func (f *Fuel) BuildPackage(dir string, prefix string) {
 	fset := token.NewFileSet()
 
-	pkgs, err := parser.ParseDir(fset, f.dir, func(fi os.FileInfo) bool {
+	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), fuelSuffix)
 	}, 0)
 
 	checkFatal(err)
 
-	htmlComs, htmlFiles := f.parseHtmlTemplates()
+	htmlComs, htmlFiles := f.parseHtmlTemplates(dir)
 	var pkgName string
 
 	for _, pkg := range pkgs {
@@ -71,15 +88,28 @@ func (f *Fuel) BuildPackage() {
 
 		ast.PackageExports(pkg)
 		for _, file := range pkg.Files {
-			f.getComponents(file, htmlComs)
+			f.getComponents(file, htmlComs, prefix)
 		}
 	}
 
 	htmlCompiler := NewHTMLCompiler(f.components)
+	var pcoms []componentInfo
 	for _, htmlFile := range htmlFiles {
+		for _, imp := range htmlFile.imports {
+			pdir := filepath.Join(srcPath(), filepath.FromSlash(imp.path))
+			if _, err := os.Stat(pdir); err == nil {
+				prefix := imp.as
+				if prefix == "" {
+					prefix = filepath.Base(pdir)
+				}
+
+				f.BuildPackage(pdir, prefix+".")
+			}
+		}
+
 		extcut := len(htmlFile.name) - len(".html")
-		ofilename := string([]rune(htmlFile.name[:extcut])) + fuelSuffix
-		w, err := os.Create(ofilename)
+		ofilename := "g." + string([]rune(htmlFile.name[:extcut])) + fuelSuffix
+		w, err := os.Create(filepath.Join(dir, ofilename))
 		if err != nil {
 			fatal(err.Error())
 		}
@@ -87,26 +117,29 @@ func (f *Fuel) BuildPackage() {
 		write(w, prelude(pkgName, htmlFile.imports))
 
 		for _, comName := range htmlFile.components {
-			if com, ok := f.components[comName]; ok {
+			if com, ok := f.components[prefix+comName]; ok {
 				write(w, "\n\n")
 				ctree := htmlCompiler.Generate(com.htmlInfo.markup, &com)
 				emitDomCode(w, ctree)
+				pcoms = append(pcoms, com)
 			} else {
 				fatal("No struct definition for %v component.", comName)
 			}
 		}
 
-		runGofmt(ofilename)
+		if prefix == "" {
+			runGofmt(ofilename)
+		}
 	}
 
-	mfile, err := os.Create("generated.fuel.go")
+	mfile, err := os.Create(filepath.Join(dir, "g.methods.fuel.go"))
 	if err != nil {
 		fatal(err.Error())
 	}
 	defer mfile.Close()
 
 	write(mfile, prelude(pkgName, nil))
-	for _, com := range f.components {
+	for _, com := range pcoms {
 		if com.state.field != "" {
 			write(mfile, stateMethsCode(com, fset))
 		}
@@ -191,8 +224,8 @@ type htmlFileInfo struct {
 	components []string
 }
 
-func (f *Fuel) parseHtmlTemplates() (map[string]htmlInfo, []htmlFileInfo) {
-	files, err := ioutil.ReadDir(f.dir)
+func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileInfo) {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		checkFatal(err)
 	}
@@ -207,7 +240,7 @@ func (f *Fuel) parseHtmlTemplates() (map[string]htmlInfo, []htmlFileInfo) {
 		var impList []importInfo
 		var comList []string
 
-		file, err := os.Open(fileInfo.Name())
+		file, err := os.Open(filepath.Join(dir, fileInfo.Name()))
 		checkFatal(err)
 		nodes, err := htmlutils.ParseFragment(file)
 		checkFatal(err)
@@ -324,7 +357,7 @@ func extractFields(comName string, fields []*ast.Field) (map[string]bool, stateI
 	return argFields, state
 }
 
-func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo) {
+func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefix string) {
 	for _, decl := range file.Decls {
 		switch gdecl := decl.(type) {
 		case *ast.GenDecl:
@@ -336,7 +369,7 @@ func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo) {
 					case *ast.StructType:
 						if hcom, ok := htmlComs[name]; ok {
 							argFields, state := extractFields(name, stype.Fields.List)
-							f.components[name] = componentInfo{
+							f.components[prefix+name] = componentInfo{
 								name:      name,
 								argFields: argFields,
 								state:     state,

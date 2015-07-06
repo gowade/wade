@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
@@ -33,9 +35,26 @@ func main() {
 			if err != nil {
 				fatal(err.Error())
 			}
-			fuel := NewFuel(dir)
-			fuel.BuildPackage()
+			fuel := NewFuel()
+			fuel.BuildPackage(dir, "")
 		}
+	case "clean":
+		dir, err := os.Getwd()
+		if err != nil {
+			fatal(err.Error())
+		}
+
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			fatal(err.Error())
+		}
+
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), fuelSuffix) {
+				os.Remove(file.Name())
+			}
+		}
+
 	default:
 		fatal("Please specify a command.")
 	}
