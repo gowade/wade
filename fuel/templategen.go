@@ -20,10 +20,12 @@ func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key
 	fields := make([]*codeNode, 0, len(com.argFields)+1)
 	instChildren.code = fmt.Sprintf("Children: %v", instChildren.code)
 
+	fullname := com.fullName()
+
 	comCh := []*codeNode{
 		ncn(fmt.Sprintf(`Name: "%v"`, com.name)),
 		ncn(fmt.Sprintf(`VNode: %v`, varName)),
-		ncn(fmt.Sprintf(`InternalRefsHolder: %v{}`, com.name+"Refs")),
+		ncn(fmt.Sprintf(`InternalRefsHolder: %v{}`, fullname+"Refs")),
 		instChildren,
 	}
 
@@ -44,10 +46,10 @@ func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key
 			continue
 		}
 
-		return nil, fmt.Errorf(`Invalid field "%v" for component %v`, attr.Key, com.name)
+		return nil, fmt.Errorf(`Invalid field "%v" for component %v`, attr.Key, fullname)
 	}
 
-	typeIns := "&" + com.name
+	typeIns := "&" + fullname
 	if com.state.field != "" {
 		if com.state.isPointer {
 			fields = append(fields, ncn(

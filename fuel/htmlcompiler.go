@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
@@ -136,7 +137,10 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 				}
 			}
 
-			if com, ok := c.getComponent(node.Data); ok {
+			parts := strings.Split(node.Data, ":")
+			comName := strings.Join(parts, ".")
+
+			if com, ok := c.getComponent(comName); ok {
 				children := c.genChildren(node, vda, nil)
 				cn, err = c.componentInstCode(com, node, key, vda, &codeNode{
 					typ:      CompositeCodeNode,

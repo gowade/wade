@@ -51,9 +51,14 @@ type stateInfo struct {
 
 type componentInfo struct {
 	htmlInfo  htmlInfo
+	prefix    string
 	name      string
 	argFields map[string]bool
 	state     stateInfo
+}
+
+func (z componentInfo) fullName() string {
+	return z.prefix + z.name
 }
 
 type componentMap map[string]componentInfo
@@ -109,7 +114,8 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 
 		extcut := len(htmlFile.name) - len(".html")
 		ofilename := "g." + string([]rune(htmlFile.name[:extcut])) + fuelSuffix
-		w, err := os.Create(filepath.Join(dir, ofilename))
+		ofilepath := filepath.Join(dir, ofilename)
+		w, err := os.Create(ofilepath)
 		if err != nil {
 			fatal(err.Error())
 		}
@@ -127,9 +133,7 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 			}
 		}
 
-		if prefix == "" {
-			runGofmt(ofilename)
-		}
+		runGofmt(ofilepath)
 	}
 
 	mfile, err := os.Create(filepath.Join(dir, "g.methods.fuel.go"))
@@ -369,8 +373,10 @@ func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefi
 					case *ast.StructType:
 						if hcom, ok := htmlComs[name]; ok {
 							argFields, state := extractFields(name, stype.Fields.List)
+							//println("<<<", prefix+name)
 							f.components[prefix+name] = componentInfo{
 								name:      name,
+								prefix:    prefix,
 								argFields: argFields,
 								state:     state,
 								htmlInfo:  hcom,

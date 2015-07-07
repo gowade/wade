@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
+	"os"
 	"os/exec"
 )
 
@@ -13,12 +13,11 @@ func write(w io.Writer, content string) {
 
 func runGofmt(file string) {
 	cmd := exec.Command("go", "fmt", file)
-	out, err := cmd.CombinedOutput()
-	fmt.Printf(`Running "go fmt" on file "%v". Output: %v`+"\n", file, string(out))
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+
 	if err != nil {
-		fmt.Println(`fuel requires that the standard go command is available. ` +
-			`Please make sure it works.`)
-		log.Fatal(err)
+		fatal(`go fmt failed with %v`, err.Error())
 	}
 }
 

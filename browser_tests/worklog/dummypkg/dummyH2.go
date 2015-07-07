@@ -4,6 +4,6 @@ import (
 	"github.com/gowade/wade"
 )
 
-type Dummy struct {
+type H2 struct {
 	wade.Com
 }
