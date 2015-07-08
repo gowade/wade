@@ -6,4 +6,6 @@ import (
 
 type H2 struct {
 	wade.Com
+	RandomIcon bool
+	RandomProp bool
 }
