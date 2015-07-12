@@ -7,6 +7,7 @@ import (
 
 	"github.com/gopherjs/jquery"
 	"github.com/gowade/wade"
+	"github.com/gowade/wade/vdom"
 	"github.com/gowade/wade/vdom/browser"
 
 	. "github.com/gowade/wade/browser_tests/worklog"
@@ -40,7 +41,8 @@ func main() {
 		}
 
 		ctn := JQ("<div/>").AppendTo(JQ("body"))
-		wade.Render(worklog, browser.DOMNode{ctn.Get(0)})
+		vnode := wade.Render(worklog)
+		vdom.PerformDiff(vnode, nil, browser.DOMNode{ctn.Get(0)})
 
 		logTable := ctn.Find(".logtable")
 		It("Should not render component tags", func() {

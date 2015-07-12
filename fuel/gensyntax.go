@@ -20,7 +20,7 @@ const (
 func domElType(elTag string) (string, string) {
 	switch elTag {
 	case "input":
-		return "vdom.DOMInputEl", "wade.DOM().ToInputEl"
+		return "vdom.DOMInputEl", "wade.VdomDrv().ToInputEl"
 	}
 
 	return "vdom.DOMNode", ""

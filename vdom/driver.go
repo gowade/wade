@@ -1,6 +1,8 @@
 package vdom
 
-import "github.com/gopherjs/gopherjs/js"
+import (
+	"github.com/gopherjs/gopherjs/js"
+)
 
 type DOMNode interface {
 	Child(int) DOMNode

@@ -3,21 +3,33 @@ package wade
 import (
 	"fmt"
 
+	"github.com/gowade/wade/driver"
 	"github.com/gowade/wade/vdom"
 )
 
-var domDriver vdom.Driver
+type M map[string]interface{}
 
-func SetDOMDriver(d vdom.Driver) {
-	domDriver = d
+type AppMode int
+
+const (
+	DevelopmentMode AppMode = iota
+	ProductionMode
+)
+
+var (
+	mode AppMode = DevelopmentMode
+)
+
+func ClientSide() bool {
+	return driver.Env() == driver.BrowserEnv
 }
 
-func DOM() vdom.Driver {
-	if domDriver == nil {
-		panic("DOM driver not set.")
-	}
+func DevMode() bool {
+	return mode == DevelopmentMode
+}
 
-	return domDriver
+func SetMode(appMode AppMode) {
+	mode = appMode
 }
 
 func Str(value interface{}) string {
@@ -67,17 +79,17 @@ type Component interface {
 	Render(interface{}) *vdom.Element
 
 	InternalState() interface{}
-}
-
-type RootComponent interface {
-	Component
 	InternalComPtr() *Com
 }
 
-func Render(com RootComponent, d vdom.DOMNode) {
+func Render(com Component) vdom.Node {
 	vnode := com.Render(nil)
 	c := com.InternalComPtr()
 	c.VNode = vnode
 
-	vdom.PerformDiff(vnode, nil, d)
+	return vnode
+}
+
+func VdomDrv() vdom.Driver {
+	return driver.Vdom()
 }

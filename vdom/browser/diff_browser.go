@@ -6,7 +6,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 
-	"github.com/gowade/wade"
+	wdrv "github.com/gowade/wade/driver"
 	"github.com/gowade/wade/vdom"
 )
 
@@ -29,7 +29,7 @@ func init() {
 		panic("This package is only available in browser environment.")
 	}
 
-	wade.SetDOMDriver(driver{})
+	wdrv.SetVdomDriver(driver{})
 	document = js.Global.Get("document")
 }
 

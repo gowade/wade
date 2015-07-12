@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gowade/wade"
-	"github.com/gowade/wade/vdom/browser"
 
 	. "github.com/gowade/wade/browser_tests/worklog"
 )
@@ -31,8 +30,11 @@ func main() {
 		},
 	}
 
-	wade.Render(worklog, browser.ElementById("container"))
-	//worklog.State.Projects[0].Title = "Oh Yeah"
+	r := wade.NewRouter()
+	r.Handle("/", "home", func(c *wade.Context) error {
+		return c.Render(worklog)
+	})
 
-	//worklog.Rerender()
+	basePath := "/github.com/gowade/wade/browser_tests/worklog/main"
+	wade.InitApp(basePath, r, wade.FindContainer("#container"))
 }
