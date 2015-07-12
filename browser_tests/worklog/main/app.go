@@ -35,6 +35,10 @@ func main() {
 		return c.Render(worklog)
 	})
 
+	r.Handle("/hello/:name", "hello", func(c *wade.Context) error {
+		return c.Render(&Hello{Name: c.Params.Get("name")})
+	})
+
 	basePath := "/github.com/gowade/wade/browser_tests/worklog/main"
 	wade.InitApp(basePath, r, wade.FindContainer("#container"))
 }

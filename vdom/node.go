@@ -38,6 +38,9 @@ func NewTextNode(data string) *TextNode {
 
 type Component interface {
 	Render(interface{}) *Element
+	OnMount()
+	OnUnmount()
+
 	InternalState() interface{}
 	InternalUnmount()
 	InternalUnmounted() bool
@@ -62,7 +65,10 @@ func (t *Element) Text() string {
 	s := ""
 	for _, c := range t.Children {
 		if c != nil {
-			s += c.Render().Text()
+			r := c.Render()
+			if r != nil {
+				s += r.Text()
+			}
 		}
 	}
 
@@ -84,7 +90,9 @@ func (t *Element) SetRenderedDOMNode(node DOMNode) {
 }
 
 func (t *Element) Unmount() {
-	t.Component.InternalUnmount()
+	if t.Component != nil {
+		t.Component.InternalUnmount()
+	}
 }
 
 func (t *Element) IsElement() bool {
@@ -102,16 +110,17 @@ func (t *Element) Render() Node {
 		}
 
 		var state interface{}
-		//if t.oldElem != nil {
-		//println(t.oldElem.Deleted, t.oldElem.Component)
-		//}
 		if t.oldElem != nil && !t.Component.InternalUnmounted() && t.oldElem.Component != nil {
 			state = t.oldElem.Component.InternalState()
 		}
 
 		t.ComRend = t.Component.Render(state)
-		t.ComRend.Key = t.Key
-		return t.ComRend
+		if t.ComRend != nil {
+			t.ComRend.Key = t.Key
+			return t.ComRend
+		}
+
+		return nil
 	}
 
 	return t

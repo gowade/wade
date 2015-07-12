@@ -75,7 +75,15 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	}
 
 	oe := node.(*vdom.Element)
-	e := node.Render().(*vdom.Element)
+
+	nr := oe.Render()
+	if nr == nil {
+		d = document.Call("createComment", "")
+		oe.SetRenderedDOMNode(DOMNode{d})
+		return d
+	}
+
+	e := nr.(*vdom.Element)
 	if d == nil {
 		d = createElement(e.Tag)
 	}
@@ -99,8 +107,15 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	}
 
 	for _, c := range e.Children {
+		if el, ok := c.(*vdom.Element); ok && el.Component != nil {
+			el.Component.OnMount()
+		}
+
 		if c != nil {
-			d.Call("appendChild", render(c, nil))
+			cr := render(c, nil)
+			if cr != nil {
+				d.Call("appendChild", cr)
+			}
 		}
 	}
 
@@ -133,6 +148,12 @@ func (dNode DOMNode) Do(action vdom.Action) {
 
 	switch action.Type {
 	case vdom.Deletion:
+		if el, ok := action.Content.(*vdom.Element); ok {
+			if el.Component != nil {
+				el.Component.OnUnmount()
+			}
+		}
+
 		d.Call("removeChild", action.Element.(DOMNode).Object)
 	case vdom.Insertion:
 		insertee := render(action.Content, nil)

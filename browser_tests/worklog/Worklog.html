@@ -1,11 +1,14 @@
 <import from="strings" as="str"/>
+<import from="github.com/gowade/wade/components" as="c"/>
 <import from="github.com/gowade/wade/browser_tests/worklog/dummypkg" as="dummy"/>
 
 <Worklog>
     <div>
+        <c:Title>Worklog</c:Title>
         <dummy:H2>Worklog</dummy:H2>
         <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}/>
         <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}/>
+        <c:Link Path={{ wade.Route("hello", "254m4") }}>Hello World</c:Link>
     </div>
 </Worklog>
 
@@ -43,3 +46,7 @@
         <div class="col-md-3 elapsed">{{ this.State.Elapsed }}</div>
     </div>
 </LogRow>
+
+<Hello>
+    <h1>Hello {{ this.Name }}</h1>
+</Hello>

@@ -26,7 +26,7 @@ func writeDomCodeFile(w io.WriteCloser, pkgName string, root *codeNode) {
 
 func emitDomCode(w io.Writer, node *codeNode) {
 	if node == nil {
-		write(w, "<<NIL>>")
+		w.Write([]byte("#ERROR<NIL>"))
 		return
 	}
 

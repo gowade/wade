@@ -12,7 +12,7 @@ func init() {
 		panic("jsdom package can only be imported in browser environment")
 	}
 
-	dom.SetDocument(Node{js.Global.Get("document")})
+	dom.SetDocument(Document{Node{js.Global.Get("document")}})
 }
 
 type Node struct {
@@ -66,4 +66,16 @@ func (z Node) Find(query string) []dom.Node {
 	}
 
 	return nodeList(z.Call("querySelectorAll", query))
+}
+
+type Document struct {
+	Node
+}
+
+func (z Document) Title() string {
+	return z.Get("title").String()
+}
+
+func (z Document) SetTitle(title string) {
+	z.Set("title", title)
 }

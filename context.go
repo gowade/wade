@@ -38,12 +38,7 @@ func (c *Context) GoToRoute(routeName string, params ...interface{}) error {
 		return fmt.Errorf(`there's no route named "%v"`, routeName)
 	}
 
-	url, err := gourl.Parse(c.router.URLFromRoute(route, params))
-	if err != nil {
-		return err
-	}
-
-	driver.GetRouteDriver().SetURL(url, true)
+	app.SetURLPath(c.router.PathFromRoute(route, params))
 	return nil
 }
 

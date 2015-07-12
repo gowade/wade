@@ -65,11 +65,15 @@ func compileDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName,
 	defer ofile.Close()
 	checkFatal(err)
 
-	ctree := compiler.Generate(htmlNode, com)
+	ctree, err := compiler.Generate(htmlNode, com)
+	if err != nil {
+		return err
+	}
+
 	write(ofile, prelude(pkgName, nil))
 	emitDomCode(ofile, ctree)
 
-	return compiler.Error()
+	return nil
 }
 
 func buildHtmlFile(filename string) {

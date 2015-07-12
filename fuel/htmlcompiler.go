@@ -16,7 +16,6 @@ func NewHTMLCompiler(coms componentMap) *HTMLCompiler {
 }
 
 type HTMLCompiler struct {
-	errors  []error
 	coms    componentMap
 	comRefs map[string][]comRef
 }
@@ -44,20 +43,12 @@ func (r *comRefs) add(refName string, elTag string, code *codeNode) string {
 	return vname
 }
 
-func (c *HTMLCompiler) Errors() []error {
-	return c.errors
-}
-
-func (c *HTMLCompiler) Error() error {
-	if c.errors == nil || len(c.errors) == 0 {
-		return nil
+func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea, comRefs *comRefs) (*codeNode, error) {
+	children, err := c.genChildren(node, vda, comRefs)
+	if err != nil {
+		return nil, err
 	}
 
-	return c.errors[0]
-}
-
-func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea, comRefs *comRefs) *codeNode {
-	children := c.genChildren(node, vda, comRefs)
 	childrenCode := nilCode
 	if len(children) != 0 {
 		childrenCode = &codeNode{
@@ -78,23 +69,25 @@ func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea
 		},
 	}
 
-	return cn
+	return cn, nil
 }
 
-func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *comRefs) []*codeNode {
+func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *comRefs) (
+	[]*codeNode, error) {
 	children := make([]*codeNode, 0)
 	i := 0
 	for ch := node.FirstChild; ch != nil; ch = ch.NextSibling {
-		chAppend(&children, c.generateRec(ch, vda, comRefs))
+		l, err := c.generateRec(ch, vda, comRefs)
+		if err != nil {
+			return nil, err
+		}
+
+		chAppend(&children, l)
 
 		i++
 	}
 
-	return children
-}
-
-func (c *HTMLCompiler) addError(err error) {
-	c.errors = append(c.errors, err)
+	return children, nil
 }
 
 func (c *HTMLCompiler) getComponent(tagName string) (i componentInfo, ok bool) {
@@ -107,9 +100,10 @@ func (c *HTMLCompiler) getComponent(tagName string) (i componentInfo, ok bool) {
 	return
 }
 
-func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *comRefs) []*codeNode {
+func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *comRefs) (
+	[]*codeNode, error) {
 	if node.Type == html.TextNode {
-		return textNodeCode(node.Data)
+		return textNodeCode(node.Data), nil
 	}
 
 	if node.Type == html.ElementNode {
@@ -141,14 +135,23 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 			comName := strings.Join(parts, ".")
 
 			if com, ok := c.getComponent(comName); ok {
-				children := c.genChildren(node, vda, nil)
+				var children []*codeNode
+				children, err = c.genChildren(node, vda, nil)
+				if err != nil {
+					return nil, err
+				}
+
 				cn, err = c.componentInstCode(com, node, key, vda, &codeNode{
 					typ:      CompositeCodeNode,
 					code:     NodeListOpener,
 					children: children,
 				})
+
 			} else {
-				cn = c.elementCode(node, key, vda, comRefs)
+				cn, err = c.elementCode(node, key, vda, comRefs)
+			}
+			if err != nil {
+				return nil, err
 			}
 
 			for _, attr := range node.Attr {
@@ -159,13 +162,13 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 		}
 
 		if err != nil {
-			c.addError(err)
+			return nil, err
 		}
 
-		return []*codeNode{cn}
+		return []*codeNode{cn}, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) string {
@@ -181,16 +184,28 @@ func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) stri
 	return fmt.Sprintf(RenderFuncOpener, embedStr)
 }
 
-func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
+func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode, error) {
 	renderNode := node
-	children := make([]*codeNode, 0)
+	initCode := ncn("this.OnInvoke()")
+	children := []*codeNode{initCode}
 	if com != nil {
 		htmlutils.RemoveGarbageTextChildren(node)
-		if node.FirstChild == nil || node.LastChild != node.FirstChild {
-			c.addError(fmt.Errorf(
-				`Invalid HTML markup definition for %v, please make sure it contains `+
-					`exactly 1 child.`, node.Data))
-			return nil
+
+		if node.LastChild != node.FirstChild {
+			return nil, fmt.Errorf(
+				`Invalid HTML markup definition for %v, `+
+					`it cannot have more than 1 direct child.`, node.Data)
+		}
+
+		if node.FirstChild == nil {
+			return &codeNode{
+				typ:  BlockCodeNode,
+				code: c.renderFuncOpener(node.Data, com),
+				children: []*codeNode{
+					initCode,
+					ncn("return nil"),
+				},
+			}, nil
 		}
 
 		renderNode = node.FirstChild
@@ -201,13 +216,20 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 		}
 	}
 
-	c.errors = make([]error, 0)
 	vda := newVarDeclArea()
 
 	var cnode *codeNode
+	var l []*codeNode
+	var err error
+
 	if com != nil {
 		refs := newComRefs(vda)
-		cnode = c.generateRec(renderNode, vda, refs)[0]
+		l, err = c.generateRec(renderNode, vda, refs)
+		cnode = l[0]
+		if err != nil {
+			return nil, err
+		}
+
 		refsVar, refsSet := componentRefsVarCode(com.name)
 		if len(refs.refs) > 0 {
 			c.comRefs[com.name] = refs.refs
@@ -225,7 +247,12 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 			children = append(children, ncn(refsSet))
 		}
 	} else {
-		cnode = c.generateRec(renderNode, vda, nil)[0]
+		l, err = c.generateRec(renderNode, vda, nil)
+		cnode = l[0]
+		if err != nil {
+			return nil, err
+		}
+
 		vda.saveToCN()
 		children = append(children, vda.codeNode)
 	}
@@ -237,5 +264,5 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) *codeNode {
 		children: append(children, cnode),
 	}
 
-	return ret
+	return ret, nil
 }

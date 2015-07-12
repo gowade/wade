@@ -140,7 +140,12 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 		return
 	}
 
-	a, b := an.Render().(*Element), bn.Render().(*Element)
+	ar, br := an.Render(), bn.Render()
+	if ar == nil || br == nil {
+		return
+	}
+
+	a, b := ar.(*Element), br.(*Element)
 	a.SetRenderedDOMNode(b.DOMNode())
 	diffProps(a, b, dNode)
 
@@ -261,7 +266,6 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 	for i, bCh := range b.Children {
 		if bCh != nil {
 			bd[i] = dNode.Child(c)
-			//println("<<", bCh.NodeData(), bd[i].JS(), i, dNode.JS().Get("childNodes"))
 			c++
 		} else {
 			bp[i] = c
@@ -298,7 +302,6 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 				aCh.(*Element).oldElem = bCh.(*Element)
 			}
 
-			//println(aCh.Text(), bCh.Text(), bd[i].JS().Get("innerHTML"))
 			performDiff(aCh, bCh, bd[i], false)
 		}
 	}

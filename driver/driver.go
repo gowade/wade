@@ -34,7 +34,7 @@ func Init(router Router) {
 }
 
 type Router interface {
-	URLFromRoute(route string, params ...interface{}) string
+	PathFromRoute(route string, params ...interface{}) string
 	RouteByName(name string) (route string, ok bool)
 	Render(url *gourl.URL)
 	Build()

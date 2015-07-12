@@ -59,6 +59,17 @@ type Com struct {
 	unmounted          bool
 }
 
+// OnRender is called every time the component's Render() method is called.
+// Could be used for initialization of field values, please don't call anything
+// costly in this method.
+func (c *Com) OnInvoke() {}
+
+// OnMount is called whenever the component or its ancestor is rendered into the real DOM
+func (c *Com) OnMount() {}
+
+// OnUnmount is called whenever the component or its ancestor is removed from the real DOM
+func (c *Com) OnUnmount() {}
+
 func (c *Com) InternalState() interface{} {
 	return nil
 }
@@ -80,6 +91,10 @@ type Component interface {
 
 	InternalState() interface{}
 	InternalComPtr() *Com
+
+	OnInvoke()
+	OnMount()
+	OnUnmount()
 }
 
 func Render(com Component) vdom.Node {

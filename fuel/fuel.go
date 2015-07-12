@@ -125,7 +125,11 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 		for _, comName := range htmlFile.components {
 			if com, ok := f.components[prefix+comName]; ok {
 				write(w, "\n\n")
-				ctree := htmlCompiler.Generate(com.htmlInfo.markup, &com)
+				ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
+				if err != nil {
+					fatal(err.Error())
+				}
+
 				emitDomCode(w, ctree)
 				pcoms = append(pcoms, com)
 			} else {

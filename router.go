@@ -62,7 +62,7 @@ func (r *DefaultRouter) SetNotFoundHandler(c ControllerFunc) {
 	r.defaultRouter.setNotFoundHandler(c)
 }
 
-func (r *DefaultRouter) URLFromRoute(route string, params ...interface{}) string {
+func (r *DefaultRouter) PathFromRoute(route string, params ...interface{}) string {
 	routeparams := urlrouter.ParamNames(route)
 	if len(routeparams) != len(params) {
 		panic(fmt.Errorf(`Wrong number of parameters for route "%v". Expected %v, got %v.`,

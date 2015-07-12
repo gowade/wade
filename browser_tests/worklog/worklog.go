@@ -75,3 +75,8 @@ func (this *LogRow) toggleClock() {
 		this.SetRunning(false)
 	}
 }
+
+type Hello struct {
+	wade.Com
+	Name string
+}

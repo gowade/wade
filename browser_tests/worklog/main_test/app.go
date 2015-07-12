@@ -5,7 +5,9 @@ import (
 
 	. "github.com/phaikawl/jasmine"
 
+	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"
+
 	"github.com/gowade/wade"
 	"github.com/gowade/wade/vdom"
 	"github.com/gowade/wade/vdom/browser"
@@ -50,6 +52,8 @@ func main() {
 		})
 
 		It("Should show the page and update when an item is changed", func() {
+			Expect(js.Global.Get("document").Get("title").String()).ToBe("Worklog")
+
 			Expect(strings.HasPrefix(logTable.Find("h4").Text(), "ABCXYZ")).ToBe(true)
 			Expect(ctn.Find("h4").Length).ToBe(4)
 

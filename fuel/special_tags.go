@@ -97,7 +97,12 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 		typ:  SliceVarCodeNode,
 		code: varName,
 	}}
-	apList = append(apList, c.genChildren(node, forVda, nil)...)
+	l, err := c.genChildren(node, forVda, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	apList = append(apList, l...)
 
 	forVda.saveToCN()
 
@@ -147,7 +152,13 @@ func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 	varName := vda.newVar("if")
 	ifVda := newVarDeclArea()
 
-	child := c.generateRec(node.FirstChild, ifVda, nil)[0]
+	l, err := c.generateRec(node.FirstChild, ifVda, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	child := l[0]
+
 	ifVda.saveToCN()
 
 	child.code = fmt.Sprintf("%v = ", varName) + child.code
@@ -169,7 +180,12 @@ func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 func (c *HTMLCompiler) caseControlCode(node *html.Node, varName string, expr html.Attribute) (*codeNode, error) {
 	caseVda := newVarDeclArea()
 
-	child := c.generateRec(node.FirstChild, caseVda, nil)[0]
+	l, err := c.generateRec(node.FirstChild, caseVda, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	child := l[0]
 	caseVda.saveToCN()
 
 	var caseCode string

@@ -1,18 +1,25 @@
 package dom
 
 var (
-	document Node
+	document Document
 )
 
-func Document() Node {
+func GetDocument() Document {
 	if document == nil {
 		panic("DOM document has not been set.")
 	}
 	return document
 }
 
-func SetDocument(node Node) {
-	document = node
+type Document interface {
+	Title() string
+	SetTitle(title string)
+
+	Node
+}
+
+func SetDocument(doc Document) {
+	document = doc
 }
 
 type NodeType int
