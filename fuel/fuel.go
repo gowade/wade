@@ -6,11 +6,17 @@ import (
 	"go/parser"
 	"go/token"
 	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"unicode"
+
+	"gopkg.in/fsnotify.v1"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
@@ -74,32 +80,170 @@ func NewFuel() *Fuel {
 	}
 }
 
-func (f *Fuel) BuildPackage(dir string, prefix string) {
+func (f *Fuel) runGopherjs(indexFile string) {
+	serveDir := filepath.Dir(indexFile)
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(serveDir, "main.js"))
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	err := cmd.Run()
+
+	if err != nil {
+		fatal(`gopherjs failed with %v`, err.Error())
+	}
+}
+
+func fileIsRelevant(fileName string) bool {
+	return (strings.HasSuffix(fileName, ".html") ||
+		strings.HasSuffix(fileName, ".go")) &&
+		!strings.HasSuffix(fileName, fuelSuffix)
+}
+
+func (f *Fuel) serveHTTP(idxFile string, port string) {
+	serveDir := filepath.Dir(idxFile)
+	servePath := path.Join("/", filepath.ToSlash(serveDir))
+	http.Handle(servePath+"/", http.StripPrefix(servePath,
+		http.FileServer(http.Dir(serveDir))))
+
+	http.Handle("/gopath/", http.StripPrefix("/gopath", http.FileServer(http.Dir(os.Getenv("GOPATH")))))
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		indexBytes, err := ioutil.ReadFile(idxFile)
+		if err != nil {
+			panic(err)
+		}
+
+		w.Write(indexBytes)
+	})
+
+	fmt.Printf("Serving at :%v\n", port)
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		fatal(err.Error())
+	}
+}
+
+func (f *Fuel) Serve(dir string, indexFile string, port string) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		fatal(err.Error())
+	}
+
+	f.BuildPackage(dir, "", watcher)
+	f.runGopherjs(indexFile)
+
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					fileName := event.Name
+					if fileIsRelevant(fileName) {
+						log.Println("modified " + fileName)
+						f.BuildPackage(filepath.Dir(fileName), "", nil)
+						f.runGopherjs(indexFile)
+					}
+				}
+
+			case err := <-watcher.Errors:
+				log.Println("error:", err)
+			}
+		}
+	}()
+
+	f.serveHTTP(indexFile, port)
+}
+
+func (f *Fuel) watch(watcher *fsnotify.Watcher, file string) {
+	if strings.HasSuffix(file, fuelSuffix) {
+		return
+	}
+
+	err := watcher.Add(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error watching file %v: %v\n", file, err)
+	}
+}
+
+func (f *Fuel) watchImports(imports []*ast.ImportSpec, watcher *fsnotify.Watcher) {
+	for _, imp := range imports {
+		path := imp.Path.Value[1 : len(imp.Path.Value)-1]
+		pdir := filepath.Join(srcPath(), filepath.FromSlash(path))
+
+		if _, err := os.Stat(pdir); err == nil {
+			f.BuildPackage(pdir, "", watcher)
+		}
+
+		//watcher.Add(pdir)
+
+		//files, err := ioutil.ReadDir(pdir)
+		//checkFatal(err)
+
+		//for _, file := range files {
+		//watcher.Add(file.Name())
+		//}
+
+		//fset := token.NewFileSet()
+		//pkgs, err := parser.ParseDir(fset, pdir, func(fi os.FileInfo) bool {
+		//return !strings.HasSuffix(fi.Name(), fuelSuffix)
+		//}, 0)
+		//checkFatal(err)
+
+		//for _, pkg := range pkgs {
+		//if !strings.HasSuffix(pkg.Name, "_test") {
+		//for _, file := range pkg.Files {
+		//f.watchImports(file.Imports, watcher)
+		//}
+		//}
+		//}
+		//}
+	}
+}
+
+func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watcher) {
 	fset := token.NewFileSet()
 
 	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), fuelSuffix)
 	}, 0)
-
 	checkFatal(err)
+
+	if fswatcher != nil {
+		f.watch(fswatcher, dir)
+
+		fset.Iterate(func(file *token.File) bool {
+			f.watch(fswatcher, file.Name())
+			return true
+		})
+	}
 
 	htmlComs, htmlFiles := f.parseHtmlTemplates(dir)
 	var pkgName string
 
 	for _, pkg := range pkgs {
-		if pkgName == "" && !strings.HasSuffix(pkg.Name, "_test") {
-			pkgName = pkg.Name
-		}
+		if !strings.HasSuffix(pkg.Name, "_test") {
+			if pkgName == "" {
+				pkgName = pkg.Name
+			}
 
-		ast.PackageExports(pkg)
-		for _, file := range pkg.Files {
-			f.getComponents(file, htmlComs, prefix)
+			ast.PackageExports(pkg)
+			for _, file := range pkg.Files {
+				f.getComponents(file, htmlComs, prefix)
+
+				if fswatcher != nil {
+					f.watchImports(file.Imports, fswatcher)
+				}
+			}
 		}
 	}
 
+	var needGen bool
 	htmlCompiler := NewHTMLCompiler(f.components)
 	var pcoms []componentInfo
 	for _, htmlFile := range htmlFiles {
+		if fswatcher != nil {
+			f.watch(fswatcher, filepath.Join(dir, htmlFile.name))
+		}
+
 		for _, imp := range htmlFile.imports {
 			pdir := filepath.Join(srcPath(), filepath.FromSlash(imp.path))
 			if _, err := os.Stat(pdir); err == nil {
@@ -108,7 +252,7 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 					prefix = filepath.Base(pdir)
 				}
 
-				f.BuildPackage(pdir, prefix+".")
+				f.BuildPackage(pdir, prefix+".", fswatcher)
 			}
 		}
 
@@ -124,6 +268,7 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 
 		for _, comName := range htmlFile.components {
 			if com, ok := f.components[prefix+comName]; ok {
+				needGen = true
 				write(w, "\n\n")
 				ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
 				if err != nil {
@@ -138,6 +283,10 @@ func (f *Fuel) BuildPackage(dir string, prefix string) {
 		}
 
 		runGofmt(ofilepath)
+	}
+
+	if !needGen {
+		return
 	}
 
 	mfile, err := os.Create(filepath.Join(dir, "g.methods.fuel.go"))
@@ -234,9 +383,7 @@ type htmlFileInfo struct {
 
 func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileInfo) {
 	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		checkFatal(err)
-	}
+	checkFatal(err)
 
 	m := make(map[string]htmlInfo)
 	hfs := make([]htmlFileInfo, 0)

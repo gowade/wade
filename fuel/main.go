@@ -11,6 +11,10 @@ import (
 	"github.com/gowade/wade/utils/htmlutils"
 )
 
+const (
+	defaultIndexFile = "public/index.html"
+)
+
 func fatal(msg string, fmtargs ...interface{}) {
 	fmt.Fprintf(os.Stdout, msg+"\n", fmtargs...)
 	os.Exit(2)
@@ -23,7 +27,18 @@ func checkFatal(err error) {
 }
 
 func main() {
+	dir, err := os.Getwd()
+	if err != nil {
+		fatal(err.Error())
+	}
+
+	var indexFile string
+	var port string
+
+	flag.StringVar(&indexFile, "idx", defaultIndexFile, "HTML index file for your application. The compiled app.js file will be put into its directory")
+	flag.StringVar(&port, "p", "8888", "HTTP port to serve the application")
 	flag.Parse()
+
 	command := flag.Arg(0)
 	switch command {
 	case "build":
@@ -31,13 +46,17 @@ func main() {
 		if bTarget != "" {
 			buildHtmlFile(bTarget)
 		} else {
-			dir, err := os.Getwd()
-			if err != nil {
-				fatal(err.Error())
-			}
 			fuel := NewFuel()
-			fuel.BuildPackage(dir, "")
+			fuel.BuildPackage(dir, "", nil)
 		}
+
+	case "serve":
+		if _, err := os.Stat(indexFile); err != nil {
+			fatal(err.Error())
+		}
+
+		NewFuel().Serve(dir, indexFile, port)
+
 	case "clean":
 		dir, err := os.Getwd()
 		if err != nil {
