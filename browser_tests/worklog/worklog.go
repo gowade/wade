@@ -1,6 +1,7 @@
 package worklog
 
 import (
+	gourl "net/url"
 	"strings"
 	"time"
 
@@ -13,14 +14,14 @@ type Project struct {
 	Title string
 }
 
-type WorklogState struct {
+type WState struct {
 	FilterText string
 	Projects   []*Project
 }
 
 type Worklog struct {
 	wade.Com
-	State *WorklogState `fuel:"state"`
+	State *WState `fuel:"state"`
 }
 
 func (this *Worklog) handleSearch(filterText string) {
@@ -31,6 +32,7 @@ type SearchBar struct {
 	wade.Com
 	FilterText string
 	OnSearch   func(string)
+	demoState  *gourl.URL `fuel:"state"`
 }
 
 func (this *SearchBar) handleSearch() {

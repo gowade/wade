@@ -8,6 +8,10 @@ import (
 	"github.com/gowade/wade/utils/htmlutils"
 )
 
+const (
+	combinedAttrs = "combinedAttrs"
+)
+
 func NewHTMLCompiler(coms componentMap) *HTMLCompiler {
 	return &HTMLCompiler{
 		coms:    coms,
@@ -44,12 +48,16 @@ func (r *comRefs) add(refName string, elTag string, code *codeNode) string {
 }
 
 func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea, comRefs *comRefs) (*codeNode, error) {
+	return c.elementCodeCC(node, key, vda, comRefs, false)
+}
+
+func (c *HTMLCompiler) elementCodeCC(node *html.Node, key string, vda *varDeclArea, comRefs *comRefs, comChild bool) (*codeNode, error) {
 	children, err := c.genChildren(node, vda, comRefs)
 	if err != nil {
 		return nil, err
 	}
 
-	childrenCode := nilCode
+	childrenCode := ncn("nil")
 	if len(children) != 0 {
 		childrenCode = &codeNode{
 			typ:      ElemListCodeNode,
@@ -58,13 +66,20 @@ func (c *HTMLCompiler) elementCode(node *html.Node, key string, vda *varDeclArea
 		}
 	}
 
+	var attrsCode *codeNode
+	if comChild {
+		attrsCode = ncn(combinedAttrs)
+	} else {
+		attrsCode = elementAttrsCode(node.Attr)
+	}
+
 	cn := &codeNode{
 		typ:  FuncCallCodeNode,
 		code: CreateElementOpener,
 		children: []*codeNode{
 			&codeNode{typ: StringCodeNode, code: node.Data}, // element tag name
 			ncn(key),
-			elementAttrsCode(node.Attr),
+			attrsCode,
 			childrenCode,
 		},
 	}
@@ -77,6 +92,13 @@ func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *c
 	children := make([]*codeNode, 0)
 	i := 0
 	for ch := node.FirstChild; ch != nil; ch = ch.NextSibling {
+		// clean pesky linebreaks and tabs in the HTML code
+		if ch.Type == html.TextNode && []rune(ch.Data)[0] == '\n' &&
+			strings.TrimSpace(ch.Data) == "" &&
+			strings.ToLower(node.Data) != "pre" {
+			continue
+		}
+
 		l, err := c.generateRec(ch, vda, comRefs)
 		if err != nil {
 			return nil, err
@@ -101,6 +123,11 @@ func (c *HTMLCompiler) getComponent(tagName string) (i componentInfo, ok bool) {
 }
 
 func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *comRefs) (
+	[]*codeNode, error) {
+	return c.generateRecCC(node, vda, comRefs, false)
+}
+
+func (c *HTMLCompiler) generateRecCC(node *html.Node, vda *varDeclArea, comRefs *comRefs, comChild bool) (
 	[]*codeNode, error) {
 	if node.Type == html.TextNode {
 		return textNodeCode(node.Data), nil
@@ -145,11 +172,12 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 					typ:      CompositeCodeNode,
 					code:     NodeListOpener,
 					children: children,
-				})
+				}, comChild)
 
 			} else {
-				cn, err = c.elementCode(node, key, vda, comRefs)
+				cn, err = c.elementCodeCC(node, key, vda, comRefs, comChild)
 			}
+
 			if err != nil {
 				return nil, err
 			}
@@ -174,10 +202,7 @@ func (c *HTMLCompiler) generateRec(node *html.Node, vda *varDeclArea, comRefs *c
 func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) string {
 	embedStr := ""
 	if com != nil {
-		tname := com.name
-		if com.state.field != "" {
-			tname = "*" + tname
-		}
+		tname := "*" + com.name
 		embedStr = fmt.Sprintf(RenderEmbedString, tname)
 	}
 
@@ -186,7 +211,7 @@ func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) stri
 
 func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode, error) {
 	renderNode := node
-	initCode := ncn("this.OnInvoke()")
+	initCode := ncn("vdom.InternalRenderLock(); this.OnInvoke(); vdom.InternalRenderUnlock()")
 	children := []*codeNode{initCode}
 	if com != nil {
 		htmlutils.RemoveGarbageTextChildren(node)
@@ -210,9 +235,9 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 
 		renderNode = node.FirstChild
 
-		if com.state.field != "" {
+		if com.state != nil {
 			children = append(children,
-				ncn(componentSetStateCode(com.state.field, com.state.typ, com.state.isPointer)))
+				ncn(componentSetStateCode()))
 		}
 	}
 
@@ -224,17 +249,28 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 
 	if com != nil {
 		refs := newComRefs(vda)
-		l, err = c.generateRec(renderNode, vda, refs)
-		cnode = l[0]
+		l, err = c.generateRecCC(renderNode, vda, refs, true)
 		if err != nil {
 			return nil, err
 		}
+		cnode = l[0]
 
 		refsVar, refsSet := componentRefsVarCode(com.name)
 		if len(refs.refs) > 0 {
 			c.comRefs[com.name] = refs.refs
 			children = append(children, ncn(refsVar))
 		}
+
+		pac := &codeNode{
+			typ:  FuncCallCodeNode,
+			code: combinedAttrs + " := " + "wade.MergeMaps",
+			children: []*codeNode{
+				elementAttrsCode(renderNode.Attr),
+				ncn("this.Com.Attrs"),
+			},
+		}
+
+		vda.setVarDecl(combinedAttrs, pac)
 
 		vda.saveToCN()
 		children = append(children, vda.codeNode)
@@ -257,11 +293,11 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 		children = append(children, vda.codeNode)
 	}
 
-	cnode.code = "return " + cnode.code
+	cnode.code = "ret := " + cnode.code
 	ret := &codeNode{
 		typ:      BlockCodeNode,
 		code:     c.renderFuncOpener(node.Data, com),
-		children: append(children, cnode),
+		children: append(children, cnode, ncn("return ret")),
 	}
 
 	return ret, nil

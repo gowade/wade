@@ -16,8 +16,9 @@ type (
 
 	DefaultRouter struct {
 		*defaultRouter
-		nameMap      map[string]string
-		errorHandler func(error)
+		nameMap          map[string]string
+		errorHandler     func(error)
+		currentComponent Component
 	}
 
 	defaultRouter struct {
@@ -100,7 +101,7 @@ func (r *DefaultRouter) PathFromRoute(route string, params ...interface{}) strin
 
 func (r *DefaultRouter) Lookup(path string) (interface{}, map[string]string) {
 	cf, params := r.defaultRouter.lookup(path)
-	var rp map[string]string
+	rp := map[string]string{}
 	for _, param := range params {
 		rp[param.Name] = param.Value
 	}
@@ -123,11 +124,13 @@ func (r *DefaultRouter) Render(url *gourl.URL) {
 	}
 
 	cf := handler.(ControllerFunc)
-	err := cf(&Context{
+
+	ctx := &Context{
 		router: r,
 		URL:    url,
 		Params: params,
-	})
+	}
+	err := cf(ctx)
 
 	if err != nil {
 		if r.errorHandler == nil {

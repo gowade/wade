@@ -1,5 +1,7 @@
 package vdom
 
+import ()
+
 type Attributes map[string]interface{}
 
 type EvtHandler func(Event)
@@ -37,11 +39,16 @@ func NewTextNode(data string) *TextNode {
 }
 
 type Component interface {
+	SetVNode(node *Element)
 	Render(interface{}) *Element
-	OnMount()
+
+	BeforeMount()
+	AfterMount()
 	OnUnmount()
+	OnUpdated()
 
 	InternalState() interface{}
+	InternalInitState(interface{})
 	InternalUnmount()
 	InternalUnmounted() bool
 }
@@ -54,6 +61,7 @@ type Element struct {
 	Component   Component
 	Key         string
 
+	comref     Component
 	domNode    DOMNode // the rendered node in DOM
 	OnRendered func(DOMNode)
 
@@ -115,6 +123,7 @@ func (t *Element) Render() Node {
 		}
 
 		t.ComRend = t.Component.Render(state)
+		t.ComRend.comref = t.Component
 		if t.ComRend != nil {
 			t.ComRend.Key = t.Key
 			return t.ComRend
@@ -126,12 +135,17 @@ func (t *Element) Render() Node {
 	return t
 }
 
-func NewComElement(comName, key string, com Component) *Element {
-	return &Element{
+func NewComElement(comName, key string, com Component, initFn func(interface{})) *Element {
+	el := &Element{
 		Tag:       comName,
 		Key:       key,
 		Component: com,
 	}
+	com.InternalInitState(nil)
+	initFn(com)
+	com.SetVNode(el)
+
+	return el
 }
 
 func NewElement(tag, key string, attrs Attributes, children []Node) *Element {
@@ -140,5 +154,26 @@ func NewElement(tag, key string, attrs Attributes, children []Node) *Element {
 		Key:      key,
 		Attrs:    attrs,
 		Children: children,
+	}
+}
+
+func Debug(node Node) {
+	debug(">>>", node, 0)
+}
+
+func debug(prefix string, node Node, depth int) {
+	var sp string
+	for i := 0; i < depth; i++ {
+		sp += "  "
+	}
+
+	if e, ok := node.(*Element); ok {
+		e = e.Render().(*Element)
+		println(prefix+sp+e.Tag, e.Attrs["class"], e.Attrs["id"], e.Attrs)
+		for _, c := range e.Children {
+			debug("", c, depth+1)
+		}
+	} else {
+		println(sp + `"` + node.NodeData() + `"`)
 	}
 }

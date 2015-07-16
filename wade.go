@@ -42,16 +42,17 @@ func Str(value interface{}) string {
 
 func MakeCom(name string, children []vdom.Node) Com {
 	return Com{
-		Name:     name,
-		Children: children,
+		ComponentName: name,
+		Children:      children,
 	}
 }
 
 type VNodeHolder struct{ *vdom.Element }
 
 type Com struct {
-	Name     string
-	Children []vdom.Node
+	ComponentName string
+	Children      []vdom.Node
+	Attrs         vdom.Attributes
 
 	VNode *vdom.Element
 
@@ -60,15 +61,21 @@ type Com struct {
 }
 
 // OnRender is called every time the component's Render() method is called.
-// Could be used for initialization of field values, please don't call anything
-// costly in this method.
 func (c *Com) OnInvoke() {}
 
-// OnMount is called whenever the component or its ancestor is rendered into the real DOM
-func (c *Com) OnMount() {}
+// PrepareMount is called once before the component or its ancestor is rendered into the real DOM
+func (c *Com) BeforeMount() {}
+
+// PrepareMount is called once after the component or its ancestor is rendered into the real DOM
+func (c *Com) AfterMount() {}
+
+// DidUpdate is called when the component or its descendants have been updated in the real DOM
+func (c *Com) OnUpdated() {}
 
 // OnUnmount is called whenever the component or its ancestor is removed from the real DOM
 func (c *Com) OnUnmount() {}
+
+func (c *Com) InternalInitState(interface{}) {}
 
 func (c *Com) InternalState() interface{} {
 	return nil
@@ -79,7 +86,12 @@ func (c *Com) InternalComPtr() *Com {
 }
 
 func (c *Com) InternalUnmount() {
+	c.OnUnmount()
 	c.unmounted = true
+}
+
+func (c *Com) SetVNode(node *vdom.Element) {
+	c.VNode = node
 }
 
 func (c *Com) InternalUnmounted() bool {
@@ -91,9 +103,12 @@ type Component interface {
 
 	InternalState() interface{}
 	InternalComPtr() *Com
+	InternalInitState(interface{})
 
 	OnInvoke()
-	OnMount()
+	BeforeMount()
+	AfterMount()
+	OnUpdated()
 	OnUnmount()
 }
 
@@ -107,4 +122,25 @@ func Render(com Component) vdom.Node {
 
 func VdomDrv() vdom.Driver {
 	return driver.Vdom()
+}
+
+func MergeMaps(m1, m2 map[string]interface{}) map[string]interface{} {
+	if m1 == nil && m2 == nil {
+		return nil
+	}
+
+	m := make(map[string]interface{})
+	if m1 != nil {
+		for k, v := range m1 {
+			m[k] = v
+		}
+	}
+
+	if m2 != nil {
+		for k, v := range m2 {
+			m[k] = v
+		}
+	}
+
+	return m
 }

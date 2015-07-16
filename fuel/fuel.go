@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"unicode"
 
@@ -48,19 +47,11 @@ type htmlInfo struct {
 	markup *html.Node
 }
 
-type stateInfo struct {
-	field     string
-	typ       string
-	structTyp *ast.StructType
-	isPointer bool
-}
-
 type componentInfo struct {
-	htmlInfo  htmlInfo
-	prefix    string
-	name      string
-	argFields map[string]bool
-	state     stateInfo
+	htmlInfo htmlInfo
+	prefix   string
+	name     string
+	state    *fieldInfo
 }
 
 func (z componentInfo) fullName() string {
@@ -82,13 +73,13 @@ func NewFuel() *Fuel {
 
 func (f *Fuel) runGopherjs(indexFile string) {
 	serveDir := filepath.Dir(indexFile)
-	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(serveDir, "main.js"))
+	cmd := exec.Command("gopherjs", "build", `--tags="js"`, "-o", filepath.Join(serveDir, "main.js"))
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 
 	if err != nil {
-		fatal(`gopherjs failed with %v`, err.Error())
+		fmt.Fprintf(os.Stderr, "gopherjs failed with %v\n", err.Error())
 	}
 }
 
@@ -104,7 +95,19 @@ func (f *Fuel) serveHTTP(idxFile string, port string) {
 	http.Handle(servePath+"/", http.StripPrefix(servePath,
 		http.FileServer(http.Dir(serveDir))))
 
-	http.Handle("/gopath/", http.StripPrefix("/gopath", http.FileServer(http.Dir(os.Getenv("GOPATH")))))
+	files, err := ioutil.ReadDir(srcPath())
+	if err != nil {
+		fatal("Cannot read %v: %v", srcPath(), err)
+	}
+
+	for _, f := range files {
+		dir := filepath.Join(srcPath(), f.Name())
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			prefix := "/" + f.Name()
+			http.Handle(prefix+"/", http.StripPrefix(prefix,
+				http.FileServer(http.Dir(dir))))
+		}
+	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		indexBytes, err := ioutil.ReadFile(idxFile)
@@ -116,19 +119,19 @@ func (f *Fuel) serveHTTP(idxFile string, port string) {
 	})
 
 	fmt.Printf("Serving at :%v\n", port)
-	err := http.ListenAndServe(":"+port, nil)
+	err = http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		fatal(err.Error())
 	}
 }
 
-func (f *Fuel) Serve(dir string, indexFile string, port string) {
+func (f *Fuel) Serve(dir string, indexFile string, port string, serveOnly bool) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		fatal(err.Error())
 	}
 
-	f.BuildPackage(dir, "", watcher)
+	f.BuildPackage(dir, "", watcher, serveOnly)
 	f.runGopherjs(indexFile)
 
 	go func() {
@@ -139,7 +142,7 @@ func (f *Fuel) Serve(dir string, indexFile string, port string) {
 					fileName := event.Name
 					if fileIsRelevant(fileName) {
 						log.Println("modified " + fileName)
-						f.BuildPackage(filepath.Dir(fileName), "", nil)
+						f.BuildPackage(filepath.Dir(fileName), "", nil, serveOnly)
 						f.runGopherjs(indexFile)
 					}
 				}
@@ -164,48 +167,45 @@ func (f *Fuel) watch(watcher *fsnotify.Watcher, file string) {
 	}
 }
 
-func (f *Fuel) watchImports(imports []*ast.ImportSpec, watcher *fsnotify.Watcher) {
+func importPath(imp *ast.ImportSpec) string {
+	return imp.Path.Value[1 : len(imp.Path.Value)-1]
+}
+
+func importDir(impPath string) string {
+	pdir := filepath.Join(srcPath(), filepath.FromSlash(impPath))
+	if _, err := os.Stat(pdir); err == nil {
+		return pdir
+	}
+
+	return ""
+}
+
+func importName(imp *ast.ImportSpec) string {
+	if imp.Name == nil {
+		return path.Base(importPath(imp))
+	}
+
+	return imp.Name.String()
+}
+
+func (f *Fuel) watchImports(imports []*ast.ImportSpec, watcher *fsnotify.Watcher, serveOnly bool) {
 	for _, imp := range imports {
-		path := imp.Path.Value[1 : len(imp.Path.Value)-1]
-		pdir := filepath.Join(srcPath(), filepath.FromSlash(path))
-
-		if _, err := os.Stat(pdir); err == nil {
-			f.BuildPackage(pdir, "", watcher)
+		pdir := importDir(importPath(imp))
+		if pdir != "" {
+			f.BuildPackage(pdir, "", watcher, serveOnly)
 		}
-
-		//watcher.Add(pdir)
-
-		//files, err := ioutil.ReadDir(pdir)
-		//checkFatal(err)
-
-		//for _, file := range files {
-		//watcher.Add(file.Name())
-		//}
-
-		//fset := token.NewFileSet()
-		//pkgs, err := parser.ParseDir(fset, pdir, func(fi os.FileInfo) bool {
-		//return !strings.HasSuffix(fi.Name(), fuelSuffix)
-		//}, 0)
-		//checkFatal(err)
-
-		//for _, pkg := range pkgs {
-		//if !strings.HasSuffix(pkg.Name, "_test") {
-		//for _, file := range pkg.Files {
-		//f.watchImports(file.Imports, watcher)
-		//}
-		//}
-		//}
-		//}
 	}
 }
 
-func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watcher) {
+func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watcher, serveOnly bool) {
 	fset := token.NewFileSet()
 
 	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), fuelSuffix)
 	}, 0)
-	checkFatal(err)
+	if err != nil {
+		printErr(err)
+	}
 
 	if fswatcher != nil {
 		f.watch(fswatcher, dir)
@@ -216,23 +216,37 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 		})
 	}
 
-	htmlComs, htmlFiles := f.parseHtmlTemplates(dir)
-	var pkgName string
+	htmlComs, htmlFiles, err := f.parseHtmlTemplates(dir)
+	if err != nil {
+		printErr(err)
+	}
 
-	for _, pkg := range pkgs {
-		if !strings.HasSuffix(pkg.Name, "_test") {
-			if pkgName == "" {
-				pkgName = pkg.Name
+	var pkg *astPkg
+	for _, p := range pkgs {
+		if !strings.HasSuffix(p.Name, "_test") {
+			pkg = &astPkg{
+				Package:    p,
+				fset:       fset,
+				genImports: map[string]string{},
 			}
 
-			ast.PackageExports(pkg)
-			for _, file := range pkg.Files {
-				f.getComponents(file, htmlComs, prefix)
+			pkg.registerImport("wade", "")
+			pkg.registerImport("vdom", "")
+		}
+	}
 
-				if fswatcher != nil {
-					f.watchImports(file.Imports, fswatcher)
-				}
-			}
+	if pkg == nil {
+		return
+	}
+
+	for _, file := range pkg.Files {
+		err := f.getComponents(file, htmlComs, prefix, pkg)
+		if err != nil {
+			printErr(err)
+		}
+
+		if fswatcher != nil {
+			f.watchImports(file.Imports, fswatcher, serveOnly)
 		}
 	}
 
@@ -252,8 +266,12 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 					prefix = filepath.Base(pdir)
 				}
 
-				f.BuildPackage(pdir, prefix+".", fswatcher)
+				f.BuildPackage(pdir, prefix+".", fswatcher, serveOnly)
 			}
+		}
+
+		if serveOnly {
+			continue
 		}
 
 		extcut := len(htmlFile.name) - len(".html")
@@ -264,7 +282,7 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 			fatal(err.Error())
 		}
 		defer w.Close()
-		write(w, prelude(pkgName, htmlFile.imports))
+		write(w, prelude(pkg.Name, htmlFile.imports))
 
 		for _, comName := range htmlFile.components {
 			if com, ok := f.components[prefix+comName]; ok {
@@ -272,20 +290,20 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 				write(w, "\n\n")
 				ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
 				if err != nil {
-					fatal(err.Error())
+					fmt.Fprintf(os.Stderr, "%v\n", err)
 				}
 
 				emitDomCode(w, ctree)
 				pcoms = append(pcoms, com)
 			} else {
-				fatal("No struct definition for %v component.", comName)
+				fmt.Fprintf(os.Stderr, "No struct definition for %v component.\n", comName)
 			}
 		}
 
 		runGofmt(ofilepath)
 	}
 
-	if !needGen {
+	if !needGen || serveOnly {
 		return
 	}
 
@@ -295,79 +313,70 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 	}
 	defer mfile.Close()
 
-	write(mfile, prelude(pkgName, nil))
+	write(mfile, prelude(pkg.Name, pkg.importList()))
 	for _, com := range pcoms {
-		if com.state.field != "" {
-			write(mfile, stateMethsCode(com, fset))
+		if com.state != nil {
+			err := stateMethodsTpl.Execute(mfile, makeStateMethodsTD(pkg, com))
+			if err != nil {
+				panic(err)
+			}
 		}
 
-		write(mfile, comRefsDeclCode(com.name, htmlCompiler.comRefs[com.name]))
-		write(mfile, comRefsMethsCode(com.name))
-		write(mfile, fmt.Sprintf(`func (this *%v) Rerender() {
-	r := this.Render(nil)
-	vdom.PerformDiff(r, this.VNode.Render(), this.VNode.DOMNode())
-	this.VNode.ComRend = r
-	this.VNode = r
-}
-
-`, com.name))
-	}
-}
-
-func comRefsMethsCode(comName string) string {
-	return fmt.Sprintf(`func (this *%v) Refs() %vRefs {
-	return this.Com.InternalRefsHolder.(%vRefs)	
-}
-
-`, comName, comName, comName)
-}
-
-func comRefsDeclCode(comName string, refs []comRef) string {
-	fields := make([]string, 0, len(refs))
-	if refs != nil {
-		fields = append(fields, "")
-		for _, ref := range refs {
-			elTp, _ := domElType(ref.elTag)
-			fields = append(fields, fmt.Sprintf("\t%v %v", ref.name, elTp))
-		}
-		fields = append(fields, "")
-	}
-	return fmt.Sprintf(`type %vRefs struct {%v}
-`, comName, strings.Join(fields, "\n"))
-}
-
-func stateMethsCode(com componentInfo, fset *token.FileSet) string {
-	setters := ""
-	for _, f := range com.state.structTyp.Fields.List {
-		pos := fset.Position(f.Type.Pos())
-		end := fset.Position(f.Type.End())
-		file, err := os.Open(pos.Filename)
+		err := refsTpl.Execute(mfile, makeRefsTD(com.name, htmlCompiler.comRefs[com.name]))
 		if err != nil {
-			fatal(err.Error())
+			panic(err)
 		}
-
-		buf := make([]byte, end.Offset-pos.Offset)
-		_, err = file.ReadAt(buf, int64(pos.Offset))
-		if err != nil {
-			fatal(err.Error())
-		}
-
-		fname := fieldName(f)
-		setters += fmt.Sprintf(`func (this *%v) Set%v(v %v) {
-	this.%v.%v = v
-	this.Rerender()
+		writeRerenderMethod(mfile, com.name)
+	}
 }
 
-`, com.name, fname, string(buf), com.state.field, fname)
+func makeRefsTD(comName string, refs []comRef) refsTD {
+	if refs == nil {
+		refs = []comRef{}
 	}
 
-	return fmt.Sprintf(`func (this *%v) InternalState() interface{} {
-	return this.%v
+	fields := make([]refFieldTD, 0, len(refs))
+	for _, ref := range refs {
+		elType, _ := domElType(ref.elTag)
+		fields = append(fields, refFieldTD{
+			Name: ref.name,
+			Type: elType,
+		})
+	}
+
+	return refsTD{
+		ComName:  comName,
+		TypeName: comName + "Refs",
+		Fields:   fields,
+	}
 }
 
-`,
-		//com.name, com.stateField, com.stateType,
-		com.name, com.state.field) + setters
+func makeStateMethodsTD(pkg *astPkg, com componentInfo) (ret stateMethodsTD) {
+	ret.Receiver = "*" + com.name
+	ret.StateField = com.state.fieldName
+	if com.state.typeName[0] == '*' {
+		ret.StateIsPointer = true
+		ret.StateType = com.state.typeName
+		ret.StateStruct = strings.TrimSpace(com.state.typeName[1:])
+	}
+
+	ss := com.state.typeStruct
+	if ss != nil {
+		for _, f := range ss.Fields.List {
+			typeName, err := pkg.typeName(f.Type, com.state.typeStructFile)
+			if err != nil {
+				printErr(err)
+				continue
+			}
+
+			ret.Setters = append(ret.Setters, stateFieldTD{
+				Name: fieldName(f),
+				Type: typeName,
+			})
+		}
+	}
+
+	return ret
 }
 
 type importInfo struct {
@@ -381,12 +390,14 @@ type htmlFileInfo struct {
 	components []string
 }
 
-func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileInfo) {
+func (f *Fuel) parseHtmlTemplates(dir string) (m map[string]htmlInfo, hfs []htmlFileInfo, err error) {
 	files, err := ioutil.ReadDir(dir)
-	checkFatal(err)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	m := make(map[string]htmlInfo)
-	hfs := make([]htmlFileInfo, 0)
+	m = make(map[string]htmlInfo)
+	hfs = make([]htmlFileInfo, 0)
 	for _, fileInfo := range files {
 		if !strings.HasSuffix(fileInfo.Name(), ".html") {
 			continue
@@ -396,9 +407,14 @@ func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileIn
 		var comList []string
 
 		file, err := os.Open(filepath.Join(dir, fileInfo.Name()))
-		checkFatal(err)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		nodes, err := htmlutils.ParseFragment(file)
-		checkFatal(err)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		for _, node := range nodes {
 			if node.Type == html.ElementNode {
@@ -414,7 +430,7 @@ func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileIn
 					}
 
 					if imp.path == "" {
-						fatal(`%v: <import>'s "from" attribute must be set.`, fileInfo.Name())
+						return nil, nil, fmt.Errorf(`%v: <import>'s "from" attribute must be set.`, fileInfo.Name())
 					}
 
 					impList = append(impList, imp)
@@ -422,7 +438,7 @@ func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileIn
 
 				if unicode.IsUpper([]rune(node.Data)[0]) {
 					if _, exists := m[node.Data]; exists {
-						fatal(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
+						return nil, nil, fmt.Errorf(`Fatal Error: Found multiple definitions in HTML for component "%v".`, node.Data)
 					}
 
 					comList = append(comList, node.Data)
@@ -441,7 +457,7 @@ func (f *Fuel) parseHtmlTemplates(dir string) (map[string]htmlInfo, []htmlFileIn
 		})
 	}
 
-	return m, hfs
+	return m, hfs, nil
 }
 
 func anonFieldName(typ ast.Expr) string {
@@ -451,7 +467,7 @@ func anonFieldName(typ ast.Expr) string {
 	case *ast.StarExpr:
 		return anonFieldName(t.X)
 	case *ast.SelectorExpr:
-		return anonFieldName(t.X)
+		return anonFieldName(t.Sel)
 	}
 
 	panic(fmt.Sprintf("Unhandled ast expression type %T", typ))
@@ -466,53 +482,8 @@ func fieldName(f *ast.Field) string {
 	return anonFieldName(f.Type)
 }
 
-func extractFields(comName string, fields []*ast.Field) (map[string]bool, stateInfo) {
-	argFields := make(map[string]bool)
-	var state stateInfo
-	for _, f := range fields {
-		fname := fieldName(f)
-		if f.Tag != nil {
-			var stag = reflect.StructTag(f.Tag.Value[1 : len(f.Tag.Value)-1])
-			if sf := stag.Get("fuel"); sf == "state" {
-				if state.field != "" {
-					fatal("Error processing component %v: component can only have 1 state field.", comName)
-				}
-
-				var typIden *ast.Ident
-				if pt, ok := f.Type.(*ast.StarExpr); ok {
-					if ftype, ok := pt.X.(*ast.Ident); ok {
-						typIden = ftype
-						state.isPointer = true
-					}
-				} else {
-					if ftype, ok := f.Type.(*ast.Ident); ok {
-						typIden = ftype
-						state.isPointer = false
-					}
-				}
-
-				if typIden != nil {
-					state.field = fname
-					state.typ = typIden.Name
-					if spec, ok := typIden.Obj.Decl.(*ast.TypeSpec); ok {
-						if st, ok := spec.Type.(*ast.StructType); ok {
-							state.structTyp = st
-						}
-					}
-					continue
-				}
-
-				fatal(`Error processing field "%v" of component %v: state field's type must be a named type (anonymous struct is forbidden).`, fname, comName)
-			}
-		}
-
-		argFields[fname] = true
-	}
-
-	return argFields, state
-}
-
-func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefix string) {
+func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefix string,
+	pkg *astPkg) error {
 	for _, decl := range file.Decls {
 		switch gdecl := decl.(type) {
 		case *ast.GenDecl:
@@ -523,14 +494,16 @@ func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefi
 					switch stype := spec.Type.(type) {
 					case *ast.StructType:
 						if hcom, ok := htmlComs[name]; ok {
-							argFields, state := extractFields(name, stype.Fields.List)
-							//println("<<<", prefix+name)
+							state, err := pkg.getStateField(stype.Fields.List, file)
+							if err != nil {
+								return fmt.Errorf("error while processing component: %v", err)
+							}
+
 							f.components[prefix+name] = componentInfo{
-								name:      name,
-								prefix:    prefix,
-								argFields: argFields,
-								state:     state,
-								htmlInfo:  hcom,
+								name:     name,
+								prefix:   prefix,
+								state:    state,
+								htmlInfo: hcom,
 							}
 						}
 					}
@@ -538,4 +511,6 @@ func (f *Fuel) getComponents(file *ast.File, htmlComs map[string]htmlInfo, prefi
 			}
 		}
 	}
+
+	return nil
 }

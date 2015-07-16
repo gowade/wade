@@ -8,7 +8,7 @@ import (
 
 func main() {
 	worklog := &Worklog{
-		State: &WorklogState{
+		State: &WState{
 			Projects: []*Project{
 				{
 					ID:    0,
@@ -39,6 +39,6 @@ func main() {
 		return c.Render(&Hello{Name: c.Params.Get("name")})
 	})
 
-	basePath := "/github.com/gowade/wade/browser_tests/worklog/main"
+	basePath := "/"
 	wade.InitApp(basePath, r, wade.FindContainer("#container"))
 }

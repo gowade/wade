@@ -32,7 +32,7 @@ func (c *HTMLCompiler) renderTagCode(node *html.Node, vda *varDeclArea) (*codeNo
 
 	if !contentAttr.IsMustache {
 		return nil, fmt.Errorf(
-			`for loop's "range" attribute must be assigned to a `+
+			`"render" tag's "content" attribute must be assigned to a `+
 				`vdom.Node or []vdom.Node. Got string value "%v" instead.`,
 			contentAttr.Val)
 

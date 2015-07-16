@@ -20,7 +20,7 @@ var JQ = jquery.NewJQuery
 func main() {
 	Describe("Test Worklog", func() {
 		worklog := &Worklog{
-			State: &WorklogState{
+			State: &WState{
 				Projects: []*Project{
 					{
 						ID:    0,

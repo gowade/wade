@@ -17,11 +17,8 @@ func runGofmt(file string) {
 	err := cmd.Run()
 
 	if err != nil {
-		fatal(`go fmt failed with %v`, err.Error())
+		fmt.Fprintf(os.Stderr, "go fmt failed with %v\n", err.Error())
 	}
-}
-
-func writeDomCodeFile(w io.WriteCloser, pkgName string, root *codeNode) {
 }
 
 func emitDomCode(w io.Writer, node *codeNode) {

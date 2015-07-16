@@ -4,6 +4,7 @@ import (
 	gourl "net/url"
 
 	"github.com/gowade/wade/utils/dom"
+
 	"github.com/gowade/wade/vdom"
 )
 
@@ -18,7 +19,7 @@ var (
 	env         EnvironmentType = BrowserEnv
 	vdomDriver  vdom.Driver
 	routeDriver RouteDriver
-	Render      func(vnode vdom.Node, domNode dom.Node)
+	Render      func(newVdom, oldVdom *vdom.Element, domNode dom.Node)
 )
 
 func Init(router Router) {

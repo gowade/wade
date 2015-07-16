@@ -9,10 +9,11 @@ type DOMNode interface {
 	SetAttr(string, interface{})
 	SetProp(string, interface{})
 	RemoveAttr(string)
-	Do(Action)
+	Do(*Action)
 	Clear()
 	Render(Node, bool)
 	JS() *js.Object
+	Compat(Node) bool
 }
 
 type Driver interface {
@@ -22,4 +23,6 @@ type Driver interface {
 type DOMInputEl interface {
 	Value() string
 	SetValue(string)
+	Checked() bool
+	SetChecked(bool)
 }

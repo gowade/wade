@@ -1,76 +1,81 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
 	"github.com/gowade/html"
+	"unicode"
 )
 
-var (
-	nilCode = &codeNode{
-		typ:  NakedCodeNode,
-		code: "nil",
-	}
-)
-
-func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key string, vda *varDeclArea, instChildren *codeNode) (*codeNode, error) {
-	varName := vda.newVar("com")
-
-	fields := make([]*codeNode, 0, len(com.argFields)+1)
-	instChildren.code = fmt.Sprintf("Children: %v", instChildren.code)
-
-	fullname := com.fullName()
-
-	comCh := []*codeNode{
-		ncn(fmt.Sprintf(`Name: "%v"`, com.name)),
-		ncn(fmt.Sprintf(`VNode: %v`, varName)),
-		ncn(fmt.Sprintf(`InternalRefsHolder: %v{}`, fullname+"Refs")),
-		instChildren,
+func isComponentArgName(attrName string) bool {
+	if attrName == "" {
+		return false
 	}
 
-	fields = append(fields, &codeNode{
-		typ:      CompositeCodeNode,
-		code:     "Com: " + ComponentDataOpener,
-		children: comCh,
-	})
+	return unicode.IsUpper([]rune(attrName)[0])
+}
+
+func cnToBuffer(cn *codeNode) *bytes.Buffer {
+	var buf bytes.Buffer
+	emitDomCode(&buf, cn)
+	return &buf
+}
+
+func (c HTMLCompiler) componentInstCode(com componentInfo, uNode *html.Node, key string, vda *varDeclArea, instChildren *codeNode, comChild bool) (*codeNode, error) {
+	fields := make([]fieldAssTD, 0)
+
+	attrs := make([]html.Attribute, 0, len(uNode.Attr))
+	for _, attr := range uNode.Attr {
+		if !isComponentArgName(attr.Key) {
+			attrs = append(attrs, attr)
+		}
+	}
+
+	var ac *codeNode
+	if comChild {
+		ac = ncn(combinedAttrs)
+	} else {
+		ac = elementAttrsCode(attrs)
+	}
 
 	for _, attr := range uNode.Attr {
-		if com.argFields[attr.Key] {
+		if isComponentArgName(attr.Key) {
 			vcode := attributeValueCode(attr)
-			fields = append(fields, &codeNode{
-				typ:  NakedCodeNode,
-				code: fmt.Sprintf("%v: %v", attr.Key, vcode),
+			fields = append(fields, fieldAssTD{
+				Name:  attr.Key,
+				Value: vcode,
 			})
-
-			continue
-		}
-
-		return nil, fmt.Errorf(`Invalid field "%v" for component %v`, attr.Key, fullname)
-	}
-
-	typeIns := "&" + fullname
-	if com.state.field != "" {
-		if com.state.isPointer {
-			fields = append(fields, ncn(
-				fmt.Sprintf(`%v: &%v{}`, com.state.field, com.state.typ)))
 		}
 	}
 
-	cn := &codeNode{
-		typ:      CompositeCodeNode,
-		code:     typeIns,
-		children: fields,
+	comType := com.fullName()
+	var buf bytes.Buffer
+	err := comInitFuncTpl.ExecuteTemplate(&buf, "comInit", &comInitFuncTD{
+		ComType: comType,
+		Com: &comCreateTD{
+			ComName:  com.name,
+			ComType:  comType,
+			Children: cnToBuffer(instChildren),
+			Attrs:    cnToBuffer(ac),
+		},
+		Fields: fields,
+	})
+	if err != nil {
+		panic(err)
 	}
 
-	cn.code = varName + fmt.Sprintf(` := %v("%v", %v, nil)`,
-		CreateComElementOpener,
-		com.name,
-		key) +
-		fmt.Sprintf("\n%v.Component = ", varName) + cn.code
-	vda.setVarDecl(varName, cn)
-
-	return ncn(varName), nil
+	return &codeNode{
+		typ:  FuncCallCodeNode,
+		code: CreateComElementOpener,
+		children: []*codeNode{
+			&codeNode{typ: StringCodeNode, code: com.name},
+			ncn(key),
+			ncn("&" + comType + "{}"),
+			ncn(buf.String()),
+		},
+	}, nil
 }
 
 func textNodeCode(text string) []*codeNode {
@@ -132,7 +137,7 @@ func attributeValueCode(attr html.Attribute) string {
 
 func elementAttrsCode(attrs []html.Attribute) *codeNode {
 	if len(attrs) == 0 {
-		return nilCode
+		return ncn("nil")
 	}
 
 	assignments := make([]*codeNode, 0, len(attrs))

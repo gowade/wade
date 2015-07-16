@@ -44,6 +44,9 @@ func (rd *routeDriver) setURL(url *gourl.URL, local bool, pushState bool) {
 		return
 	}
 
+	if pushState {
+		rd.history.pushState("", url.Path)
+	}
 	rd.router.Render(url)
 }
 

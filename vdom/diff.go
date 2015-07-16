@@ -6,6 +6,29 @@ import (
 	"strings"
 )
 
+var (
+	domReady   bool
+	domUpdated int
+)
+
+func InternalRenderLock() {
+	domReady = false
+}
+
+func InternalRenderUnlock() {
+	domReady = true
+}
+
+func InternalRenderLocked() bool {
+	return !domReady
+}
+
+func SetUpdated(depth int) {
+	if domUpdated < depth {
+		domUpdated = depth
+	}
+}
+
 func IsEvent(attr string) bool {
 	return strings.HasPrefix(strings.ToLower(attr), "on")
 }
@@ -57,23 +80,26 @@ func equals(x, y interface{}) bool {
 	return false
 }
 
-func diffProps(a, b *Element, dNode DOMNode) {
+func diffProps(a, b *Element, dNode DOMNode) (updated bool) {
 	for attr, va := range a.Attrs {
 		if IsEvent(attr) {
-			dNode.SetProp(strings.ToLower(attr), va)
 			continue
 		}
 
 		if vb, ok := b.Attrs[attr]; !ok || !equals(va, vb) {
+			updated = true
 			dNode.SetAttr(attr, va)
 		}
 	}
 
 	for attr, _ := range b.Attrs {
 		if _, ok := a.Attrs[attr]; !ok {
+			updated = true
 			dNode.RemoveAttr(attr)
 		}
 	}
+
+	return
 }
 
 func getKey(node Node) string {
@@ -100,7 +126,7 @@ type Action struct {
 	Content Node
 }
 
-type actionPriority []Action
+type actionPriority []*Action
 
 func (a actionPriority) Len() int      { return len(a) }
 func (a actionPriority) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -115,7 +141,9 @@ func (a actionPriority) Less(i, j int) bool {
 // PerformDiff calculates and performs operations on the DOM tree dNode
 // to transform an old tree representation (b) to the new tree (a)
 // The root node will not be replaced (even if its tag name isn't compatible)
-func PerformDiff(a, b Node, dNode DOMNode) {
+func PerformDiff(a, b *Element, dNode DOMNode) {
+	SetUpdated(-1)
+
 	if b == nil {
 		dNode.Clear()
 	}
@@ -124,14 +152,38 @@ func PerformDiff(a, b Node, dNode DOMNode) {
 		panic("target DOM node is nil.")
 	}
 
-	performDiff(a, b, dNode, true)
+	var an, bn Node
+	if a != nil {
+		an = a
+	}
+
+	if b != nil {
+		bn = b
+	}
+
+	performDiff(an, bn, dNode, true, 0)
 }
 
-func performDiff(an, bn Node, dNode DOMNode, root bool) {
-	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() {
-		if bn != nil {
-			//println("->", an.NodeData(), bn.NodeData())
-		}
+func checkDomUpdated(el *Element, depth int) {
+	if domUpdated >= depth && el.comref != nil {
+		el.comref.OnUpdated()
+	}
+}
+
+func do(action *Action, dNode DOMNode, depth int) {
+	switch action.Type {
+	case Deletion, Insertion:
+		SetUpdated(depth)
+	}
+
+	dNode.Do(action)
+}
+
+func performDiff(an, bn Node, dNode DOMNode, root bool, depth int) {
+	if bn == nil || an.IsElement() != bn.IsElement() || an.NodeData() != bn.NodeData() ||
+		!dNode.Compat(bn) {
+
+		SetUpdated(depth - 1)
 		dNode.Render(an, root)
 		return
 	}
@@ -147,11 +199,14 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 
 	a, b := ar.(*Element), br.(*Element)
 	a.SetRenderedDOMNode(b.DOMNode())
-	diffProps(a, b, dNode)
+	updated := diffProps(a, b, dNode)
+	if updated {
+		SetUpdated(depth)
+	}
 
-	existing := make(map[string]Action)
+	existing := make(map[string]*Action)
 	keyedDiff := false
-	var unkeyed []Action
+	var unkeyed []*Action
 
 	for _, bCh := range b.Children {
 		if bCh != nil && getKey(bCh) != "" {
@@ -171,14 +226,14 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 			}
 
 			if key := getKey(bCh); key != "" {
-				existing[key] = Action{
+				existing[key] = &Action{
 					Type:    Deletion,
 					Index:   i,
 					Element: dNode.Child(i),
 					Content: bCh,
 				}
 			} else {
-				unkeyed = append(unkeyed, Action{
+				unkeyed = append(unkeyed, &Action{
 					Type:    Deletion,
 					Index:   i,
 					Element: dNode.Child(i),
@@ -199,10 +254,10 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 			if key != "" {
 				aCh := ac.(*Element)
 				if action, ok := existing[key]; !ok {
-					existing[key] = Action{Type: Insertion, Index: i, Content: aCh}
+					existing[key] = &Action{Type: Insertion, Index: i, Content: aCh}
 				} else {
 					aCh.oldElem = action.Content.(*Element)
-					existing[key] = Action{
+					existing[key] = &Action{
 						Type:    Move,
 						Index:   i,
 						From:    action.Content,
@@ -212,7 +267,7 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 				}
 			} else {
 				if len(unkeyed) > uki {
-					action := &unkeyed[uki]
+					action := unkeyed[uki]
 					if ac.IsElement() && action.Content.IsElement() {
 						ac.(*Element).oldElem = action.Content.(*Element)
 					}
@@ -226,13 +281,13 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 					}
 				} else {
 					unkeyed = append(unkeyed,
-						Action{Type: Insertion, Index: i, Content: ac})
+						&Action{Type: Insertion, Index: i, Content: ac})
 				}
 				uki++
 			}
 		}
 
-		actions := make([]Action, len(existing)+len(unkeyed))
+		actions := make([]*Action, len(existing)+len(unkeyed))
 		i := 0
 		for k := range existing {
 			actions[i] = existing[k]
@@ -247,14 +302,15 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 		sort.Sort(actionPriority(actions))
 
 		for _, action := range actions {
-			dNode.Do(action)
+			do(action, dNode, depth)
 			if action.Type == Move {
 				performDiff(action.Content,
 					action.From,
-					action.Element, false)
+					action.Element, false, depth+1)
 			}
 		}
 
+		checkDomUpdated(a, depth)
 		return
 	} // end keyed diff
 
@@ -282,12 +338,12 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 		}
 
 		if bCh != nil && aCh == nil {
-			dNode.Do(Action{Type: Deletion, Element: bd[i]})
+			do(&Action{Type: Deletion, Element: bd[i]}, dNode, depth)
 			if bCh.IsElement() {
 				bCh.(*Element).Unmount()
 			}
 		} else if bCh == nil && aCh != nil {
-			dNode.Do(Action{Type: Insertion, Index: bp[i], Content: aCh})
+			do(&Action{Type: Insertion, Index: bp[i], Content: aCh}, dNode, depth)
 		}
 	}
 
@@ -302,17 +358,19 @@ func performDiff(an, bn Node, dNode DOMNode, root bool) {
 				aCh.(*Element).oldElem = bCh.(*Element)
 			}
 
-			performDiff(aCh, bCh, bd[i], false)
+			performDiff(aCh, bCh, bd[i], false, depth+1)
 		}
 	}
 
 	for i := len(b.Children); i < len(a.Children); i++ {
 		if a.Children[i] != nil {
-			dNode.Do(Action{
+			do(&Action{
 				Type:    Insertion,
 				Index:   -1,
 				Content: a.Children[i],
-			})
+			}, dNode, depth)
 		}
 	}
+
+	checkDomUpdated(a, depth)
 }

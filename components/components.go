@@ -3,6 +3,7 @@ package components
 import (
 	"path"
 
+	"github.com/gopherjs/gopherjs/js"
 	"github.com/gowade/wade"
 	"github.com/gowade/wade/utils/dom"
 )
@@ -12,7 +13,8 @@ type Link struct {
 	Path string
 }
 
-func (lnk *Link) OnClick() {
+func (lnk *Link) OnClick(evt *js.Object) {
+	evt.Call("preventDefault")
 	wade.App().SetURLPath(lnk.Path)
 }
 
@@ -24,7 +26,7 @@ type Title struct {
 	wade.Com
 }
 
-func (t *Title) OnMount() {
+func (t *Title) BeforeMount() {
 	var title string
 	if len(t.Children) > 0 {
 		title = t.Children[0].Text()

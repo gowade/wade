@@ -16,6 +16,14 @@ var (
 
 type DOMInputEl struct{ *js.Object }
 
+func (e DOMInputEl) Checked() bool {
+	return e.Get("checked").Bool()
+}
+
+func (e DOMInputEl) SetChecked(checked bool) {
+	e.Set("checked", checked)
+}
+
 func (e DOMInputEl) Value() string {
 	return e.Get("value").String()
 }
@@ -60,8 +68,25 @@ type DOMNode struct {
 	*js.Object
 }
 
+func (d DOMNode) Compat(node vdom.Node) bool {
+	nt := d.Get("nodeType").Int()
+	switch nt {
+	case 1:
+		return node.IsElement()
+	case 3:
+		return !node.IsElement()
+	}
+
+	return false
+}
+
 func (d DOMNode) Child(i int) vdom.DOMNode {
-	return DOMNode{d.Get("childNodes").Index(i)}
+	c := d.Get("childNodes").Index(i)
+	if c == nil || c == js.Undefined {
+		c = createElement("div")
+		d.Call("appendChild", c)
+	}
+	return DOMNode{c}
 }
 
 func render(node vdom.Node, d *js.Object) *js.Object {
@@ -75,6 +100,11 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	}
 
 	oe := node.(*vdom.Element)
+	if oe.Component != nil {
+		vdom.InternalRenderLock()
+		oe.Component.BeforeMount()
+		vdom.InternalRenderUnlock()
+	}
 
 	nr := oe.Render()
 	if nr == nil {
@@ -84,7 +114,7 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	}
 
 	e := nr.(*vdom.Element)
-	if d == nil {
+	if d == nil || d.Get("nodeType").Int() != 1 {
 		d = createElement(e.Tag)
 	}
 
@@ -107,10 +137,6 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	}
 
 	for _, c := range e.Children {
-		if el, ok := c.(*vdom.Element); ok && el.Component != nil {
-			el.Component.OnMount()
-		}
-
 		if c != nil {
 			cr := render(c, nil)
 			if cr != nil {
@@ -122,6 +148,10 @@ func render(node vdom.Node, d *js.Object) *js.Object {
 	e.SetRenderedDOMNode(DOMNode{d})
 	if oe != e {
 		oe.SetRenderedDOMNode(DOMNode{d})
+	}
+
+	if oe.Component != nil {
+		oe.Component.AfterMount()
 	}
 
 	return d
@@ -143,7 +173,7 @@ func (d DOMNode) Render(content vdom.Node, root bool) {
 	}
 }
 
-func (dNode DOMNode) Do(action vdom.Action) {
+func (dNode DOMNode) Do(action *vdom.Action) {
 	d := dNode.Object
 
 	switch action.Type {

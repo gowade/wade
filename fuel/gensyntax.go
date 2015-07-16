@@ -30,13 +30,8 @@ func valueToStringCode(vcode string) string {
 	return fmt.Sprintf(`wade.Str(%v)`, vcode)
 }
 
-func componentSetStateCode(sField, sType string, isPointer bool) string {
-	typ := sType
-	if isPointer {
-		typ = "*" + sType
-	}
-
-	return fmt.Sprintf("if stateData != nil { this.%v = stateData.(%v) }", sField, typ)
+func componentSetStateCode() string {
+	return "this.InternalInitState(stateData)"
 }
 
 func componentRefsVarCode(comName string) (string, string) {
@@ -54,7 +49,9 @@ func prelude(pkgName string, imports []importInfo) string {
 	var importCode bytes.Buffer
 	if imports != nil {
 		for _, imp := range imports {
-			importCode.WriteString(fmt.Sprintf(`%v "%v"`+"\n", imp.as, imp.path))
+			if imp.as != "wade" && imp.as != "vdom" {
+				importCode.WriteString(fmt.Sprintf(`%v "%v"`+"\n", imp.as, imp.path))
+			}
 		}
 	}
 	return `package ` + pkgName + `
