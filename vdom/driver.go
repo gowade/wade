@@ -14,13 +14,21 @@ type DOMNode interface {
 	Render(Node, bool)
 	JS() *js.Object
 	Compat(Node) bool
+	SetClass(string, bool)
 }
 
 type Driver interface {
 	ToInputEl(DOMNode) DOMInputEl
+	ToFormEl(DOMNode) DOMFormEl
+}
+
+type DOMFormEl interface {
+	DOMNode
+	IsValid() bool
 }
 
 type DOMInputEl interface {
+	DOMNode
 	Value() string
 	SetValue(string)
 	Checked() bool

@@ -21,6 +21,8 @@ func domElType(elTag string) (string, string) {
 	switch elTag {
 	case "input":
 		return "vdom.DOMInputEl", "wade.VdomDrv().ToInputEl"
+	case "form":
+		return "vdom.DOMFormEl", "wade.VdomDrv().ToFormEl"
 	}
 
 	return "vdom.DOMNode", ""

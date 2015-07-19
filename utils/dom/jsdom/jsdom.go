@@ -4,8 +4,33 @@ import (
 	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
+
 	"github.com/gowade/wade/utils/dom"
 )
+
+type Event struct{ *js.Object }
+
+func (e Event) JS() *js.Object {
+	return e.Object
+}
+
+func (e Event) PreventDefault() {
+	e.Call("preventDefault")
+}
+
+func (e Event) StopPropagation() {
+	e.Call("stopPropagation")
+}
+
+func newEvent(evt *js.Object) dom.Event {
+	return Event{evt}
+}
+
+func newEventHandler(handler dom.EventHandler) interface{} {
+	return func(evt *js.Object) {
+		handler(newEvent(evt))
+	}
+}
 
 func init() {
 	if js.Global == nil || js.Global.Get("document") == js.Undefined {
@@ -13,6 +38,7 @@ func init() {
 	}
 
 	dom.SetDocument(Document{Node{js.Global.Get("document")}})
+	dom.NewEventHandler = newEventHandler
 }
 
 type Node struct {

@@ -87,14 +87,26 @@ func (c *HTMLCompiler) elementCodeCC(node *html.Node, key string, vda *varDeclAr
 	return cn, nil
 }
 
+func justPeskySpaces(str string) bool {
+	for _, c := range str {
+		switch c {
+		case '\n', '\t', ' ':
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
 func (c *HTMLCompiler) genChildren(node *html.Node, vda *varDeclArea, comRefs *comRefs) (
 	[]*codeNode, error) {
 	children := make([]*codeNode, 0)
 	i := 0
 	for ch := node.FirstChild; ch != nil; ch = ch.NextSibling {
-		// clean pesky linebreaks and tabs in the HTML code
+		//clean pesky linebreaks and tabs in the HTML code
 		if ch.Type == html.TextNode && []rune(ch.Data)[0] == '\n' &&
-			strings.TrimSpace(ch.Data) == "" &&
+			justPeskySpaces(ch.Data) &&
 			strings.ToLower(node.Data) != "pre" {
 			continue
 		}
@@ -149,6 +161,9 @@ func (c *HTMLCompiler) generateRecCC(node *html.Node, vda *varDeclArea, comRefs 
 		case "switch":
 			htmlutils.RemoveGarbageTextChildren(node)
 			cn, err = c.switchControlCode(node, vda)
+		case "var":
+			htmlutils.RemoveGarbageTextChildren(node)
+			cn, err = c.varTagCode(node, vda)
 
 		default:
 			key := `""`
@@ -193,10 +208,14 @@ func (c *HTMLCompiler) generateRecCC(node *html.Node, vda *varDeclArea, comRefs 
 			return nil, err
 		}
 
+		if cn == nil {
+			return []*codeNode{}, nil
+		}
+
 		return []*codeNode{cn}, nil
 	}
 
-	return nil, nil
+	return []*codeNode{}, nil
 }
 
 func (c *HTMLCompiler) renderFuncOpener(tagName string, com *componentInfo) string {
@@ -241,26 +260,13 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 		}
 	}
 
-	vda := newVarDeclArea()
+	vda := newVarDeclArea(nil)
 
 	var cnode *codeNode
 	var l []*codeNode
 	var err error
 
 	if com != nil {
-		refs := newComRefs(vda)
-		l, err = c.generateRecCC(renderNode, vda, refs, true)
-		if err != nil {
-			return nil, err
-		}
-		cnode = l[0]
-
-		refsVar, refsSet := componentRefsVarCode(com.name)
-		if len(refs.refs) > 0 {
-			c.comRefs[com.name] = refs.refs
-			children = append(children, ncn(refsVar))
-		}
-
 		pac := &codeNode{
 			typ:  FuncCallCodeNode,
 			code: combinedAttrs + " := " + "wade.MergeMaps",
@@ -269,8 +275,25 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 				ncn("this.Com.Attrs"),
 			},
 		}
-
 		vda.setVarDecl(combinedAttrs, pac)
+
+		refs := newComRefs(vda)
+		l, err = c.generateRecCC(renderNode, vda, refs, true)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(l) == 0 {
+			return nil, fmt.Errorf("%v: Invalid component body.", com.name)
+		}
+
+		cnode = l[0]
+
+		refsVar, refsSet := componentRefsVarCode(com.name)
+		if len(refs.refs) > 0 {
+			c.comRefs[com.name] = refs.refs
+			children = append(children, ncn(refsVar))
+		}
 
 		vda.saveToCN()
 		children = append(children, vda.codeNode)
@@ -284,10 +307,15 @@ func (c *HTMLCompiler) Generate(node *html.Node, com *componentInfo) (*codeNode,
 		}
 	} else {
 		l, err = c.generateRec(renderNode, vda, nil)
-		cnode = l[0]
 		if err != nil {
 			return nil, err
 		}
+
+		if len(l) == 0 {
+			return nil, fmt.Errorf("%v: Invalid component body.", com.name)
+		}
+
+		cnode = l[0]
 
 		vda.saveToCN()
 		children = append(children, vda.codeNode)

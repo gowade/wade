@@ -14,6 +14,34 @@ func lnode(code string) *codeNode {
 	}
 }
 
+func (c *HTMLCompiler) varTagCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
+	var name string
+	var value html.Attribute
+	for _, attr := range node.Attr {
+		switch attr.Key {
+		case "name":
+			name = attr.Val
+		case "value":
+			value = attr
+		default:
+			return nil, fmt.Errorf(`Invalid attribute "%v" for "var" tag.`, attr.Key)
+		}
+	}
+
+	if name == "" || value.Val == "" {
+		return nil, fmt.Errorf(`"var" tag's "name" and "value" attributes cannot be empty.`)
+	}
+
+	if vda.newVar(name) != name {
+		return nil, fmt.Errorf(`"var" tag: variable name %v is either reserved by Wade Fuel or duplicated.`,
+			name)
+	}
+
+	vda.setVarDecl(name, ncn(fmt.Sprintf("%v := %v", name, attributeValueCode(value))))
+
+	return nil, nil
+}
+
 func (c *HTMLCompiler) renderTagCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
 	var contentAttr html.Attribute
 	for _, attr := range node.Attr {
@@ -92,11 +120,12 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 	}
 
 	varName := vda.newVar("for")
-	forVda := newVarDeclArea()
+	forVda := newVarDeclArea(vda)
 	apList := []*codeNode{{
 		typ:  SliceVarCodeNode,
 		code: varName,
 	}}
+
 	l, err := c.genChildren(node, forVda, nil)
 	if err != nil {
 		return nil, err
@@ -106,6 +135,11 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 
 	forVda.saveToCN()
 
+	eql := ":="
+	if keyName == "_" && valName == "_" {
+		eql = "="
+	}
+
 	vda.setVarDecl(
 		varName,
 		ncn(fmt.Sprintf(`%v := %v{}`, varName, NodeListOpener)),
@@ -113,7 +147,7 @@ func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode
 			typ:  BlockCodeNode,
 			code: fmt.Sprintf(`for __k, __v := range %v`, rangeAttr.Val),
 			children: []*codeNode{
-				ncn(fmt.Sprintf(`%v, %v := __k, __v`, keyName, valName)),
+				ncn(fmt.Sprintf(`%v, %v %v __k, __v`, keyName, valName, eql)),
 				forVda.codeNode,
 				&codeNode{
 					typ:      AppendListCodeNode,
@@ -150,11 +184,23 @@ func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 	}
 
 	varName := vda.newVar("if")
-	ifVda := newVarDeclArea()
+	ifVda := newVarDeclArea(vda)
+
+	if node.FirstChild == nil {
+		return nil, nil
+	}
+
+	if node.FirstChild.Type == html.ElementNode && node.FirstChild.Data == "for" {
+		return nil, fmt.Errorf("Use of for loop as direct child of an if tag is forbidden because if tag can only have 1 child, please consider wrapping it")
+	}
 
 	l, err := c.generateRec(node.FirstChild, ifVda, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(l) == 0 {
+		return nil, nil
 	}
 
 	child := l[0]
@@ -178,11 +224,24 @@ func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNo
 }
 
 func (c *HTMLCompiler) caseControlCode(node *html.Node, varName string, expr html.Attribute) (*codeNode, error) {
-	caseVda := newVarDeclArea()
+	caseVda := newVarDeclArea(nil)
 
+	if node.FirstChild == nil {
+		return nil, nil
+	}
+
+	if node.FirstChild.Type == html.ElementNode && node.FirstChild.Data == "for" {
+		return nil, fmt.Errorf("Use of for loop as direct child of a case tag is forbidden because case tag can only have 1 child, please consider wrapping it")
+	}
+
+	htmlutils.RemoveGarbageTextChildren(node)
 	l, err := c.generateRec(node.FirstChild, caseVda, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(l) == 0 {
+		return nil, nil
 	}
 
 	child := l[0]
@@ -228,7 +287,6 @@ func (compiler *HTMLCompiler) switchControlCode(node *html.Node, vda *varDeclAre
 			continue
 		}
 
-		htmlutils.RemoveGarbageTextChildren(node)
 		var caseExprAttr html.Attribute
 		switch c.Data {
 		case "case":

@@ -21,9 +21,11 @@ func runGofmt(file string) {
 	}
 }
 
-func emitDomCode(w io.Writer, node *codeNode) {
+func emitDomCode(w io.Writer, node *codeNode, err error) {
 	if node == nil {
-		w.Write([]byte("#ERROR<NIL>"))
+		if err != nil {
+			w.Write([]byte("!ERROR: " + err.Error()))
+		}
 		return
 	}
 
@@ -37,7 +39,7 @@ func emitDomCode(w io.Writer, node *codeNode) {
 	case FuncCallCodeNode:
 		write(w, node.code+"(")
 		for i, c := range node.children {
-			emitDomCode(w, c)
+			emitDomCode(w, c, err)
 			if i < len(node.children)-1 {
 				write(w, ",")
 			}
@@ -48,26 +50,26 @@ func emitDomCode(w io.Writer, node *codeNode) {
 		panic("Unexpected case, something is wrong, please report this.")
 
 	case ElemListCodeNode, AppendListCodeNode:
-		handleElemListCN(w, node)
+		handleElemListCN(w, node, err)
 
 	case VarDeclAreaCodeNode:
 		write(w, "\n")
 		for _, c := range node.children {
-			emitDomCode(w, c)
+			emitDomCode(w, c, err)
 			write(w, "\n")
 		}
 
 	case WrapperCodeNode:
 		write(w, node.code)
 		for _, c := range node.children {
-			emitDomCode(w, c)
+			emitDomCode(w, c, err)
 			write(w, "\n")
 		}
 
 	case CompositeCodeNode, BlockCodeNode:
 		write(w, node.code+"{\n")
 		for _, c := range node.children {
-			emitDomCode(w, c)
+			emitDomCode(w, c, err)
 			if node.typ == CompositeCodeNode {
 				write(w, ",")
 			}
@@ -77,7 +79,7 @@ func emitDomCode(w io.Writer, node *codeNode) {
 	}
 }
 
-func handleElemListCN(w io.Writer, node *codeNode) {
+func handleElemListCN(w io.Writer, node *codeNode, err error) {
 	opening := NodeListOpener + "{\n"
 	closing := "}"
 
@@ -117,7 +119,7 @@ func handleElemListCN(w io.Writer, node *codeNode) {
 		} else {
 			write(w, opening)
 			for i, c := range part {
-				emitDomCode(w, c)
+				emitDomCode(w, c, err)
 				if i < len(part)-1 {
 					write(w, ",\n")
 				}

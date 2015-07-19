@@ -105,7 +105,7 @@ func compileDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName,
 	}
 
 	write(ofile, prelude(pkgName, nil))
-	emitDomCode(ofile, ctree)
+	emitDomCode(ofile, ctree, err)
 
 	return nil
 }

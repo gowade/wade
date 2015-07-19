@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	fuelSuffix = ".fuel.go"
+	fuelSuffix  = ".fuel.go"
+	genComsFile = "~generatedComs~" + fuelSuffix
+	methodsFile = "~methods~" + fuelSuffix
 )
 
 var (
@@ -142,6 +144,7 @@ func (f *Fuel) Serve(dir string, indexFile string, port string, serveOnly bool) 
 					fileName := event.Name
 					if fileIsRelevant(fileName) {
 						log.Println("modified " + fileName)
+						f.components = make(componentMap)
 						f.BuildPackage(filepath.Dir(fileName), "", nil, serveOnly)
 						f.runGopherjs(indexFile)
 					}
@@ -216,7 +219,12 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 		})
 	}
 
-	htmlComs, htmlFiles, err := f.parseHtmlTemplates(dir)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		fatal(err.Error())
+	}
+
+	htmlComs, htmlFiles, err := f.parseHtmlTemplates(dir, files)
 	if err != nil {
 		printErr(err)
 	}
@@ -253,6 +261,9 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 	var needGen bool
 	htmlCompiler := NewHTMLCompiler(f.components)
 	var pcoms []componentInfo
+	var gencoms []string
+	generated := make(map[string]bool)
+
 	for _, htmlFile := range htmlFiles {
 		if fswatcher != nil {
 			f.watch(fswatcher, filepath.Join(dir, htmlFile.name))
@@ -275,29 +286,36 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 		}
 
 		extcut := len(htmlFile.name) - len(".html")
-		ofilename := "g." + string([]rune(htmlFile.name[:extcut])) + fuelSuffix
+		ofilename := "~" + string([]rune(htmlFile.name[:extcut])) + fuelSuffix
 		ofilepath := filepath.Join(dir, ofilename)
 		w, err := os.Create(ofilepath)
 		if err != nil {
 			fatal(err.Error())
 		}
+		generated[ofilename] = true
 		defer w.Close()
 		write(w, prelude(pkg.Name, htmlFile.imports))
 
 		for _, comName := range htmlFile.components {
-			if com, ok := f.components[prefix+comName]; ok {
-				needGen = true
-				write(w, "\n\n")
-				ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
+			if _, ok := f.components[prefix+comName]; !ok {
+				gencoms = append(gencoms, comName)
+				f.components[prefix+comName] = componentInfo{
+					name:     comName,
+					prefix:   prefix,
+					htmlInfo: htmlComs[comName],
 				}
-
-				emitDomCode(w, ctree)
-				pcoms = append(pcoms, com)
-			} else {
-				fmt.Fprintf(os.Stderr, "No struct definition for %v component.\n", comName)
 			}
+
+			com, _ := f.components[prefix+comName]
+			needGen = true
+			write(w, "\n\n")
+			ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+			}
+
+			emitDomCode(w, ctree, err)
+			pcoms = append(pcoms, com)
 		}
 
 		runGofmt(ofilepath)
@@ -307,11 +325,25 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 		return
 	}
 
-	mfile, err := os.Create(filepath.Join(dir, "g.methods.fuel.go"))
+	gcf, err := os.Create(filepath.Join(dir, genComsFile))
+	write(gcf, prelude(pkg.Name, nil))
+	if err != nil {
+		fatal(err.Error())
+	}
+	for _, com := range gencoms {
+		comDefTpl.Execute(gcf, comDefTD{
+			ComName: com,
+		})
+	}
+	defer gcf.Close()
+	generated[genComsFile] = true
+
+	mfile, err := os.Create(filepath.Join(dir, methodsFile))
 	if err != nil {
 		fatal(err.Error())
 	}
 	defer mfile.Close()
+	generated[methodsFile] = true
 
 	write(mfile, prelude(pkg.Name, pkg.importList()))
 	for _, com := range pcoms {
@@ -327,6 +359,13 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 			panic(err)
 		}
 		writeRerenderMethod(mfile, com.name)
+	}
+
+	for _, fi := range files {
+		fpath := filepath.Join(dir, fi.Name())
+		if strings.HasSuffix(fi.Name(), fuelSuffix) && !generated[filepath.Base(fi.Name())] {
+			os.Remove(fpath)
+		}
 	}
 }
 
@@ -354,11 +393,10 @@ func makeRefsTD(comName string, refs []comRef) refsTD {
 func makeStateMethodsTD(pkg *astPkg, com componentInfo) (ret stateMethodsTD) {
 	ret.Receiver = "*" + com.name
 	ret.StateField = com.state.fieldName
-	if com.state.typeName[0] == '*' {
-		ret.StateIsPointer = true
-		ret.StateType = com.state.typeName
-		ret.StateStruct = strings.TrimSpace(com.state.typeName[1:])
+	if com.state.typeName[0] != '*' {
+		panic("State type must be pointer!") //it should've been reported before this function
 	}
+	ret.StateType = com.state.typeName[1:]
 
 	ss := com.state.typeStruct
 	if ss != nil {
@@ -390,12 +428,7 @@ type htmlFileInfo struct {
 	components []string
 }
 
-func (f *Fuel) parseHtmlTemplates(dir string) (m map[string]htmlInfo, hfs []htmlFileInfo, err error) {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func (f *Fuel) parseHtmlTemplates(dir string, files []os.FileInfo) (m map[string]htmlInfo, hfs []htmlFileInfo, err error) {
 	m = make(map[string]htmlInfo)
 	hfs = make([]htmlFileInfo, 0)
 	for _, fileInfo := range files {

@@ -12,6 +12,7 @@ import (
 
 func init() {
 	driver.Render = Render
+
 	driver.SetRouteDriver(getRouteDriver())
 	driver.SetEnv(driver.BrowserEnv)
 }

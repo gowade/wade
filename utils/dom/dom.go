@@ -1,8 +1,21 @@
 package dom
 
-var (
-	document Document
+import (
+	"github.com/gopherjs/gopherjs/js"
 )
+
+var (
+	document        Document
+	NewEventHandler func(EventHandler) interface{}
+)
+
+type EventHandler func(Event)
+
+type Event interface {
+	PreventDefault()
+	StopPropagation()
+	JS() *js.Object
+}
 
 func GetDocument() Document {
 	if document == nil {

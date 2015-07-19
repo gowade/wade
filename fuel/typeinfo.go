@@ -74,37 +74,34 @@ func dot(base string, path string) string {
 }
 
 func (p *astPkg) typeObj(file *ast.File, ftyp ast.Expr) (obj *ast.Object, rfile *ast.File) {
-	switch typ := ftyp.(type) {
-	case *ast.StarExpr:
-		return p.typeObj(file, typ.X)
-
-	case *ast.Ident:
-		if typ.Obj != nil {
-			return typ.Obj, file
-		}
-
-		return p.lookup(typ.Name)
-	}
 
 	return nil, file
 }
 
 func (p *astPkg) stateStruct(file *ast.File, ftyp ast.Expr) (ss *ast.StructType, rfile *ast.File) {
-	if ss, ok := ftyp.(*ast.StructType); ok {
-		return ss, file
-	}
+	switch typ := ftyp.(type) {
+	case *ast.StarExpr:
+		return p.stateStruct(file, typ.X)
 
-	var obj *ast.Object
-	obj, file = p.typeObj(file, ftyp)
-	if obj != nil {
-		if spec, ok := obj.Decl.(*ast.TypeSpec); ok {
-			if spec.Type != nil {
-				switch et := spec.Type.(type) {
-				case *ast.StructType:
-					return et, file
+	case *ast.StructType:
+		return typ, file
+
+	case *ast.Ident:
+		if typ.Obj == nil {
+			typ.Obj, file = p.lookup(typ.Name)
+		}
+
+		if typ.Obj != nil {
+			if spec, ok := typ.Obj.Decl.(*ast.TypeSpec); ok {
+				if spec.Type != nil {
+					switch et := spec.Type.(type) {
+					case *ast.StructType:
+						return et, file
+					}
 				}
 			}
 		}
+
 	}
 
 	return nil, file

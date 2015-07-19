@@ -19,7 +19,7 @@ func isComponentArgName(attrName string) bool {
 
 func cnToBuffer(cn *codeNode) *bytes.Buffer {
 	var buf bytes.Buffer
-	emitDomCode(&buf, cn)
+	emitDomCode(&buf, cn, nil)
 	return &buf
 }
 
@@ -128,6 +128,10 @@ func mapFieldAssignmentCode(field string, value string) string {
 }
 
 func attributeValueCode(attr html.Attribute) string {
+	if attr.IsEmpty {
+		return "true"
+	}
+
 	if attr.IsMustache {
 		return attr.Val
 	}

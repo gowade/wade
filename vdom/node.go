@@ -126,6 +126,9 @@ func (t *Element) Render() Node {
 		t.ComRend.comref = t.Component
 		if t.ComRend != nil {
 			t.ComRend.Key = t.Key
+			if t.ComRend.Component != nil {
+				t.ComRend = t.ComRend.Render().(*Element)
+			}
 			return t.ComRend
 		}
 

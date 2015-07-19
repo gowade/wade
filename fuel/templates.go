@@ -16,9 +16,8 @@ type stateFieldTD struct {
 }
 
 type stateMethodsTD struct {
-	Receiver, StateField, StateStruct, StateType string
-	StateIsPointer                               bool
-	Setters                                      []stateFieldTD
+	Receiver, StateField, StateType string
+	Setters                         []stateFieldTD
 }
 
 var stateMethodsTpl = newTpl("stateMethods", `
@@ -31,12 +30,13 @@ func (this {{$receiver}}) InternalState() interface{} {
 
 func (this {{$receiver}}) InternalInitState(stateData interface{}) {
 	if stateData != nil {
-		this.{{$stateField}} = stateData.({{.StateType}})
-	}{{if .StateIsPointer}} else {
+		this.{{$stateField}} = stateData.(*{{.StateType}})
+	} else {
 		if this.{{$stateField}} == nil {
-			this.{{$stateField}} = &{{.StateStruct}}{}
+			var t {{.StateType}}
+			this.{{$stateField}} = &t
 		}
-	}{{end}}
+	}
 }
 
 {{range .Setters}}
@@ -117,3 +117,11 @@ func init() {
 	Attrs: {{.Attrs}},
 }`))
 }
+
+type comDefTD struct {
+	ComName string
+}
+
+var comDefTpl = newTpl("comDef", `
+type {{.ComName}} struct { wade.Com }
+`)

@@ -4,7 +4,6 @@ import (
 	gourl "net/url"
 
 	"github.com/gowade/wade/utils/dom"
-
 	"github.com/gowade/wade/vdom"
 )
 

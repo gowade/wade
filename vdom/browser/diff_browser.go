@@ -14,7 +14,17 @@ var (
 	document *js.Object
 )
 
-type DOMInputEl struct{ *js.Object }
+type DOMFormEl struct{ DOMNode }
+
+func (e DOMFormEl) IsValid() bool {
+	if e.Get("checkValidity") != js.Undefined {
+		return e.Call("checkValidity").Bool()
+	}
+
+	return true
+}
+
+type DOMInputEl struct{ DOMNode }
 
 func (e DOMInputEl) Checked() bool {
 	return e.Get("checked").Bool()
@@ -26,6 +36,10 @@ func (e DOMInputEl) SetChecked(checked bool) {
 
 func (e DOMInputEl) Value() string {
 	return e.Get("value").String()
+}
+
+func (e DOMInputEl) JS() *js.Object {
+	return e.Object
 }
 
 func (e DOMInputEl) SetValue(value string) {
@@ -53,7 +67,11 @@ func ElementById(id string) vdom.DOMNode {
 type driver struct{}
 
 func (d driver) ToInputEl(el vdom.DOMNode) vdom.DOMInputEl {
-	return DOMInputEl{el.(DOMNode).Object}
+	return DOMInputEl{el.(DOMNode)}
+}
+
+func (d driver) ToFormEl(el vdom.DOMNode) vdom.DOMFormEl {
+	return DOMFormEl{el.(DOMNode)}
 }
 
 func createElement(tag string) *js.Object {
@@ -66,6 +84,14 @@ func createTextNode(data string) *js.Object {
 
 type DOMNode struct {
 	*js.Object
+}
+
+func (e DOMNode) SetClass(class string, val bool) {
+	if val {
+		e.Call("addClass", class)
+	} else {
+		e.Call("removeClass", class)
+	}
 }
 
 func (d DOMNode) Compat(node vdom.Node) bool {

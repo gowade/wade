@@ -2,8 +2,10 @@ package wade
 
 import (
 	"fmt"
+	gourl "net/url"
 
 	"github.com/gowade/wade/driver"
+	"github.com/gowade/wade/utils/dom"
 	"github.com/gowade/wade/vdom"
 )
 
@@ -143,4 +145,20 @@ func MergeMaps(m1, m2 map[string]interface{}) map[string]interface{} {
 	}
 
 	return m
+}
+
+func If(cond bool, v string) string {
+	if cond {
+		return v
+	}
+
+	return ""
+}
+
+func WrapEvt(handler func(dom.Event)) interface{} {
+	return dom.NewEventHandler(handler)
+}
+
+func QueryEscape(str string) string {
+	return gourl.QueryEscape(str)
 }
