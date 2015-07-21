@@ -123,8 +123,8 @@ func (t *Element) Render() Node {
 		}
 
 		t.ComRend = t.Component.Render(state)
-		t.ComRend.comref = t.Component
 		if t.ComRend != nil {
+			t.ComRend.comref = t.Component
 			t.ComRend.Key = t.Key
 			if t.ComRend.Component != nil {
 				t.ComRend = t.ComRend.Render().(*Element)

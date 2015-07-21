@@ -178,7 +178,7 @@ func (c *HTMLCompiler) generateRecCC(node *html.Node, vda *varDeclArea, comRefs 
 
 			if com, ok := c.getComponent(comName); ok {
 				var children []*codeNode
-				children, err = c.genChildren(node, vda, nil)
+				children, err = c.genChildren(node, vda, comRefs)
 				if err != nil {
 					return nil, err
 				}

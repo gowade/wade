@@ -25,7 +25,7 @@ type Worklog struct {
 }
 
 func (this *Worklog) handleSearch(filterText string) {
-	this.SetFilterText(strings.ToLower(filterText))
+	this.setFilterText(strings.ToLower(filterText))
 }
 
 type SearchBar struct {
@@ -69,12 +69,12 @@ func (this *LogRow) toggleClock() {
 		go func() {
 			for {
 				<-this.ticker.C
-				this.SetElapsed(this.State.Elapsed + 0.1)
+				this.setElapsed(this.State.Elapsed + 0.1)
 			}
 		}()
 	} else {
 		this.ticker.Stop()
-		this.SetRunning(false)
+		this.setRunning(false)
 	}
 }
 

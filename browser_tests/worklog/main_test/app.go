@@ -44,7 +44,7 @@ func main() {
 
 		ctn := JQ("<div/>").AppendTo(JQ("body"))
 		vnode := wade.Render(worklog)
-		vdom.PerformDiff(vnode, nil, browser.DOMNode{ctn.Get(0)})
+		vdom.PerformDiff(vnode.(*vdom.Element), nil, browser.DOMNode{ctn.Get(0)})
 
 		logTable := ctn.Find(".logtable")
 		It("Should not render component tags", func() {
