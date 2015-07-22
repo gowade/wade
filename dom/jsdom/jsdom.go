@@ -5,7 +5,7 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 
-	"github.com/gowade/wade/utils/dom"
+	"github.com/gowade/wade/dom"
 )
 
 type Event struct{ *js.Object }
@@ -32,12 +32,23 @@ func newEventHandler(handler dom.EventHandler) interface{} {
 	}
 }
 
+type driver struct{}
+
+func (d driver) ToInputEl(el vdom.DOMNode) vdom.DOMInputEl {
+	return DOMInputEl{el.(DOMNode)}
+}
+
+func (d driver) ToFormEl(el vdom.DOMNode) vdom.DOMFormEl {
+	return DOMFormEl{el.(DOMNode)}
+}
+
 func init() {
 	if js.Global == nil || js.Global.Get("document") == js.Undefined {
 		panic("jsdom package can only be imported in browser environment")
 	}
 
 	dom.SetDocument(Document{Node{js.Global.Get("document")}})
+	dom.SetDomDriver(driver{})
 	dom.NewEventHandler = newEventHandler
 }
 
@@ -76,6 +87,18 @@ func nodeList(jslist *js.Object) []dom.Node {
 	return l
 }
 
+func (z Node) Clear() {
+	var c *js.Object
+	for {
+		c = d.Get("lastChild")
+		if c == nil {
+			return
+		}
+
+		d.Call("removeChild", c)
+	}
+}
+
 func (z Node) Children() []dom.Node {
 	cs := z.Get("childNodes")
 	if cs == nil {
@@ -92,6 +115,45 @@ func (z Node) Find(query string) []dom.Node {
 	}
 
 	return nodeList(z.Call("querySelectorAll", query))
+}
+
+func (d Node) SetAttr(attr string, value interface{}) {
+	var vstr string
+	switch v := value.(type) {
+	case bool:
+		if !v {
+			if d.Call("hasAttribute", attr).Bool() {
+				d.Call("removeAttribute", attr)
+			}
+
+			return
+		} else {
+			vstr = attr
+		}
+
+	case string:
+		vstr = v
+	default:
+		vstr = fmt.Sprint(v)
+	}
+
+	d.Call("setAttribute", attr, vstr)
+}
+
+func (z Node) RemoveAttr(attr string) {
+	z.Call("removeAttribute", attr)
+}
+
+func (z Node) SetProp(prop string, value interface{}) {
+	z.Set(prop, value)
+}
+
+func (z Node) SetClass(class string, val bool) {
+	if val {
+		e.Call("addClass", class)
+	} else {
+		e.Call("removeClass", class)
+	}
 }
 
 type Document struct {

@@ -28,20 +28,20 @@ const (
 )
 
 var (
-	gSrcPath string
+	goSrcPath string
 )
 
 func srcPath() string {
-	if gSrcPath == "" {
+	if goSrcPath == "" {
 		gopath := os.Getenv("GOPATH")
 		if gopath == "" {
 			fatal("GOPATH environment variable has not been set, please set it to a correct value.")
 		}
 
-		gSrcPath = filepath.Join(gopath, "src")
+		goSrcPath = filepath.Join(gopath, "src")
 	}
 
-	return gSrcPath
+	return goSrcPath
 }
 
 type htmlInfo struct {
@@ -309,12 +309,12 @@ func (f *Fuel) BuildPackage(dir string, prefix string, fswatcher *fsnotify.Watch
 			com, _ := f.components[prefix+comName]
 			needGen = true
 			write(w, "\n\n")
-			ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-			}
+			//ctree, err := htmlCompiler.Generate(com.htmlInfo.markup, &com)
+			//if err != nil {
+			//fmt.Fprintf(os.Stderr, "%v\n", err)
+			//}
 
-			emitDomCode(w, ctree, err)
+			//emitDomCode(w, ctree, err)
 			pcoms = append(pcoms, com)
 		}
 

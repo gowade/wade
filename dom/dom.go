@@ -19,7 +19,7 @@ type Event interface {
 
 func GetDocument() Document {
 	if document == nil {
-		panic("DOM document has not been set.")
+		panic(" document has not been set.")
 	}
 	return document
 }
@@ -48,4 +48,30 @@ type Node interface {
 	Find(query string) []Node
 	Data() string
 	Children() []Node
+
+	SetAttr(string, interface{})
+	SetProp(string, interface{})
+	RemoveAttr(string)
+
+	Clear()
+	JS() *js.Object
+	SetClass(string, bool)
+}
+
+type Driver interface {
+	ToInputEl(Node) InputEl
+	ToFormEl(Node) FormEl
+}
+
+type FormEl interface {
+	Node
+	IsValid() bool
+}
+
+type InputEl interface {
+	Node
+	Value() string
+	SetValue(string)
+	Checked() bool
+	SetChecked(bool)
 }

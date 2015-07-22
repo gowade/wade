@@ -30,82 +30,88 @@ const (
 	defaultIndexFile = "public/index.html"
 )
 
-func main() {
-	flag.Parse()
+func buildCmd(dir string, target string) {
+	if target != "" {
+		buildHtmlFile(target)
+	} else {
+		fuel := NewFuel()
+		fuel.BuildPackage(dir, "", nil, false)
+	}
+}
 
-	dir, err := os.Getwd()
+func serveCmd(dir string, args []string) {
+	var (
+		indexFile string
+		port      string
+		serveOnly bool
+	)
+
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	fs.StringVar(&indexFile, "i", defaultIndexFile, "HTML index file for your application. The compiled app.js file will be put into its directory")
+	fs.StringVar(&port, "p", "8888", "HTTP port to serve the application")
+	fs.BoolVar(&serveOnly, "serveonly", false, "Only serve and watch, no code generation")
+	fs.Parse(args)
+
+	if _, err := os.Stat(indexFile); err != nil {
+		fatal(err.Error())
+	}
+
+	if serveOnly {
+		fmt.Println("Running serve-only mode, fuel doesn't generate code..")
+	}
+
+	NewFuel().Serve(dir, indexFile, port, serveOnly)
+}
+
+func cleanCmd(dir string) {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		fatal(err.Error())
 	}
 
-	command := flag.Arg(0)
-	switch command {
-	case "build":
-		bTarget := flag.Arg(1)
-		if bTarget != "" {
-			buildHtmlFile(bTarget)
-		} else {
-			fuel := NewFuel()
-			fuel.BuildPackage(dir, "", nil, false)
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), fuelSuffix) {
+			os.Remove(file.Name())
 		}
-
-	case "serve":
-		var (
-			indexFile string
-			port      string
-			serveOnly bool
-		)
-
-		fs := flag.NewFlagSet("serve", flag.ExitOnError)
-		fs.StringVar(&indexFile, "i", defaultIndexFile, "HTML index file for your application. The compiled app.js file will be put into its directory")
-		fs.StringVar(&port, "p", "8888", "HTTP port to serve the application")
-		fs.BoolVar(&serveOnly, "serveonly", false, "Only serve, no building and watching")
-		fs.Parse(flag.Args()[1:])
-
-		if _, err := os.Stat(indexFile); err != nil {
-			fatal(err.Error())
-		}
-
-		if serveOnly {
-			fmt.Println("Running serve-only mode, fuel doesn't generate code..")
-		}
-
-		NewFuel().Serve(dir, indexFile, port, serveOnly)
-
-	case "clean":
-		dir, err := os.Getwd()
-		if err != nil {
-			fatal(err.Error())
-		}
-
-		files, err := ioutil.ReadDir(dir)
-		if err != nil {
-			fatal(err.Error())
-		}
-
-		for _, file := range files {
-			if strings.HasSuffix(file.Name(), fuelSuffix) {
-				os.Remove(file.Name())
-			}
-		}
-
-	default:
-		fatal("Please specify a command.")
 	}
 }
 
-func compileDomFile(compiler *HTMLCompiler, htmlNode *html.Node, outputFileName, pkgName string, com *componentInfo) error {
+func main() {
+	flag.Parse()
+
+	dir, err := os.Getwd()
+	checkFatal(err)
+
+	command := flag.Arg(0)
+	switch command {
+	//case "build":
+	//buildCmd(dir, flag.Arg(1))
+
+	//case "serve":
+	//serveCmd(dir, flag.Args()[1:])
+
+	case "clean":
+		cleanCmd(dir)
+
+	default:
+		fatal("Please specify a command. Available commands: build, serve, clean")
+	}
+}
+
+func compileDomFile(htmlNode *html.Node, outputFileName string) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
 
-	ctree, err := compiler.Generate(htmlNode, com)
+	preludeTpl.Execute(ofile, preludeTD{
+		Pkg: "main",
+	})
+
+	compiler := NewHTMLCompiler(nil)
+	err = compiler.GenerateFile(ofile, htmlNode, nil)
 	if err != nil {
 		return err
 	}
-
-	write(ofile, prelude(pkgName, nil))
-	emitDomCode(ofile, ctree, err)
 
 	return nil
 }
@@ -120,10 +126,8 @@ func buildHtmlFile(filename string) {
 	n, err := htmlutils.ParseFragment(ifile)
 	checkFatal(err)
 
-	err = compileDomFile(NewHTMLCompiler(nil), n[0], outputFileName, "main", nil)
-	if err != nil {
-		fatal(err.Error())
-	}
+	err = compileHtmlVdom(n[0], outputFileName)
+	checkFatal(err)
 
 	runGofmt(outputFileName)
 }
