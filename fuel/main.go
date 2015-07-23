@@ -34,8 +34,8 @@ func buildCmd(dir string, target string) {
 	if target != "" {
 		buildHtmlFile(target)
 	} else {
-		fuel := NewFuel()
-		fuel.BuildPackage(dir, "", nil, false)
+		//fuel := NewFuel()
+		//fuel.BuildPackage(dir, "", nil, false)
 	}
 }
 
@@ -84,8 +84,8 @@ func main() {
 
 	command := flag.Arg(0)
 	switch command {
-	//case "build":
-	//buildCmd(dir, flag.Arg(1))
+	case "build":
+		buildCmd(dir, flag.Arg(1))
 
 	//case "serve":
 	//serveCmd(dir, flag.Args()[1:])
@@ -98,7 +98,7 @@ func main() {
 	}
 }
 
-func compileDomFile(htmlNode *html.Node, outputFileName string) error {
+func compileHTMLVDOM(htmlNode *html.Node, outputFileName string) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
@@ -108,7 +108,7 @@ func compileDomFile(htmlNode *html.Node, outputFileName string) error {
 	})
 
 	compiler := NewHTMLCompiler(nil)
-	err = compiler.GenerateFile(ofile, htmlNode, nil)
+	err = compiler.GenerateFile(ofile, htmlNode)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func buildHtmlFile(filename string) {
 	n, err := htmlutils.ParseFragment(ifile)
 	checkFatal(err)
 
-	err = compileHtmlVdom(n[0], outputFileName)
+	err = compileHTMLVDOM(n[0], outputFileName)
 	checkFatal(err)
 
 	runGofmt(outputFileName)
