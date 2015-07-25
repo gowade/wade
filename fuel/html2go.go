@@ -9,6 +9,22 @@ import (
 	"github.com/gowade/html"
 )
 
+func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
+	compiler := &htmlCompiler{
+		fileName: fileName,
+		w:        w,
+		root:     root,
+	}
+
+	return compiler.Generate()
+}
+
+type htmlCompiler struct {
+	fileName string
+	w        io.Writer
+	root     *html.Node
+}
+
 const (
 	keyAttrName = "key"
 )
@@ -35,25 +51,34 @@ func toTplAttrs(attrs []html.Attribute) map[string]string {
 	return m
 }
 
-func (z *HTMLCompiler) elementGenerate(w io.Writer, el *html.Node) error {
-	key, htmlAttrs := extractKeyFromAttrs(el.Attr)
-
+func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea) ([]*bytes.Buffer, error) {
 	var children []*bytes.Buffer
-	for c := el.FirstChild; c != nil; c = c.NextSibling {
-		//clean pesky linebreaks and tabs in the HTML code
+	for c := parent.FirstChild; c != nil; c = c.NextSibling {
+		// clean pesky linebreaks and tabs in the HTML code
 		if c.Type == html.TextNode && []rune(c.Data)[0] == '\n' &&
 			justPeskySpaces(c.Data) &&
-			strings.ToLower(el.Data) != "pre" {
+			strings.ToLower(parent.Data) != "pre" {
 			continue
 		}
 
+		// generate
 		var buf bytes.Buffer
-		err := z.nodeGenerate(&buf, c)
+		err := z.nodeGenerate(&buf, c, da)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		children = append(children, &buf)
+	}
+
+	return children, nil
+}
+
+func (z *htmlCompiler) elementGenerate(w io.Writer, el *html.Node, da *declArea) error {
+	key, htmlAttrs := extractKeyFromAttrs(el.Attr)
+	children, err := z.childrenGenerate(el, da)
+	if err != nil {
+		return err
 	}
 
 	return elementVDOMTpl.Execute(w, elementVDOMTD{
@@ -61,7 +86,6 @@ func (z *HTMLCompiler) elementGenerate(w io.Writer, el *html.Node) error {
 		Key:      strAttributeValueCode(parseTextMustache(key)),
 		Attrs:    toTplAttrs(htmlAttrs),
 		Children: children,
-		LastIdx:  len(children) - 1,
 	})
 }
 
@@ -78,16 +102,22 @@ func escapeNewlines(str string) string {
 	return buf.String()
 }
 
-func (z *HTMLCompiler) textNodeGenerate(w io.Writer, node *html.Node) error {
+func (z *htmlCompiler) textNodeGenerate(w io.Writer, node *html.Node) error {
+	parts := parseTextMustache(node.Data)
+
 	return textNodeVDOMTpl.Execute(w, textNodeVDOMTD{
-		Text: escapeNewlines(node.Data),
+		Text: strAttributeValueCode(parts),
 	})
 }
 
-func (z *HTMLCompiler) nodeGenerate(w io.Writer, node *html.Node) error {
+func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node, da *declArea) error {
 	switch node.Type {
 	case html.ElementNode:
-		return z.elementGenerate(w, node)
+		if fn := z.specialTag(node.Data); fn != nil {
+			return fn(w, node, da)
+		}
+
+		return z.elementGenerate(w, node, da)
 	case html.TextNode:
 		return z.textNodeGenerate(w, node)
 	}
@@ -95,15 +125,26 @@ func (z *HTMLCompiler) nodeGenerate(w io.Writer, node *html.Node) error {
 	return nil
 }
 
-func (c *HTMLCompiler) GenerateFile(w io.Writer, node *html.Node) error {
+func (z *htmlCompiler) Generate() error {
+	err := z.generate()
+	if err != nil {
+		return efmt("%v: %v", z.fileName, err.Error())
+	}
+
+	return nil
+}
+
+func (z *htmlCompiler) generate() error {
 	var buf bytes.Buffer
-	err := c.elementGenerate(&buf, node)
+	da := newDeclArea()
+	err := z.elementGenerate(&buf, z.root, da)
 	if err != nil {
 		return err
 	}
 
-	renderFuncTpl.Execute(w, renderFuncTD{
+	renderFuncTpl.Execute(z.w, renderFuncTD{
 		Return: &buf,
+		Decls:  da.code(),
 	})
 
 	return nil

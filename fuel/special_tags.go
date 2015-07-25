@@ -1,339 +1,183 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
+	"errors"
+	"io"
+	"strings"
 
 	"github.com/gowade/html"
-	"github.com/gowade/wade/utils/htmlutils"
 )
 
-func lnode(code string) *codeNode {
-	return &codeNode{
-		typ:  SliceVarCodeNode,
-		code: code,
+const (
+	forSTag = "for"
+)
+
+func newDeclArea() *declArea {
+	return &declArea{
+		nameIdx: map[string]int{},
 	}
 }
 
-func (c *HTMLCompiler) varTagCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	var name string
-	var value html.Attribute
-	for _, attr := range node.Attr {
-		switch attr.Key {
-		case "name":
-			name = attr.Val
-		case "value":
-			value = attr
-		default:
-			return nil, fmt.Errorf(`Invalid attribute "%v" for "var" tag.`, attr.Key)
+type declCodeTD struct {
+	VarName string
+	Code    *bytes.Buffer
+}
+
+type declArea struct {
+	nameIdx map[string]int
+	decls   []declCodeTD
+}
+
+// adds a declaration to the declaration area, if varName is already taken,
+// add a new number suffix to it, returns the new valid name
+// and a new buffer for its code
+func (z *declArea) declare(varName string) (string, *bytes.Buffer) {
+	if z.nameIdx[varName] > 0 {
+		z.nameIdx[varName]++
+	}
+
+	var buf bytes.Buffer
+	newVarName := sfmt("%v%v", varName, z.nameIdx[varName])
+	z.decls = append(z.decls, declCodeTD{
+		VarName: newVarName,
+		Code:    &buf,
+	})
+
+	return newVarName, &buf
+
+}
+
+func (z *declArea) code() *bytes.Buffer {
+	buf, err := execTplBuf(varDeclTpl, varDeclTD{
+		Vars: z.decls,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return buf
+}
+
+func nodeListCodeBuf() *bytes.Buffer {
+	return bytes.NewBufferString("[]vdom.Node")
+}
+
+type (
+	varDeclTD struct {
+		Vars []declCodeTD
+	}
+
+	forTagVDOMTD struct {
+		Items            string
+		KeyName, ValName string
+		VarName          string
+		Decls            *bytes.Buffer
+		Children         []*bytes.Buffer
+	}
+)
+
+type specialTagFunc func(io.Writer, *html.Node, *declArea) error
+
+func (z *htmlCompiler) specialTag(tagName string) specialTagFunc {
+	switch tagName {
+	case forSTag:
+		return z.forTagGenerate
+	}
+
+	return nil
+}
+
+var (
+	varDeclCode = `
+		[[range .Vars]]
+			[[.Code]]
+		[[end]]
+	`
+
+	forTagVDOMCode = `
+	var [[.VarName]] []vdom.Node
+	for __k, __v := range [[.Items]] {
+		[[if .KeyName]] [[.KeyName]] = __k [[else]] _ = __k [[end]]
+		[[if .ValName]] [[.ValName]] = __v [[else]] _ = __v [[end]]
+
+		[[.Decls]]
+		[[.VarName]] = append([[.VarName]], [[template "children" .]]...)
+	}`
+)
+
+var (
+	varDeclTpl    = newTpl("varDecl", varDeclCode)
+	forTagVDOMTpl = newTpl("forTag", forTagVDOMCode)
+)
+
+func exprApproxName(expr string) string {
+	var buf bytes.Buffer
+	for _, c := range expr {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '.' {
+			buf.WriteRune(c)
 		}
 	}
 
-	if name == "" || value.Val == "" {
-		return nil, fmt.Errorf(`"var" tag's "name" and "value" attributes cannot be empty.`)
-	}
-
-	if vda.newVar(name) != name {
-		return nil, fmt.Errorf(`"var" tag: variable name %v is either reserved by Wade Fuel or duplicated.`,
-			name)
-	}
-
-	vda.setVarDecl(name, ncn(fmt.Sprintf("%v := %v", name, attributeValueCode(value))))
-
-	return nil, nil
+	split := strings.Split(buf.String(), ".")
+	return strings.ToUpper(split[len(split)-1])
 }
 
-func (c *HTMLCompiler) renderTagCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	var contentAttr html.Attribute
-	for _, attr := range node.Attr {
-		switch attr.Key {
-		case "content":
-			contentAttr = attr
+func fmtSTagError(specialTag, msg string) error {
+	return errors.New(sfmt("special '%v' tag: %v", specialTag, msg))
+}
 
-		default:
-			return nil, fmt.Errorf(`Invalid attribute "%v" for "render" tag.`, attr.Key)
+func invalidAttribute(specialTag, attr string) error {
+	return fmtSTagError(specialTag, sfmt("invalid attribute '%v'", attr))
+}
+
+func attrsRequireNotEmpty(specialTag string, attrs ...html.Attribute) error {
+	for _, attr := range attrs {
+		if attr.Val == "" || attr.IsEmpty {
+			return fmtSTagError(specialTag,
+				sfmt("attribute '%v' cannot be empty", attr.Key))
 		}
 	}
 
-	if contentAttr.Val == "" {
-		return nil, fmt.Errorf(`"render" tag's "range" attribute cannot be empty.`)
-	}
-
-	if !contentAttr.IsMustache {
-		return nil, fmt.Errorf(
-			`"render" tag's "content" attribute must be assigned to a `+
-				`vdom.Node or []vdom.Node. Got string value "%v" instead.`,
-			contentAttr.Val)
-
-	}
-
-	if contentAttr.Val == "this.Children" {
-		return lnode(contentAttr.Val), nil
-	}
-
-	varName := vda.newVar("render")
-	vda.setVarDecl(
-		varName,
-		ncn(fmt.Sprintf(`var %v []vdom.Node`, varName)),
-		&codeNode{
-			typ:  BlockCodeNode,
-			code: fmt.Sprintf(`switch t := (interface{})(%v).(type)`, contentAttr.Val),
-			children: []*codeNode{
-				ncn(fmt.Sprintf("case []vdom.Node: %v = %v\n", varName, contentAttr.Val)),
-				ncn(fmt.Sprintf("case *vdom.Element, *vdom.TextNode:"+
-					" %v = []vdom.Node{t.(vdom.Node)}\n", varName)),
-				ncn(`default: panic(fmt.Sprintf("` +
-					`Value for \"render\" tag's \"content\" attribute must be of type ` +
-					`vdom.Node or []vdom.Node"))`),
-			},
-		})
-
-	return lnode(varName), nil
+	return nil
 }
 
-func (c *HTMLCompiler) forLoopCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	keyName, valName := "_", "_"
-	var rangeAttr html.Attribute
-	for _, attr := range node.Attr {
+func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+	var keyName, valName string
+	var rangeAttr *html.Attribute
+	for _, attr := range n.Attr {
 		switch attr.Key {
 		case "k":
 			keyName = attr.Val
 		case "v":
 			valName = attr.Val
 		case "range":
-			rangeAttr = attr
-
+			rangeAttr = &attr
 		default:
-			return nil, fmt.Errorf(`Invalid attribute "%v" for for loop.`, attr.Key)
+			return invalidAttribute(forSTag, attr.Key)
 		}
 	}
 
-	if rangeAttr.Val == "" {
-		return nil, fmt.Errorf(`for loop's "range" attribute cannot be empty.`)
+	if err := attrsRequireNotEmpty(forSTag, *rangeAttr); err != nil {
+		return err
 	}
 
-	if !rangeAttr.IsMustache {
-		return nil, fmt.Errorf(
-			`for loop's "range" attribute must be assigned to a `+
-				`mustache representing a Go slice value. Got string value "%v" instead.`,
-			rangeAttr.Val)
-
-	}
-
-	varName := vda.newVar("for")
-	forVda := newVarDeclArea(vda)
-	apList := []*codeNode{{
-		typ:  SliceVarCodeNode,
-		code: varName,
-	}}
-
-	l, err := c.genChildren(node, forVda, nil)
+	newDA := newDeclArea()
+	children, err := z.childrenGenerate(n, newDA)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	apList = append(apList, l...)
+	varName := sfmt("for%v", exprApproxName(rangeAttr.Val))
+	varName, cbuf := da.declare(varName)
 
-	forVda.saveToCN()
-
-	eql := ":="
-	if keyName == "_" && valName == "_" {
-		eql = "="
-	}
-
-	vda.setVarDecl(
-		varName,
-		ncn(fmt.Sprintf(`%v := %v{}`, varName, NodeListOpener)),
-		&codeNode{
-			typ:  BlockCodeNode,
-			code: fmt.Sprintf(`for __k, __v := range %v`, rangeAttr.Val),
-			children: []*codeNode{
-				ncn(fmt.Sprintf(`%v, %v %v __k, __v`, keyName, valName, eql)),
-				forVda.codeNode,
-				&codeNode{
-					typ:      AppendListCodeNode,
-					code:     fmt.Sprintf("%v = ", varName),
-					children: apList,
-				},
-			},
-		})
-
-	return lnode(varName), nil
-}
-
-func (c *HTMLCompiler) ifControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	var rcond html.Attribute
-	for _, attr := range node.Attr {
-		switch attr.Key {
-		case "cond":
-			rcond = attr
-
-		default:
-			return nil, fmt.Errorf(`Invalid attribute "%v" for if.`, attr.Key)
-		}
-	}
-
-	cond := rcond.Val
-	if cond == "" {
-		return nil, fmt.Errorf(`if structure's "cond" attribute cannot be empty`)
-	}
-
-	if !rcond.IsMustache {
-		return nil, fmt.Errorf(
-			`if tag's "cond" attribute must be assigned to a `+
-				`mustache respresenting a Go boolean expression. Got string value "%v" instead.`, cond)
-	}
-
-	varName := vda.newVar("if")
-	ifVda := newVarDeclArea(vda)
-
-	if node.FirstChild == nil {
-		return nil, nil
-	}
-
-	if node.FirstChild.Type == html.ElementNode && node.FirstChild.Data == "for" {
-		return nil, fmt.Errorf("Use of for loop as direct child of an if tag is forbidden because if tag can only have 1 child, please consider wrapping it")
-	}
-
-	l, err := c.generateRec(node.FirstChild, ifVda, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(l) == 0 {
-		return nil, nil
-	}
-
-	child := l[0]
-
-	ifVda.saveToCN()
-
-	child.code = fmt.Sprintf("%v = ", varName) + child.code
-	vda.setVarDecl(
-		varName,
-		ncn(fmt.Sprintf(`var %v vdom.Node`, varName)),
-		&codeNode{
-			typ:  BlockCodeNode,
-			code: fmt.Sprintf(`if %v `, cond),
-			children: []*codeNode{
-				ifVda.codeNode,
-				child,
-			},
-		})
-
-	return ncn(varName), nil
-}
-
-func (c *HTMLCompiler) caseControlCode(node *html.Node, varName string, expr html.Attribute) (*codeNode, error) {
-	caseVda := newVarDeclArea(nil)
-
-	if node.FirstChild == nil {
-		return nil, nil
-	}
-
-	if node.FirstChild.Type == html.ElementNode && node.FirstChild.Data == "for" {
-		return nil, fmt.Errorf("Use of for loop as direct child of a case tag is forbidden because case tag can only have 1 child, please consider wrapping it")
-	}
-
-	htmlutils.RemoveGarbageTextChildren(node)
-	l, err := c.generateRec(node.FirstChild, caseVda, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(l) == 0 {
-		return nil, nil
-	}
-
-	child := l[0]
-	caseVda.saveToCN()
-
-	var caseCode string
-	if expr.Val != "" {
-		caseCode = fmt.Sprintf(`case %v:`, attributeValueCode(expr))
-	} else {
-		caseCode = "default:"
-	}
-
-	child.code = fmt.Sprintf("%v = ", varName) + child.code
-	return &codeNode{
-		typ:  WrapperCodeNode,
-		code: caseCode,
-		children: []*codeNode{
-			caseVda.codeNode,
-			child,
-		},
-	}, nil
-}
-
-func (compiler *HTMLCompiler) switchControlCode(node *html.Node, vda *varDeclArea) (*codeNode, error) {
-	var exprAttr html.Attribute
-	var hasExpr bool
-
-	for _, attr := range node.Attr {
-		switch attr.Key {
-		case "expr":
-			exprAttr = attr
-			hasExpr = true
-
-		default:
-			return nil, fmt.Errorf(`Invalid attribute "%v" for switch.`, attr.Key)
-		}
-	}
-
-	varName := vda.newVar("switch")
-	var cases []*codeNode
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type != html.ElementNode {
-			continue
-		}
-
-		var caseExprAttr html.Attribute
-		switch c.Data {
-		case "case":
-			for _, attr := range c.Attr {
-				if attr.Key == "expr" {
-					caseExprAttr = attr
-				} else {
-					return nil, fmt.Errorf(`Invalid attribute "%v" for case tag.`, attr.Key)
-				}
-			}
-
-			if caseExprAttr.Val == "" {
-				return nil, fmt.Errorf(`case tag's "expr" attribute cannot be empty.`,
-					caseExprAttr.Key)
-			}
-
-		case "default":
-			for _, attr := range c.Attr {
-				return nil, fmt.Errorf(`switch's default tag`+
-					` shouldn't have any attributes, "%v" given.`, attr.Key)
-			}
-
-		default:
-			return nil, fmt.Errorf(`switch tag's child elements` +
-				` can only be "case" or "default" tag.`)
-		}
-
-		cn, err := compiler.caseControlCode(c, varName, caseExprAttr)
-		if err != nil {
-			return nil, err
-		}
-		cases = append(cases, cn)
-	}
-
-	var exprCode string
-	if hasExpr {
-		exprCode = attributeValueCode(exprAttr)
-	}
-
-	vda.setVarDecl(
-		varName,
-		ncn(fmt.Sprintf(`var %v vdom.Node`, varName)),
-		&codeNode{
-			typ:      BlockCodeNode,
-			code:     fmt.Sprintf("switch %v ", exprCode),
-			children: cases,
-		})
-
-	return ncn(varName), nil
+	return forTagVDOMTpl.Execute(cbuf, forTagVDOMTD{
+		KeyName:  keyName,
+		ValName:  valName,
+		VarName:  varName,
+		Items:    attributeValueCode(*rangeAttr),
+		Children: children,
+		Decls:    newDA.code(),
+	})
 }

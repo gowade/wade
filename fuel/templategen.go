@@ -105,7 +105,7 @@ func textNodeCode(text string) []*codeNode {
 
 func strAttributeValueCode(parts []textPart) string {
 	if len(parts) == 1 && !parts[0].isMustache {
-		return "`" + parts[0].content + "`"
+		return `"` + escapeNewlines(parts[0].content) + `"`
 	}
 
 	fmtStr := ""
@@ -115,12 +115,12 @@ func strAttributeValueCode(parts []textPart) string {
 			fmtStr += "%v"
 			mustaches = append(mustaches, part.content)
 		} else {
-			fmtStr += part.content
+			fmtStr += escapeNewlines(part.content)
 		}
 	}
 
 	mStr := strings.Join(mustaches, ", ")
-	return fmt.Sprintf("fmt.Sprintf(`%v`, %v)", fmtStr, mStr)
+	return fmt.Sprintf(`fmt.Sprintf("%v", %v)`, fmtStr, mStr)
 }
 
 func mapFieldAssignmentCode(field string, value string) string {

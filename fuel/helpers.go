@@ -1,9 +1,30 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
+	"text/template"
 )
+
+func efmt(format string, args ...interface{}) error {
+	return fmt.Errorf(format, args...)
+}
+
+func sfmt(format string, args ...interface{}) string {
+	return fmt.Sprintf(format, args...)
+}
+
+func execTplBuf(tpl *template.Template, data interface{}) (*bytes.Buffer, error) {
+	var buf bytes.Buffer
+	err := tpl.Execute(&buf, data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &buf, nil
+}
 
 // textPart represents either a typical HTML text node or a {{mustache node}}
 type textPart struct {

@@ -59,6 +59,7 @@ type (
 	renderFuncTD struct {
 		ComName string
 		Return  *bytes.Buffer
+		Decls   *bytes.Buffer
 	}
 
 	elementVDOMTD struct {
@@ -66,7 +67,6 @@ type (
 		Key      string
 		Attrs    map[string]string
 		Children []*bytes.Buffer
-		LastIdx  int
 	}
 
 	textNodeVDOMTD struct {
@@ -75,17 +75,27 @@ type (
 )
 
 const (
-	textNodeVDOMCode = `vdom.NewTextNode("[[.Text]]")`
-	elementVDOMCode  = `[[define "Attrs"]][[range $key, $value := .Attrs]]
+	childrenVDOMCode = `[[if .Children]]vdom.NewNodeList(
+	[[$last := lastIdx .Children]]
+	[[range $i, $c := .Children]]
+	[[$c]][[if lt $i $last]],[[end]][[end]])[[else]]nil[[end]]`
+
+	textNodeVDOMCode = `vdom.NewTextNode([[.Text]])`
+
+	elementVDOMCode = `[[define "attrs"]]` +
+		`[[if .Attrs]]` +
+		`vdom.Attributes{` +
+		`[[range $key, $value := .Attrs]]
 			"[[$key]]": [[$value]],
-	[[end]][[end]]vdom.NewElement("[[.Tag]]", [[.Key]], vdom.Attributes{[[template "Attrs"]]}, ` +
-		`[[if .Children]]vdom.NewNodeList(
-			[[$last := .LastIdx]]
-			[[range $i, $c := .Children]]
-				[[$c]][[if lt $i $last]],[[end]][[end]])[[else]]nil[[end]])`
+		[[end]]` +
+		`}[[else]]nil[[end]]` +
+		`[[end]]` +
+		`vdom.NewElement("[[.Tag]]", [[.Key]], [[template "attrs" .]],` +
+		`[[template "children" .]])`
 
 	renderFuncCode = `
 func [[if .ComName]](this *[[.ComName]])[[end]] Render() *vdom.Element {
+	[[.Decls]]
 	return [[.Return]]
 }
 `
@@ -187,7 +197,13 @@ func newTpl(name string, code string) *template.Template {
 }
 
 var (
-	gTpl            = template.New("root").Delims("[[", "]]")
+	funcMap = template.FuncMap{
+		"lastIdx": func(l []*bytes.Buffer) int {
+			return len(l) - 1
+		},
+	}
+	gTpl            = template.New("root").Delims("[[", "]]").Funcs(funcMap)
+	childrenVDOMTpl = newTpl("children", childrenVDOMCode)
 	textNodeVDOMTpl = newTpl("txvdom", textNodeVDOMCode)
 	elementVDOMTpl  = newTpl("elvdom", elementVDOMCode)
 	renderFuncTpl   = newTpl("renderFunc", renderFuncCode)
@@ -195,6 +211,7 @@ var (
 	stateMethodsTpl = newTpl("stateMethods", stateMethodsCode)
 	refsTpl         = newTpl("refs", refsCode)
 	comInitFuncTpl  = newTpl("comInit", comInitCode)
+	comCreateTpl    = newChildTpl(comInitFuncTpl, "comCreate", comCreateCode)
 	comDefTpl       = newTpl("comDef", comDefCode)
 )
 
@@ -202,6 +219,10 @@ func writeRerenderMethod(w io.Writer, comName string) {
 	fmt.Fprintf(w, rerenderMethodCode, comName)
 }
 
-func init() {
-	template.Must(comInitFuncTpl.New("comCreate").Parse(comCreateCode))
+func newChildTpl(parent *template.Template, name, code string) *template.Template {
+	return template.Must(parent.New(name).Parse(code))
+}
+
+func addChildTpl(parent *template.Template, name string, child *template.Template) *template.Template {
+	return template.Must(parent.AddParseTree(name, child.Tree))
 }

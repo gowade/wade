@@ -98,7 +98,7 @@ func main() {
 	}
 }
 
-func compileHTMLVDOM(htmlNode *html.Node, outputFileName string) error {
+func generateVDOMFile(htmlNode *html.Node, outputFileName string) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
@@ -107,13 +107,7 @@ func compileHTMLVDOM(htmlNode *html.Node, outputFileName string) error {
 		Pkg: "main",
 	})
 
-	compiler := NewHTMLCompiler(nil)
-	err = compiler.GenerateFile(ofile, htmlNode)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return compileHTMLFile(outputFileName, ofile, htmlNode)
 }
 
 func buildHtmlFile(filename string) {
@@ -126,7 +120,7 @@ func buildHtmlFile(filename string) {
 	n, err := htmlutils.ParseFragment(ifile)
 	checkFatal(err)
 
-	err = compileHTMLVDOM(n[0], outputFileName)
+	err = generateVDOMFile(n[0], outputFileName)
 	checkFatal(err)
 
 	runGofmt(outputFileName)
