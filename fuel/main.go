@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	//"io/ioutil"
 	"os"
-	"strings"
+	"os/exec"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
@@ -60,20 +60,20 @@ func serveCmd(dir string, args []string) {
 		fmt.Println("Running serve-only mode, fuel doesn't generate code..")
 	}
 
-	NewFuel().Serve(dir, indexFile, port, serveOnly)
+	//NewFuel().Serve(dir, indexFile, port, serveOnly)
 }
 
 func cleanCmd(dir string) {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		fatal(err.Error())
-	}
+	//files, err := ioutil.ReadDir(dir)
+	//if err != nil {
+	//fatal(err.Error())
+	//}
 
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), fuelSuffix) {
-			os.Remove(file.Name())
-		}
-	}
+	//for _, file := range files {
+	//if strings.HasSuffix(file.Name(), fuelSuffix) {
+	//os.Remove(file.Name())
+	//}
+	//}
 }
 
 func main() {
@@ -124,4 +124,14 @@ func buildHtmlFile(filename string) {
 	checkFatal(err)
 
 	runGofmt(outputFileName)
+}
+
+func runGofmt(file string) {
+	cmd := exec.Command("go", "fmt", file)
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "go fmt failed with %v\n", err.Error())
+	}
 }

@@ -136,7 +136,7 @@ func (z *htmlCompiler) Generate() error {
 
 func (z *htmlCompiler) generate() error {
 	var buf bytes.Buffer
-	da := newDeclArea()
+	da := newDeclArea(nil)
 	err := z.elementGenerate(&buf, z.root, da)
 	if err != nil {
 		return err

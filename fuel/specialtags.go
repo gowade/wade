@@ -13,55 +13,15 @@ const (
 	forSTag = "for"
 )
 
-func newDeclArea() *declArea {
-	return &declArea{
-		nameIdx: map[string]int{},
-	}
-}
+type specialTagFunc func(io.Writer, *html.Node, *declArea) error
 
-type declCodeTD struct {
-	VarName string
-	Code    *bytes.Buffer
-}
-
-type declArea struct {
-	nameIdx map[string]int
-	decls   []declCodeTD
-}
-
-// adds a declaration to the declaration area, if varName is already taken,
-// add a new number suffix to it, returns the new valid name
-// and a new buffer for its code
-func (z *declArea) declare(varName string) (string, *bytes.Buffer) {
-	if z.nameIdx[varName] > 0 {
-		z.nameIdx[varName]++
+func (z *htmlCompiler) specialTag(tagName string) specialTagFunc {
+	switch tagName {
+	case forSTag:
+		return z.forTagGenerate
 	}
 
-	var buf bytes.Buffer
-	newVarName := sfmt("%v%v", varName, z.nameIdx[varName])
-	z.decls = append(z.decls, declCodeTD{
-		VarName: newVarName,
-		Code:    &buf,
-	})
-
-	return newVarName, &buf
-
-}
-
-func (z *declArea) code() *bytes.Buffer {
-	buf, err := execTplBuf(varDeclTpl, varDeclTD{
-		Vars: z.decls,
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	return buf
-}
-
-func nodeListCodeBuf() *bytes.Buffer {
-	return bytes.NewBufferString("[]vdom.Node")
+	return nil
 }
 
 type (
@@ -78,17 +38,6 @@ type (
 	}
 )
 
-type specialTagFunc func(io.Writer, *html.Node, *declArea) error
-
-func (z *htmlCompiler) specialTag(tagName string) specialTagFunc {
-	switch tagName {
-	case forSTag:
-		return z.forTagGenerate
-	}
-
-	return nil
-}
-
 var (
 	varDeclCode = `
 		[[range .Vars]]
@@ -99,8 +48,8 @@ var (
 	forTagVDOMCode = `
 	var [[.VarName]] []vdom.Node
 	for __k, __v := range [[.Items]] {
-		[[if .KeyName]] [[.KeyName]] = __k [[else]] _ = __k [[end]]
-		[[if .ValName]] [[.ValName]] = __v [[else]] _ = __v [[end]]
+		[[if .KeyName]] [[.KeyName]] := __k [[else]] _ = __k [[end]]
+		[[if .ValName]] [[.ValName]] := __v [[else]] _ = __v [[end]]
 
 		[[.Decls]]
 		[[.VarName]] = append([[.VarName]], [[template "children" .]]...)
@@ -144,6 +93,7 @@ func attrsRequireNotEmpty(specialTag string, attrs ...html.Attribute) error {
 }
 
 func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+	// process the attributes
 	var keyName, valName string
 	var rangeAttr *html.Attribute
 	for _, attr := range n.Attr {
@@ -163,14 +113,18 @@ func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) e
 		return err
 	}
 
-	newDA := newDeclArea()
+	// declare a variable to hold this loops's list of nodes inside a parent Declaration Area
+	varName := sfmt("for%v", exprApproxName(rangeAttr.Val))
+	varName, cbuf := da.declare(varName)
+
+	// create a Declaration Area so that
+	// control structures (e.g an if tag) nested inside this one
+	// could declare variables
+	newDA := newDeclArea(da)
 	children, err := z.childrenGenerate(n, newDA)
 	if err != nil {
 		return err
 	}
-
-	varName := sfmt("for%v", exprApproxName(rangeAttr.Val))
-	varName, cbuf := da.declare(varName)
 
 	return forTagVDOMTpl.Execute(cbuf, forTagVDOMTD{
 		KeyName:  keyName,

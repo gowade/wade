@@ -108,14 +108,14 @@ import (
 	"fmt"
 
 	"github.com/gowade/wade/vdom"
-	"github.com/gowade/wade"
+	//"github.com/gowade/wade"
 [[range .Imports]]
 	[[.Path]][[.Name]]
 [[end]]
 )
 
 func init() {
-	_, _, _ = fmt.Printf, vdom.NewElement, wade.Str
+	_, _ = fmt.Printf, vdom.NewElement
 }
 `
 

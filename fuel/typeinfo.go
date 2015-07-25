@@ -5,8 +5,48 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
+	"path"
+	"path/filepath"
 	"reflect"
 )
+
+var (
+	gSrcPath string
+)
+
+func srcPath() string {
+	if gSrcPath == "" {
+		gopath := os.Getenv("GOPATH")
+		if gopath == "" {
+			fatal("GOPATH environment variable has not been set, please set it to a correct value.")
+		}
+
+		gSrcPath = filepath.Join(gopath, "src")
+	}
+
+	return gSrcPath
+}
+
+func importPath(imp *ast.ImportSpec) string {
+	return imp.Path.Value[1 : len(imp.Path.Value)-1]
+}
+
+func importDir(impPath string) string {
+	pdir := filepath.Join(srcPath(), filepath.FromSlash(impPath))
+	if _, err := os.Stat(pdir); err == nil {
+		return pdir
+	}
+
+	return ""
+}
+
+func importName(imp *ast.ImportSpec) string {
+	if imp.Name == nil {
+		return path.Base(importPath(imp))
+	}
+
+	return imp.Name.String()
+}
 
 type fieldInfo struct {
 	fieldName      string
@@ -42,17 +82,17 @@ type astPkg struct {
 	genImports map[string]string
 }
 
-func (p *astPkg) importList() []importInfo {
-	var l []importInfo
-	for name, path := range p.genImports {
-		l = append(l, importInfo{
-			path: path,
-			as:   name,
-		})
-	}
+//func (p *astPkg) importList() []importInfo {
+//var l []importInfo
+//for name, path := range p.genImports {
+//l = append(l, importInfo{
+//path: path,
+//as:   name,
+//})
+//}
 
-	return l
-}
+//return l
+//}
 
 func (p *astPkg) lookup(sym string) (obj *ast.Object, file *ast.File) {
 	for _, f := range p.Files {
@@ -141,6 +181,28 @@ func (p *astPkg) typeName(ftyp ast.Expr, file *ast.File) (string, error) {
 	}
 
 	return string(buf), nil
+}
+
+func anonFieldName(typ ast.Expr) string {
+	switch t := typ.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return anonFieldName(t.X)
+	case *ast.SelectorExpr:
+		return anonFieldName(t.Sel)
+	}
+
+	panic(fmt.Sprintf("Unhandled ast expression type %T", typ))
+	return ""
+}
+
+func fieldName(f *ast.Field) string {
+	if len(f.Names) > 0 {
+		return f.Names[0].Name
+	}
+
+	return anonFieldName(f.Type)
 }
 
 func (p *astPkg) getStateField(fields []*ast.Field, file *ast.File) (

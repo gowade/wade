@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+
+	"github.com/gowade/html"
 )
 
 func efmt(format string, args ...interface{}) error {
@@ -63,4 +65,52 @@ func parseTextMustache(text string) []textPart {
 	}
 
 	return parts
+}
+
+// attributeValueCode returns the Go code that represents a string,
+// formatted according to the mustaches in the value
+func strAttributeValueCode(parts []textPart) string {
+	if len(parts) == 1 && !parts[0].isMustache {
+		return `"` + escapeNewlines(parts[0].content) + `"`
+	}
+
+	fmtStr := ""
+	mustaches := []string{}
+	for _, part := range parts {
+		if part.isMustache {
+			fmtStr += "%v"
+			mustaches = append(mustaches, part.content)
+		} else {
+			fmtStr += escapeNewlines(part.content)
+		}
+	}
+
+	mStr := strings.Join(mustaches, ", ")
+	return fmt.Sprintf(`fmt.Sprintf("%v", %v)`, fmtStr, mStr)
+}
+
+// attributeValueCode returns the Go code that represents either a string or
+// a single mustache value
+func attributeValueCode(attr html.Attribute) string {
+	if attr.IsEmpty {
+		return "true"
+	}
+
+	if attr.IsMustache {
+		return attr.Val
+	}
+	parts := parseTextMustache(attr.Val)
+	return strAttributeValueCode(parts)
+}
+
+func justPeskySpaces(str string) bool {
+	for _, c := range str {
+		switch c {
+		case '\n', '\t', ' ':
+		default:
+			return false
+		}
+	}
+
+	return true
 }
