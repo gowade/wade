@@ -75,9 +75,9 @@ type (
 )
 
 const (
-	childrenVDOMCode = `[[if .Children]]vdom.NewNodeList(
-	[[$last := lastIdx .Children]]
-	[[range $i, $c := .Children]]
+	childrenVDOMCode = `[[if .]]vdom.NewNodeList(
+	[[$last := lastIdx .]]
+	[[range $i, $c := .]]
 	[[$c]][[if lt $i $last]],[[end]][[end]])[[else]]nil[[end]]`
 
 	textNodeVDOMCode = `vdom.NewTextNode([[.Text]])`
@@ -91,7 +91,7 @@ const (
 		`}[[else]]nil[[end]]` +
 		`[[end]]` +
 		`vdom.NewElement("[[.Tag]]", [[.Key]], [[template "attrs" .]],` +
-		`[[template "children" .]])`
+		`[[template "children" .Children]])`
 
 	renderFuncCode = `
 func [[if .ComName]](this *[[.ComName]])[[end]] Render() *vdom.Element {

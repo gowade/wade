@@ -10,7 +10,11 @@ import (
 )
 
 const (
-	forSTag = "for"
+	forSTag     = "for"
+	ifSTag      = "if"
+	switchSTag  = "switch"
+	caseSTag    = "case"
+	defaultSTag = "default"
 )
 
 type specialTagFunc func(io.Writer, *html.Node, *declArea) error
@@ -19,6 +23,10 @@ func (z *htmlCompiler) specialTag(tagName string) specialTagFunc {
 	switch tagName {
 	case forSTag:
 		return z.forTagGenerate
+	case ifSTag:
+		return z.ifTagGenerate
+	case switchSTag:
+		return z.switchTagGenerate
 	}
 
 	return nil
@@ -36,6 +44,26 @@ type (
 		Decls            *bytes.Buffer
 		Children         []*bytes.Buffer
 	}
+
+	ifTagVDOMTD struct {
+		Cond     string
+		VarName  string
+		Decls    *bytes.Buffer
+		Children []*bytes.Buffer
+	}
+
+	caseTagVDOMTD struct {
+		Expr     string
+		Children []*bytes.Buffer
+		Decls    *bytes.Buffer
+	}
+
+	switchTagVDOMTD struct {
+		VarName string
+		Expr    string
+		Cases   []*caseTagVDOMTD
+		Default *caseTagVDOMTD
+	}
 )
 
 var (
@@ -46,30 +74,62 @@ var (
 	`
 
 	forTagVDOMCode = `
-	var [[.VarName]] []vdom.Node
+	[[.VarName]] := []vdom.Node{}
 	for __k, __v := range [[.Items]] {
 		[[if .KeyName]] [[.KeyName]] := __k [[else]] _ = __k [[end]]
 		[[if .ValName]] [[.ValName]] := __v [[else]] _ = __v [[end]]
 
 		[[.Decls]]
-		[[.VarName]] = append([[.VarName]], [[template "children" .]]...)
+		[[.VarName]] = append([[.VarName]], [[template "children" .Children]]...)
 	}`
+
+	ifTagVDOMCode = `
+	[[.VarName]] := []vdom.Node{}
+	if [[.Cond]] {
+		[[.Decls]]
+		[[.VarName]] = [[template "children" .Children]]
+	}
+	`
+
+	switchTagVDOMCode = `
+	[[.VarName]] := []vdom.Node{}
+	[[$varName := .VarName]]
+	switch [[.Expr]] {
+	[[range .Cases]]
+	case [[.Expr]]:
+		[[.Decls]]
+		[[$varName]] = [[template "children" .Children]]	
+	[[end]]
+	[[if .Default]]
+		[[$varName]] = [[template "children" .Default.Children]]
+	[[end]]
+	}
+	`
 )
 
 var (
-	varDeclTpl    = newTpl("varDecl", varDeclCode)
-	forTagVDOMTpl = newTpl("forTag", forTagVDOMCode)
+	varDeclTpl       = newTpl("varDecl", varDeclCode)
+	forTagVDOMTpl    = newTpl("forTag", forTagVDOMCode)
+	ifTagVDOMTpl     = newTpl("ifTag", ifTagVDOMCode)
+	switchTagVDOMTpl = newTpl("switchTag", switchTagVDOMCode)
 )
 
+// exprApproxName tries to return a meaningful name for a control structure variable
 func exprApproxName(expr string) string {
 	var buf bytes.Buffer
 	for _, c := range expr {
-		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '.' {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '.' || c == ' ' {
 			buf.WriteRune(c)
 		}
 	}
 
-	split := strings.Split(buf.String(), ".")
+	s := buf.String()
+	sf := strings.Fields(s)
+	if len(sf) > 0 {
+		s = sf[len(sf)-1]
+	}
+
+	split := strings.Split(s, ".")
 	return strings.ToUpper(split[len(split)-1])
 }
 
@@ -81,12 +141,10 @@ func invalidAttribute(specialTag, attr string) error {
 	return fmtSTagError(specialTag, sfmt("invalid attribute '%v'", attr))
 }
 
-func attrsRequireNotEmpty(specialTag string, attrs ...html.Attribute) error {
-	for _, attr := range attrs {
-		if attr.Val == "" || attr.IsEmpty {
-			return fmtSTagError(specialTag,
-				sfmt("attribute '%v' cannot be empty", attr.Key))
-		}
+func attrRequireNotEmpty(specialTag string, attr html.Attribute) error {
+	if attr.Val == "" || attr.IsEmpty {
+		return fmtSTagError(specialTag,
+			sfmt("attribute '%v' cannot be empty", attr.Key))
 	}
 
 	return nil
@@ -95,7 +153,7 @@ func attrsRequireNotEmpty(specialTag string, attrs ...html.Attribute) error {
 func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
 	// process the attributes
 	var keyName, valName string
-	var rangeAttr *html.Attribute
+	var rangeAttr html.Attribute
 	for _, attr := range n.Attr {
 		switch attr.Key {
 		case "k":
@@ -103,19 +161,21 @@ func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) e
 		case "v":
 			valName = attr.Val
 		case "range":
-			rangeAttr = &attr
+			rangeAttr = attr
 		default:
 			return invalidAttribute(forSTag, attr.Key)
 		}
 	}
 
-	if err := attrsRequireNotEmpty(forSTag, *rangeAttr); err != nil {
+	if err := attrRequireNotEmpty(forSTag, rangeAttr); err != nil {
 		return err
 	}
 
 	// declare a variable to hold this loops's list of nodes inside a parent Declaration Area
 	varName := sfmt("for%v", exprApproxName(rangeAttr.Val))
 	varName, cbuf := da.declare(varName)
+
+	w.Write([]byte(varName))
 
 	// create a Declaration Area so that
 	// control structures (e.g an if tag) nested inside this one
@@ -130,8 +190,149 @@ func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) e
 		KeyName:  keyName,
 		ValName:  valName,
 		VarName:  varName,
-		Items:    attributeValueCode(*rangeAttr),
+		Items:    attributeValueCode(rangeAttr),
 		Children: children,
 		Decls:    newDA.code(),
+	})
+}
+
+func (z *htmlCompiler) ifTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+	var condAttr html.Attribute
+	for _, attr := range n.Attr {
+		switch attr.Key {
+		case "cond":
+			condAttr = attr
+		default:
+			return invalidAttribute(ifSTag, attr.Key)
+		}
+	}
+
+	if err := attrRequireNotEmpty(ifSTag, condAttr); err != nil {
+		return err
+	}
+
+	varName := sfmt("if%v", exprApproxName(condAttr.Val))
+	varName, cbuf := da.declare(varName)
+	w.Write([]byte(varName))
+
+	newDA := newDeclArea(da)
+	children, err := z.childrenGenerate(n, newDA)
+	if err != nil {
+		return err
+	}
+
+	return ifTagVDOMTpl.Execute(cbuf, ifTagVDOMTD{
+		VarName:  varName,
+		Cond:     attributeValueCode(condAttr),
+		Children: children,
+		Decls:    newDA.code(),
+	})
+}
+
+func invalidChildTag(parentTag, childTag string) error {
+	return fmtSTagError(parentTag, sfmt("invalid child tag '%v'", childTag))
+}
+
+func (z *htmlCompiler) newCaseTagTD(n *html.Node, parentDA *declArea, expr string) (
+	*caseTagVDOMTD, error) {
+
+	newDA := newDeclArea(parentDA)
+	children, err := z.childrenGenerate(n, newDA)
+	if err != nil {
+		return nil, err
+	}
+
+	return &caseTagVDOMTD{
+		Children: children,
+		Expr:     expr,
+		Decls:    newDA.code(),
+	}, nil
+}
+
+func (z *htmlCompiler) caseTagGenerate(n *html.Node, da *declArea) (*caseTagVDOMTD, error) {
+	var exprAttr html.Attribute
+	for _, attr := range n.Attr {
+		switch attr.Key {
+		case "expr":
+			exprAttr = attr
+		default:
+			return nil, invalidAttribute(caseSTag, attr.Key)
+		}
+	}
+
+	if err := attrRequireNotEmpty(caseSTag, exprAttr); err != nil {
+		return nil, err
+	}
+
+	return z.newCaseTagTD(n, da, attributeValueCode(exprAttr))
+}
+
+func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea) (
+	cases []*caseTagVDOMTD, deflt *caseTagVDOMTD, err error) {
+
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			continue
+		}
+
+		switch c.Data {
+		case caseSTag:
+			var cs *caseTagVDOMTD
+			cs, err = z.caseTagGenerate(c, da)
+			if err != nil {
+				return
+			}
+
+			cases = append(cases, cs)
+		case defaultSTag:
+			if deflt != nil {
+				err = fmtSTagError(switchSTag,
+					sfmt("multiple '%v' child tags are not allowed.", defaultSTag))
+				return
+			}
+
+			deflt, err = z.newCaseTagTD(c, da, "")
+			if err != nil {
+				return
+			}
+		default:
+			err = invalidChildTag(switchSTag, caseSTag)
+			return
+		}
+	}
+
+	return
+}
+
+func (z *htmlCompiler) switchTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+	var exprAttr html.Attribute
+	for _, attr := range n.Attr {
+		switch attr.Key {
+		case "expr":
+			exprAttr = attr
+		default:
+			return invalidAttribute(switchSTag, attr.Key)
+		}
+	}
+
+	var exprCode string
+	if exprAttr.Val != "" {
+		exprCode = attributeValueCode(exprAttr)
+	}
+
+	varName := sfmt("switch%v", exprApproxName(exprAttr.Val))
+	varName, cbuf := da.declare(varName)
+	w.Write([]byte(varName))
+
+	cases, deflt, err := z.switchGetCases(n, da)
+	if err != nil {
+		return err
+	}
+
+	return switchTagVDOMTpl.Execute(cbuf, switchTagVDOMTD{
+		VarName: varName,
+		Expr:    exprCode,
+		Cases:   cases,
+		Default: deflt,
 	})
 }
