@@ -9,13 +9,17 @@ import (
 	"github.com/gowade/html"
 )
 
-func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
-	compiler := &htmlCompiler{
-		fileName: fileName,
+func newHTMLCompiler(htmlFile string, w io.Writer, root *html.Node, pkg *fuelPkg) *htmlCompiler {
+	return &htmlCompiler{
+		fileName: htmlFile,
 		w:        w,
 		root:     root,
+		pkg:      pkg,
 	}
+}
 
+func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
+	compiler := newHTMLCompiler(fileName, w, root, nil)
 	return compiler.Generate()
 }
 
@@ -23,6 +27,7 @@ type htmlCompiler struct {
 	fileName string
 	w        io.Writer
 	root     *html.Node
+	pkg      *fuelPkg
 }
 
 const (
@@ -49,6 +54,10 @@ func toTplAttrs(attrs []html.Attribute) map[string]string {
 	}
 
 	return m
+}
+
+func (z *htmlCompiler) ComponentGenerate() error {
+	return nil
 }
 
 func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea) ([]*bytes.Buffer, error) {

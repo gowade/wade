@@ -3,28 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	//"io/ioutil"
+	"io/ioutil"
 	"os"
 	"os/exec"
 
 	"github.com/gowade/html"
 	"github.com/gowade/wade/utils/htmlutils"
 )
-
-func fatal(msg string, fmtargs ...interface{}) {
-	fmt.Fprintf(os.Stdout, msg+"\n", fmtargs...)
-	os.Exit(2)
-}
-
-func printErr(err error) {
-	fmt.Fprintf(os.Stdout, "%v\n", err)
-}
-
-func checkFatal(err error) {
-	if err != nil {
-		fatal(err.Error())
-	}
-}
 
 const (
 	defaultIndexFile = "public/index.html"
@@ -34,8 +19,7 @@ func buildCmd(dir string, target string) {
 	if target != "" {
 		buildHtmlFile(target)
 	} else {
-		//fuel := NewFuel()
-		//fuel.BuildPackage(dir, "", nil, false)
+		fuelBuild(dir, "")
 	}
 }
 
@@ -64,37 +48,15 @@ func serveCmd(dir string, args []string) {
 }
 
 func cleanCmd(dir string) {
-	//files, err := ioutil.ReadDir(dir)
-	//if err != nil {
-	//fatal(err.Error())
-	//}
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		fatal(err.Error())
+	}
 
-	//for _, file := range files {
-	//if strings.HasSuffix(file.Name(), fuelSuffix) {
-	//os.Remove(file.Name())
-	//}
-	//}
-}
-
-func main() {
-	flag.Parse()
-
-	dir, err := os.Getwd()
-	checkFatal(err)
-
-	command := flag.Arg(0)
-	switch command {
-	case "build":
-		buildCmd(dir, flag.Arg(1))
-
-	//case "serve":
-	//serveCmd(dir, flag.Args()[1:])
-
-	case "clean":
-		cleanCmd(dir)
-
-	default:
-		fatal("Please specify a command. Available commands: build, serve, clean")
+	for _, file := range files {
+		if isFuelFile(file.Name()) {
+			os.Remove(file.Name())
+		}
 	}
 }
 
@@ -133,5 +95,27 @@ func runGofmt(file string) {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "go fmt failed with %v\n", err.Error())
+	}
+}
+
+func main() {
+	flag.Parse()
+
+	dir, err := os.Getwd()
+	checkFatal(err)
+
+	command := flag.Arg(0)
+	switch command {
+	case "build":
+		buildCmd(dir, flag.Arg(1))
+
+	case "serve":
+		serveCmd(dir, flag.Args()[1:])
+
+	case "clean":
+		cleanCmd(dir)
+
+	default:
+		fatal("Please specify a command. Available commands: build, serve, clean")
 	}
 }

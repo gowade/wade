@@ -1,52 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"os"
-	"path"
-	"path/filepath"
 	"reflect"
 )
-
-var (
-	gSrcPath string
-)
-
-func srcPath() string {
-	if gSrcPath == "" {
-		gopath := os.Getenv("GOPATH")
-		if gopath == "" {
-			fatal("GOPATH environment variable has not been set, please set it to a correct value.")
-		}
-
-		gSrcPath = filepath.Join(gopath, "src")
-	}
-
-	return gSrcPath
-}
-
-func importPath(imp *ast.ImportSpec) string {
-	return imp.Path.Value[1 : len(imp.Path.Value)-1]
-}
-
-func importDir(impPath string) string {
-	pdir := filepath.Join(srcPath(), filepath.FromSlash(impPath))
-	if _, err := os.Stat(pdir); err == nil {
-		return pdir
-	}
-
-	return ""
-}
-
-func importName(imp *ast.ImportSpec) string {
-	if imp.Name == nil {
-		return path.Base(importPath(imp))
-	}
-
-	return imp.Name.String()
-}
 
 type fieldInfo struct {
 	fieldName      string
@@ -82,18 +41,6 @@ type astPkg struct {
 	genImports map[string]string
 }
 
-//func (p *astPkg) importList() []importInfo {
-//var l []importInfo
-//for name, path := range p.genImports {
-//l = append(l, importInfo{
-//path: path,
-//as:   name,
-//})
-//}
-
-//return l
-//}
-
 func (p *astPkg) lookup(sym string) (obj *ast.Object, file *ast.File) {
 	for _, f := range p.Files {
 		obj := f.Scope.Lookup(sym)
@@ -103,14 +50,6 @@ func (p *astPkg) lookup(sym string) (obj *ast.Object, file *ast.File) {
 	}
 
 	return nil, file
-}
-
-func dot(base string, path string) string {
-	if base == "" {
-		return path
-	}
-
-	return base + "." + path
 }
 
 func (p *astPkg) typeObj(file *ast.File, ftyp ast.Expr) (obj *ast.Object, rfile *ast.File) {
@@ -193,7 +132,7 @@ func anonFieldName(typ ast.Expr) string {
 		return anonFieldName(t.Sel)
 	}
 
-	panic(fmt.Sprintf("Unhandled ast expression type %T", typ))
+	panic(sfmt("Unhandled ast expression type %T", typ))
 	return ""
 }
 
@@ -215,7 +154,7 @@ func (p *astPkg) getStateField(fields []*ast.Field, file *ast.File) (
 
 			if sf := stag.Get("fuel"); sf == "state" {
 				if stateField != nil {
-					err = fmt.Errorf("component can only have 1 state field.")
+					err = efmt("component can only have 1 state field.")
 					return
 				}
 
@@ -246,7 +185,7 @@ func (p *astPkg) getStateField(fields []*ast.Field, file *ast.File) (
 	}
 
 	if typeName[0] != '*' {
-		return nil, fmt.Errorf("illegal type %v for state field %v: state field must be a pointer",
+		return nil, efmt("illegal type %v for state field %v: state field must be a pointer",
 			typeName, fname)
 	}
 

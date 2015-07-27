@@ -4,8 +4,8 @@ import (
 	"fmt"
 	gourl "net/url"
 
+	"github.com/gowade/wade/dom"
 	"github.com/gowade/wade/driver"
-	"github.com/gowade/wade/utils/dom"
 	"github.com/gowade/wade/vdom"
 )
 
