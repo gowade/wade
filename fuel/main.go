@@ -19,7 +19,8 @@ func buildCmd(dir string, target string) {
 	if target != "" {
 		buildHtmlFile(target)
 	} else {
-		fuelBuild(dir, "")
+		err := fuelBuild(dir, "")
+		checkFatal(err)
 	}
 }
 

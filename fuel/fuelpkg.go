@@ -32,10 +32,12 @@ type fuelPkg struct {
 	htmlFiles []*htmlFile
 	imports   []string
 
-	coms comMap
+	comStructs comStructMap
+	coms       comMap
 }
 
-type comMap map[string]*ast.StructType
+type comMap map[string]*htmlFile
+type comStructMap map[string]*ast.StructType
 
 // getFuelPkg builds a tree containing info about a package and its dependencies
 func getFuelPkg(dir string) (*fuelPkg, error) {
@@ -54,19 +56,20 @@ func getFuelPkg(dir string) (*fuelPkg, error) {
 		return nil, err
 	}
 
-	htmlComs, err := comDefsMap(htmlFiles)
+	coms, err := htmlComs(htmlFiles)
 	if err != nil {
 		return nil, err
 	}
 
-	coms := pkgComponents(pkg, htmlComs)
+	comStructs := pkgComponents(pkg, coms)
 
 	return &fuelPkg{
-		fset:      fset,
-		Package:   pkg,
-		htmlFiles: htmlFiles,
-		imports:   getPkgDeps(pkg, htmlFiles),
-		coms:      coms,
+		fset:       fset,
+		Package:    pkg,
+		htmlFiles:  htmlFiles,
+		imports:    getPkgDeps(pkg, htmlFiles),
+		coms:       coms,
+		comStructs: comStructs,
 	}, nil
 }
 
@@ -146,6 +149,8 @@ func pkgHTMLFiles(dir string) ([]*htmlFile, error) {
 
 // parse a component HTML markup file, returning its imports and component definitions (capitalized top-level elements)
 func parseHTMLFile(filePath string) (imports map[string]*fuelPkg, comDefs []comDef, err error) {
+	imports = make(map[string]*fuelPkg)
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, nil, err
@@ -211,15 +216,15 @@ func htmlImportTag(node *html.Node) (name string, pkg *fuelPkg, err error) {
 	return name, pkg, nil
 }
 
-func comDefsMap(htmlFiles []*htmlFile) (map[string]string, error) {
-	comDefs := make(map[string]string)
+func htmlComs(htmlFiles []*htmlFile) (comMap, error) {
+	comDefs := make(comMap)
 	for _, hf := range htmlFiles {
 		for _, com := range hf.comDefs {
-			if definedFile := comDefs[com.name]; definedFile != "" {
+			if definedFile := comDefs[com.name]; definedFile != nil {
 				return nil, efmt("%v:%v: duplicated component definition, "+
 					"first defined here %v", hf.path, com.name, definedFile)
 			}
-			comDefs[com.name] = hf.path
+			comDefs[com.name] = hf
 		}
 	}
 
@@ -227,8 +232,8 @@ func comDefsMap(htmlFiles []*htmlFile) (map[string]string, error) {
 }
 
 // return a name -> *ast.StructType map of the package's components
-func pkgComponents(pkg *ast.Package, comDefs map[string]string) comMap {
-	coms := make(map[string]*ast.StructType)
+func pkgComponents(pkg *ast.Package, comDefs comMap) comStructMap {
+	coms := make(comStructMap)
 	for _, file := range pkg.Files {
 		for _, decl := range file.Decls {
 			switch gdecl := decl.(type) {
@@ -239,7 +244,7 @@ func pkgComponents(pkg *ast.Package, comDefs map[string]string) comMap {
 						name := spec.Name.Name
 						switch stype := spec.Type.(type) {
 						case *ast.StructType:
-							if comDefs[name] != "" {
+							if comDefs[name] != nil {
 								coms[name] = stype
 							}
 						}

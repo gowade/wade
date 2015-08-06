@@ -6,7 +6,7 @@ func NewNodeList(nodes ...interface{}) []Node {
 		switch n := n.(type) {
 		case []Node:
 			l = append(l, n...)
-		case *Element, *TextNode:
+		case *Element, *TextNode, Component:
 			l = append(l, n.(Node))
 		default:
 			panic("Invalid node type")

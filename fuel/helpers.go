@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/gowade/html"
 )
 
 func isFuelFile(fileName string) bool {
@@ -15,6 +17,25 @@ func isFuelFile(fileName string) bool {
 func isCapitalized(name string) bool {
 	c := []rune(name)[0]
 	return c >= 'A' && c <= 'Z'
+}
+
+func cleanGarbageTextChildren(node *html.Node) {
+	prev := node.FirstChild
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode && strings.TrimSpace(c.Data) == "" {
+			if c == node.FirstChild {
+				node.FirstChild = c.NextSibling
+				prev = node.FirstChild
+			} else {
+				prev.NextSibling = c.NextSibling
+				if c == node.LastChild {
+					node.LastChild = prev
+				}
+			}
+		} else {
+			prev = c
+		}
+	}
 }
 
 func fatal(msg string, fmtargs ...interface{}) {

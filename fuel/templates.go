@@ -41,15 +41,13 @@ type (
 		Name, Value string
 	}
 
-	comInitFuncTD struct {
-		ComType string
-		Com     *comCreateTD
-		Fields  []fieldAssTD
-	}
-
 	comCreateTD struct {
+		Decls            *bytes.Buffer
 		ComName, ComType string
-		Children, Attrs  *bytes.Buffer
+		FieldsAss        []fieldAssTD
+
+		ChildrenField string
+		ChildrenCode  []*bytes.Buffer
 	}
 
 	comDefTD struct {
@@ -123,10 +121,6 @@ func init() {
 [[ $receiver := .Receiver ]]
 [[ $stateField := .StateField ]]
 
-func (this [[$receiver]]) InternalState() interface{} {
-	return this.[[$stateField]]
-}
-
 func (this [[$receiver]]) InternalInitState(stateData interface{}) {
 	if stateData != nil {
 		this.[[$stateField]] = stateData.(*[[.StateType]])
@@ -159,37 +153,26 @@ func (this *[[.ComName]]) Refs() [[.TypeName]] {
 
 	rerenderMethodCode = `
 func (this *%v) Rerender() {
-	if vdom.InternalRenderLocked() {
-		return
-	}
-
-	r := this.Render(nil)
-	vdom.PerformDiff(r, this.VNode.Render().(*vdom.Element), this.VNode.DOMNode())
-	this.VNode.ComRend = r
-	this.VNode = r
 }
 `
 
-	comInitCode = `
-func (i interface{}) {
-	com := i.(*[[.ComType]])
-	com.Com = [[template "comCreate" .Com]]
-[[range .Fields]]
+	comCreateCode = `
+(func() vdom.Node {
+	com := &[[.ComType]]{}
+[[range .FieldsAss]]
 	com.[[.Name]] = [[.Value]]
 [[end]]
-}`
+	[[.Decls]]
+[[if .ChildrenField]]
+	com.[[.ChildrenField]] = [[template "children" .ChildrenCode]]
+[[end]]
 
-	comCreateCode = `
-wade.Com{
-	ComponentName: "[[.ComName]]",
-	InternalRefsHolder: [[.ComType]]Refs{},
-	Children: [[.Children]],
-	Attrs: [[.Attrs]],
-}`
+	return com
+})()`
 
 	comDefCode = `
-type [[.ComName]] struct { wade.Com }
-`
+	type [[.ComName]] struct {}
+	`
 )
 
 func newTpl(name string, code string) *template.Template {
@@ -210,8 +193,7 @@ var (
 	preludeTpl      = newTpl("prelude", preludeCode)
 	stateMethodsTpl = newTpl("stateMethods", stateMethodsCode)
 	refsTpl         = newTpl("refs", refsCode)
-	comInitFuncTpl  = newTpl("comInit", comInitCode)
-	comCreateTpl    = newChildTpl(comInitFuncTpl, "comCreate", comCreateCode)
+	comCreateTpl    = newTpl("comCreate", comCreateCode)
 	comDefTpl       = newTpl("comDef", comDefCode)
 )
 

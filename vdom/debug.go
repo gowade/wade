@@ -16,6 +16,6 @@ func debug(prefix string, node Node, depth int) {
 			debug("", c, depth+1)
 		}
 	} else {
-		println(sp + `"` + node.NodeData() + `"`)
+		println(sp + `"` + node.(*TextNode).Data + `"`)
 	}
 }

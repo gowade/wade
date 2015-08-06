@@ -8,11 +8,17 @@ import (
 )
 
 const (
-	fuelSuffix  = ".fuel.go"
-	genComsFile = "~generatedComs~" + fuelSuffix
-	methodsFile = "~methods~" + fuelSuffix
-
+	genPrefix  = "~"
+	fuelSuffix = ".fuel.go"
 	importSTag = "import"
+)
+
+func generatedFileName(name string) string {
+	return genPrefix + name + fuelSuffix
+}
+
+var (
+	methodsFile = generatedFileName("spice")
 )
 
 var (
@@ -53,13 +59,32 @@ func importName(imp *ast.ImportSpec) string {
 	return imp.Name.String()
 }
 
-func fuelBuild(dir string, comPrefix string) {
+func fuelBuild(dir string, comPrefix string) error {
 	pkg, err := getFuelPkg(dir)
 	checkFatal(err)
 
 	for _, file := range pkg.htmlFiles {
-		for _, com := range file.comDefs {
-			_ = com
+		odir, obase := filepath.Dir(file.path), filepath.Base(file.path)
+		filePath := filepath.Join(odir, generatedFileName(obase))
+		ofile, err := os.Create(filePath)
+		if err != nil {
+			checkFatal(err)
 		}
+
+		preludeTpl.Execute(ofile, preludeTD{
+			Pkg: pkg.Package.Name,
+		})
+
+		for _, com := range file.comDefs {
+			compiler := newComponentHTMLCompiler(file, ofile, com.markup, pkg, nil)
+			err = compiler.componentGenerate()
+			if err != nil {
+				return err
+			}
+		}
+
+		runGofmt(filePath)
 	}
+
+	return nil
 }

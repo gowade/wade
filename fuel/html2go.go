@@ -9,25 +9,48 @@ import (
 	"github.com/gowade/html"
 )
 
-func newHTMLCompiler(htmlFile string, w io.Writer, root *html.Node, pkg *fuelPkg) *htmlCompiler {
+type comSpec struct {
+	childrenField string
+}
+
+type comSpecMap map[string]comSpec
+
+func newHTMLCompiler(htmlFileName string, w io.Writer, root *html.Node) *htmlCompiler {
 	return &htmlCompiler{
-		fileName: htmlFile,
+		htmlFile: &htmlFile{
+			path: htmlFileName,
+		},
+		w:    w,
+		root: root,
+	}
+}
+
+func newComponentHTMLCompiler(
+	htmlFile *htmlFile,
+	w io.Writer,
+	root *html.Node,
+	pkg *fuelPkg,
+	comSpec comSpecMap) *htmlCompiler {
+	return &htmlCompiler{
+		htmlFile: htmlFile,
 		w:        w,
 		root:     root,
 		pkg:      pkg,
+		comSpec:  comSpec,
 	}
 }
 
 func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
-	compiler := newHTMLCompiler(fileName, w, root, nil)
+	compiler := newHTMLCompiler(fileName, w, root)
 	return compiler.Generate()
 }
 
 type htmlCompiler struct {
-	fileName string
+	htmlFile *htmlFile
 	w        io.Writer
 	root     *html.Node
 	pkg      *fuelPkg
+	comSpec  comSpecMap
 }
 
 const (
@@ -56,10 +79,6 @@ func toTplAttrs(attrs []html.Attribute) map[string]string {
 	return m
 }
 
-func (z *htmlCompiler) ComponentGenerate() error {
-	return nil
-}
-
 func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea) ([]*bytes.Buffer, error) {
 	var children []*bytes.Buffer
 	for c := parent.FirstChild; c != nil; c = c.NextSibling {
@@ -85,6 +104,7 @@ func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea) ([]*byt
 
 func (z *htmlCompiler) elementGenerate(w io.Writer, el *html.Node, da *declArea) error {
 	key, htmlAttrs := extractKeyFromAttrs(el.Attr)
+
 	children, err := z.childrenGenerate(el, da)
 	if err != nil {
 		return err
@@ -119,11 +139,86 @@ func (z *htmlCompiler) textNodeGenerate(w io.Writer, node *html.Node) error {
 	})
 }
 
+func (z *htmlCompiler) comInstGenerate(
+	w io.Writer,
+	node *html.Node,
+	da *declArea,
+	impSel string, comName string) error {
+
+	fieldsAss := make([]fieldAssTD, 0, len(node.Attr))
+	for _, attr := range node.Attr {
+		if isCapitalized(attr.Key) {
+			fieldsAss = append(fieldsAss, fieldAssTD{
+				Name:  attr.Key,
+				Value: attributeValueCode(attr),
+			})
+		}
+	}
+
+	//var childrenField string
+	//if cs, ok := z.comSpec[comName]; ok {
+	//childrenField = cs.childrenField
+	//}
+
+	var childrenCode []*bytes.Buffer
+	//if childrenField != "" {
+	childrenCode, err := z.childrenGenerate(node, da)
+	if err != nil {
+		return err
+	}
+	//}
+
+	comType := comName
+	if impSel != "" {
+		comType = sfmt("%v.%v", impSel, comType)
+	}
+
+	return comCreateTpl.Execute(w, comCreateTD{
+		ComName:       comName,
+		ComType:       comType,
+		ChildrenField: "Children",
+		Decls:         da.code(),
+		ChildrenCode:  childrenCode,
+		FieldsAss:     fieldsAss,
+	})
+}
+
 func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node, da *declArea) error {
 	switch node.Type {
 	case html.ElementNode:
 		if fn := z.specialTag(node.Data); fn != nil {
 			return fn(w, node, da)
+		}
+
+		if z.pkg != nil {
+			if z.pkg.coms != nil {
+				// imported component
+				csplit := strings.Split(node.Data, ":")
+				if len(csplit) == 2 {
+					comName := csplit[1]
+					if isCapitalized(comName) {
+						impSel := csplit[0]
+						impPkg := z.htmlFile.imports[impSel]
+						if impPkg == nil {
+							return efmt("cannot create component instance for %v"+
+								", %v has not been imported", node.Data, impSel)
+						}
+
+						if impPkg.coms[comName] != nil {
+							return z.comInstGenerate(w, node, da, impSel, comName)
+						}
+					}
+				}
+
+				// component
+				if isCapitalized(node.Data) {
+					if z.pkg.coms[node.Data] != nil {
+						return z.comInstGenerate(w, node, da, "", node.Data)
+					} else {
+						return efmt("unknown component %v", node.Data)
+					}
+				}
+			}
 		}
 
 		return z.elementGenerate(w, node, da)
@@ -134,27 +229,51 @@ func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node, da *declArea) 
 	return nil
 }
 
+func (z *htmlCompiler) newError(err error) error {
+	return efmt("%v: %v", z.htmlFile.path, err.Error())
+}
+
 func (z *htmlCompiler) Generate() error {
-	err := z.generate()
+	err := z.generate(z.root)
 	if err != nil {
-		return efmt("%v: %v", z.fileName, err.Error())
+		return z.newError(err)
 	}
 
 	return nil
 }
 
-func (z *htmlCompiler) generate() error {
+func (z *htmlCompiler) generate(root *html.Node) error {
 	var buf bytes.Buffer
 	da := newDeclArea(nil)
-	err := z.elementGenerate(&buf, z.root, da)
+	err := z.elementGenerate(&buf, root, da)
 	if err != nil {
 		return err
 	}
 
 	renderFuncTpl.Execute(z.w, renderFuncTD{
-		Return: &buf,
-		Decls:  da.code(),
+		ComName: z.root.Data,
+		Return:  &buf,
+		Decls:   da.code(),
 	})
 
 	return nil
+}
+
+func (z *htmlCompiler) ComponentGenerate() error {
+	err := z.componentGenerate()
+	if err != nil {
+		return z.newError(err)
+	}
+
+	return nil
+}
+
+func (z *htmlCompiler) componentGenerate() error {
+	cleanGarbageTextChildren(z.root)
+	if z.root != nil && z.root.FirstChild != z.root.LastChild {
+		return efmt("%v: component definition cannot have more than 1 direct children",
+			z.root.Data)
+	}
+
+	return z.generate(z.root.FirstChild)
 }

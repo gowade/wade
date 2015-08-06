@@ -5,26 +5,19 @@ type Attributes map[string]interface{}
 type EvtHandler func(Event)
 type Event interface{}
 
-type Node interface {
-	NodeData() string
-	Text() string
-}
+type Node interface{}
 
 type TextNode struct {
 	Data string
 }
 
-func (t *TextNode) Text() string {
-	return t.Data
-}
+//type DOMNode interface {
+//Text() string
+//}
 
-func (t *TextNode) NodeData() string {
-	return t.Data
-}
-
-func (t *TextNode) Render() Node {
-	return t
-}
+//func (t *TextNode) Text() string {
+//return t.Data
+//}
 
 func NewTextNode(data string) *TextNode {
 	return &TextNode{Data: data}
@@ -35,21 +28,23 @@ type Element struct {
 	Key      string
 	Attrs    Attributes
 	Children []Node
-	//EvtHandlers map[string]EvtHandler
 }
 
-func (t *Element) Text() string {
-	s := ""
-	for _, c := range t.Children {
-		s += c.Text()
-	}
-
-	return s
+type Component interface {
+	Compare(interface{}) bool
+	Render() *Element
 }
 
-func (t *Element) NodeData() string {
-	return t.Tag
-}
+//func (t *Element) Text() string {
+//s := ""
+//for _, c := range t.Children {
+//if c, ok := c.(DOMNode); ok {
+//s += c.Text()
+//}
+//}
+
+//return s
+//}
 
 func NewElement(tag, key string, attrs Attributes, children []Node) *Element {
 	return &Element{
