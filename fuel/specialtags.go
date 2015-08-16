@@ -17,7 +17,7 @@ const (
 	defaultSTag = "default"
 )
 
-type specialTagFunc func(io.Writer, *html.Node, *declArea) error
+type specialTagFunc func(io.Writer, *html.Node, *declArea, refsMap) error
 
 func (z *htmlCompiler) specialTag(tagName string) specialTagFunc {
 	switch tagName {
@@ -42,19 +42,19 @@ type (
 		KeyName, ValName string
 		VarName          string
 		Decls            *bytes.Buffer
-		Children         []*bytes.Buffer
+		Children         []childCode
 	}
 
 	ifTagVDOMTD struct {
 		Cond     string
 		VarName  string
 		Decls    *bytes.Buffer
-		Children []*bytes.Buffer
+		Children []childCode
 	}
 
 	caseTagVDOMTD struct {
 		Expr     string
-		Children []*bytes.Buffer
+		Children []childCode
 		Decls    *bytes.Buffer
 	}
 
@@ -150,7 +150,11 @@ func attrRequireNotEmpty(specialTag string, attr html.Attribute) error {
 	return nil
 }
 
-func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+func (z *htmlCompiler) forTagGenerate(
+	w io.Writer, n *html.Node,
+	da *declArea, refs refsMap,
+) error {
+
 	// process the attributes
 	var keyName, valName string
 	var rangeAttr html.Attribute
@@ -181,7 +185,7 @@ func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) e
 	// control structures (e.g an if tag) nested inside this one
 	// could declare variables
 	newDA := newDeclArea(da)
-	children, err := z.childrenGenerate(n, newDA)
+	children, err := z.childrenGenerate(n, newDA, refs)
 	if err != nil {
 		return err
 	}
@@ -196,7 +200,11 @@ func (z *htmlCompiler) forTagGenerate(w io.Writer, n *html.Node, da *declArea) e
 	})
 }
 
-func (z *htmlCompiler) ifTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+func (z *htmlCompiler) ifTagGenerate(
+	w io.Writer, n *html.Node,
+	da *declArea, refs refsMap,
+) error {
+
 	var condAttr html.Attribute
 	for _, attr := range n.Attr {
 		switch attr.Key {
@@ -216,7 +224,7 @@ func (z *htmlCompiler) ifTagGenerate(w io.Writer, n *html.Node, da *declArea) er
 	w.Write([]byte(varName))
 
 	newDA := newDeclArea(da)
-	children, err := z.childrenGenerate(n, newDA)
+	children, err := z.childrenGenerate(n, newDA, refs)
 	if err != nil {
 		return err
 	}
@@ -233,11 +241,11 @@ func invalidChildTag(parentTag, childTag string) error {
 	return fmtSTagError(parentTag, sfmt("invalid child tag '%v'", childTag))
 }
 
-func (z *htmlCompiler) newCaseTagTD(n *html.Node, parentDA *declArea, expr string) (
+func (z *htmlCompiler) newCaseTagTD(n *html.Node, parentDA *declArea, refs refsMap, expr string) (
 	*caseTagVDOMTD, error) {
 
 	newDA := newDeclArea(parentDA)
-	children, err := z.childrenGenerate(n, newDA)
+	children, err := z.childrenGenerate(n, newDA, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +257,9 @@ func (z *htmlCompiler) newCaseTagTD(n *html.Node, parentDA *declArea, expr strin
 	}, nil
 }
 
-func (z *htmlCompiler) caseTagGenerate(n *html.Node, da *declArea) (*caseTagVDOMTD, error) {
+func (z *htmlCompiler) caseTagGenerate(n *html.Node, da *declArea, refs refsMap) (
+	*caseTagVDOMTD, error) {
+
 	var exprAttr html.Attribute
 	for _, attr := range n.Attr {
 		switch attr.Key {
@@ -264,10 +274,10 @@ func (z *htmlCompiler) caseTagGenerate(n *html.Node, da *declArea) (*caseTagVDOM
 		return nil, err
 	}
 
-	return z.newCaseTagTD(n, da, attributeValueCode(exprAttr))
+	return z.newCaseTagTD(n, da, refs, attributeValueCode(exprAttr))
 }
 
-func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea) (
+func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea, refs refsMap) (
 	cases []*caseTagVDOMTD, deflt *caseTagVDOMTD, err error) {
 
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -278,7 +288,7 @@ func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea) (
 		switch c.Data {
 		case caseSTag:
 			var cs *caseTagVDOMTD
-			cs, err = z.caseTagGenerate(c, da)
+			cs, err = z.caseTagGenerate(c, da, refs)
 			if err != nil {
 				return
 			}
@@ -291,7 +301,7 @@ func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea) (
 				return
 			}
 
-			deflt, err = z.newCaseTagTD(c, da, "")
+			deflt, err = z.newCaseTagTD(c, da, refs, "")
 			if err != nil {
 				return
 			}
@@ -304,7 +314,11 @@ func (z *htmlCompiler) switchGetCases(n *html.Node, da *declArea) (
 	return
 }
 
-func (z *htmlCompiler) switchTagGenerate(w io.Writer, n *html.Node, da *declArea) error {
+func (z *htmlCompiler) switchTagGenerate(
+	w io.Writer, n *html.Node,
+	da *declArea, refs refsMap,
+) error {
+
 	var exprAttr html.Attribute
 	for _, attr := range n.Attr {
 		switch attr.Key {
@@ -324,7 +338,7 @@ func (z *htmlCompiler) switchTagGenerate(w io.Writer, n *html.Node, da *declArea
 	varName, cbuf := da.declare(varName)
 	w.Write([]byte(varName))
 
-	cases, deflt, err := z.switchGetCases(n, da)
+	cases, deflt, err := z.switchGetCases(n, da, refs)
 	if err != nil {
 		return err
 	}

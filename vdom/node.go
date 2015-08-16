@@ -1,5 +1,7 @@
 package vdom
 
+import "github.com/gowade/wade/dom"
+
 type Attributes map[string]interface{}
 
 type EvtHandler func(Event)
@@ -28,11 +30,16 @@ type Element struct {
 	Children []Node
 
 	Component func(Component) Component
+	domNode   dom.Node
 }
 
-func (t *Element) Text() string {
+func (e *Element) DOMNode() dom.Node {
+	return e.domNode
+}
+
+func (e *Element) Text() string {
 	s := ""
-	for _, c := range t.Children {
+	for _, c := range e.Children {
 		s += c.Text()
 	}
 

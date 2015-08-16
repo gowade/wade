@@ -95,10 +95,25 @@ func toTplStateFields(fields []*fieldInfo) []stateFieldTD {
 	return ret
 }
 
-func defaultImports(m map[string]string) {
+func toImportList(imports map[string]string) []importTD {
+	ret := make([]importTD, 0, len(imports))
+	for name, path := range imports {
+		ret = append(ret, importTD{
+			Name: name,
+			Path: path,
+		})
+	}
+
+	return ret
+}
+
+func defaultImports(m map[string]string) map[string]string {
 	m["fmt"] = "fmt"
 	m["vdom"] = "github.com/gowade/wade/vdom"
 	m["wade"] = "github.com/gowade/wade"
+	m["dom"] = "github.com/gowade/wade/dom"
+
+	return m
 }
 
 func htmlFileVDOMGenerate(pkg *fuelPkg, file *htmlFile) error {
@@ -151,7 +166,7 @@ func htmlFileVDOMGenerate(pkg *fuelPkg, file *htmlFile) error {
 
 	for _, com := range file.comDefs {
 		// generate render method
-		compiler := newComponentHTMLCompiler(file, ofile, com.markup, pkg, nil)
+		compiler := newComponentHTMLCompiler(file, ofile, com, pkg, nil)
 		err = compiler.componentGenerate()
 		if err != nil {
 			return err

@@ -10,6 +10,13 @@ import (
 	"github.com/gowade/html"
 )
 
+func must(err error) error {
+	if err != nil {
+		panic(err)
+	}
+	return err
+}
+
 func isFuelFile(fileName string) bool {
 	return strings.HasSuffix(fileName, fuelSuffix)
 }

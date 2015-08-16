@@ -21,7 +21,7 @@ type comDef struct {
 type htmlFile struct {
 	path    string
 	imports map[string]importedPkg
-	comDefs []comDef //component definitions (top-level capitalized HTML elements)
+	comDefs map[string]comDef //component definitions (top-level capitalized HTML elements)
 }
 
 type importedPkg struct {
@@ -175,8 +175,13 @@ func pkgHTMLFiles(dir string) ([]*htmlFile, error) {
 }
 
 // parse a component HTML markup file, returning its imports and component definitions (capitalized top-level elements)
-func parseHTMLFile(filePath string) (imports map[string]importedPkg, comDefs []comDef, err error) {
+func parseHTMLFile(filePath string) (
+	imports map[string]importedPkg,
+	comDefs map[string]comDef,
+	err error) {
+
 	imports = make(map[string]importedPkg)
+	comDefs = make(map[string]comDef)
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -202,10 +207,12 @@ func parseHTMLFile(filePath string) (imports map[string]importedPkg, comDefs []c
 
 			// component definition element
 			if isCapitalized(node.Data) {
-				comDefs = append(comDefs, comDef{
+				cleanGarbageTextChildren(node)
+
+				comDefs[node.Data] = comDef{
 					name:   node.Data,
-					markup: node,
-				})
+					markup: node.FirstChild,
+				}
 			}
 		}
 	}

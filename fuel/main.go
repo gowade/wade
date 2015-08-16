@@ -67,8 +67,8 @@ func generateVDOMFile(htmlNode *html.Node, outputFileName string) error {
 	checkFatal(err)
 
 	preludeTpl.Execute(ofile, preludeTD{
-		Pkg:            "main",
-		DefaultImports: true,
+		Pkg:     "main",
+		Imports: toImportList(defaultImports(make(map[string]string))),
 	})
 
 	return compileHTMLFile(outputFileName, ofile, htmlNode)
