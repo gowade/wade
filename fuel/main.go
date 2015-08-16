@@ -19,7 +19,7 @@ func buildCmd(dir string, target string) {
 	if target != "" {
 		buildHtmlFile(target)
 	} else {
-		err := fuelBuild(dir, "")
+		err := fuelBuild(dir)
 		checkFatal(err)
 	}
 }
@@ -67,7 +67,8 @@ func generateVDOMFile(htmlNode *html.Node, outputFileName string) error {
 	checkFatal(err)
 
 	preludeTpl.Execute(ofile, preludeTD{
-		Pkg: "main",
+		Pkg:            "main",
+		DefaultImports: true,
 	})
 
 	return compileHTMLFile(outputFileName, ofile, htmlNode)

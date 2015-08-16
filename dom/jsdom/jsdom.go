@@ -1,10 +1,10 @@
 package jsdom
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gopherjs/gopherjs/js"
-
 	"github.com/gowade/wade/dom"
 )
 
@@ -34,12 +34,12 @@ func newEventHandler(handler dom.EventHandler) interface{} {
 
 type driver struct{}
 
-func (d driver) ToInputEl(el vdom.DOMNode) vdom.DOMInputEl {
-	return DOMInputEl{el.(DOMNode)}
+func (d driver) ToInputEl(el dom.Node) dom.InputEl {
+	return InputEl{el.(Node)}
 }
 
-func (d driver) ToFormEl(el vdom.DOMNode) vdom.DOMFormEl {
-	return DOMFormEl{el.(DOMNode)}
+func (d driver) ToFormEl(el dom.Node) dom.FormEl {
+	return FormEl{el.(Node)}
 }
 
 func init() {
@@ -54,6 +54,10 @@ func init() {
 
 type Node struct {
 	*js.Object
+}
+
+func (z Node) JS() *js.Object {
+	return z.Object
 }
 
 func (z Node) Type() dom.NodeType {
@@ -90,12 +94,12 @@ func nodeList(jslist *js.Object) []dom.Node {
 func (z Node) Clear() {
 	var c *js.Object
 	for {
-		c = d.Get("lastChild")
+		c = z.Get("lastChild")
 		if c == nil {
 			return
 		}
 
-		d.Call("removeChild", c)
+		z.Call("removeChild", c)
 	}
 }
 
@@ -150,9 +154,9 @@ func (z Node) SetProp(prop string, value interface{}) {
 
 func (z Node) SetClass(class string, val bool) {
 	if val {
-		e.Call("addClass", class)
+		z.Call("addClass", class)
 	} else {
-		e.Call("removeClass", class)
+		z.Call("removeClass", class)
 	}
 }
 

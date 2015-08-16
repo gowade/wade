@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 
@@ -16,6 +17,19 @@ type textPart struct {
 var (
 	MustacheRegex = regexp.MustCompile("{{((?:[^{}]|{[^{]|}[^}])+)}}")
 )
+
+func escapeNewlines(str string) string {
+	var buf bytes.Buffer
+	for _, c := range []rune(str) {
+		if c == '\n' {
+			buf.WriteString(`\n`)
+		} else {
+			buf.WriteRune(c)
+		}
+	}
+
+	return buf.String()
+}
 
 // parseTextMustache splits HTML text into a list of text and mustaches.
 //

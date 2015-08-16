@@ -118,19 +118,6 @@ func (z *htmlCompiler) elementGenerate(w io.Writer, el *html.Node, da *declArea)
 	})
 }
 
-func escapeNewlines(str string) string {
-	var buf bytes.Buffer
-	for _, c := range []rune(str) {
-		if c == '\n' {
-			buf.WriteString(`\n`)
-		} else {
-			buf.WriteRune(c)
-		}
-	}
-
-	return buf.String()
-}
-
 func (z *htmlCompiler) textNodeGenerate(w io.Writer, node *html.Node) error {
 	parts := parseTextMustache(node.Data)
 
@@ -155,18 +142,11 @@ func (z *htmlCompiler) comInstGenerate(
 		}
 	}
 
-	//var childrenField string
-	//if cs, ok := z.comSpec[comName]; ok {
-	//childrenField = cs.childrenField
-	//}
-
 	var childrenCode []*bytes.Buffer
-	//if childrenField != "" {
 	childrenCode, err := z.childrenGenerate(node, da)
 	if err != nil {
 		return err
 	}
-	//}
 
 	comType := comName
 	if impSel != "" {
@@ -174,12 +154,11 @@ func (z *htmlCompiler) comInstGenerate(
 	}
 
 	return comCreateTpl.Execute(w, comCreateTD{
-		ComName:       comName,
-		ComType:       comType,
-		ChildrenField: "Children",
-		Decls:         da.code(),
-		ChildrenCode:  childrenCode,
-		FieldsAss:     fieldsAss,
+		ComName:      comName,
+		ComType:      comType,
+		Decls:        da.code(),
+		ChildrenCode: childrenCode,
+		FieldsAss:    fieldsAss,
 	})
 }
 
@@ -190,33 +169,31 @@ func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node, da *declArea) 
 			return fn(w, node, da)
 		}
 
-		if z.pkg != nil {
-			if z.pkg.coms != nil {
-				// imported component
-				csplit := strings.Split(node.Data, ":")
-				if len(csplit) == 2 {
-					comName := csplit[1]
-					if isCapitalized(comName) {
-						impSel := csplit[0]
-						impPkg := z.htmlFile.imports[impSel]
-						if impPkg == nil {
-							return efmt("cannot create component instance for %v"+
-								", %v has not been imported", node.Data, impSel)
-						}
+		if z.pkg != nil && z.pkg.coms != nil {
+			// imported component
+			csplit := strings.Split(node.Data, ":")
+			if len(csplit) == 2 {
+				comName := csplit[1]
+				if isCapitalized(comName) {
+					impSel := csplit[0]
+					impPkg, ok := z.htmlFile.imports[impSel]
+					if !ok {
+						return efmt("cannot create component instance for %v"+
+							", %v has not been imported", node.Data, impSel)
+					}
 
-						if impPkg.coms[comName] != nil {
-							return z.comInstGenerate(w, node, da, impSel, comName)
-						}
+					if impPkg.coms[comName] != nil {
+						return z.comInstGenerate(w, node, da, impSel, comName)
 					}
 				}
+			}
 
-				// component
-				if isCapitalized(node.Data) {
-					if z.pkg.coms[node.Data] != nil {
-						return z.comInstGenerate(w, node, da, "", node.Data)
-					} else {
-						return efmt("unknown component %v", node.Data)
-					}
+			// component
+			if isCapitalized(node.Data) {
+				if z.pkg.coms[node.Data] != nil {
+					return z.comInstGenerate(w, node, da, "", node.Data)
+				} else {
+					return efmt("unknown component %v", node.Data)
 				}
 			}
 		}
@@ -244,16 +221,23 @@ func (z *htmlCompiler) Generate() error {
 
 func (z *htmlCompiler) generate(root *html.Node) error {
 	var buf bytes.Buffer
-	da := newDeclArea(nil)
-	err := z.elementGenerate(&buf, root, da)
-	if err != nil {
-		return err
+	var decls bytes.Buffer
+	if root != nil {
+		da := newDeclArea(nil)
+		err := z.elementGenerate(&buf, root, da)
+		if err != nil {
+			return err
+		}
+
+		decls = *da.code()
+	} else {
+		buf.WriteString("nil")
 	}
 
 	renderFuncTpl.Execute(z.w, renderFuncTD{
 		ComName: z.root.Data,
 		Return:  &buf,
-		Decls:   da.code(),
+		Decls:   &decls,
 	})
 
 	return nil

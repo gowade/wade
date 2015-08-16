@@ -5,8 +5,8 @@ import (
 	gourl "net/url"
 	"path"
 
+	"github.com/gowade/wade/dom"
 	"github.com/gowade/wade/driver"
-	"github.com/gowade/wade/utils/dom"
 )
 
 var (

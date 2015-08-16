@@ -6,8 +6,13 @@ import (
 
 var (
 	document        Document
+	driver          Driver
 	NewEventHandler func(EventHandler) interface{}
 )
+
+func SetDomDriver(drv Driver) {
+	driver = drv
+}
 
 type EventHandler func(Event)
 

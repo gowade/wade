@@ -2,16 +2,40 @@ package main
 
 import (
 	"go/ast"
-	"go/token"
 	"os"
-	"reflect"
+	"strings"
 )
 
 type fieldInfo struct {
-	fieldName      string
-	typeName       string
-	typeStruct     *ast.StructType
-	typeStructFile *ast.File
+	name     string
+	path     string
+	typeName string
+}
+
+func newAstPkg(pkg *parsedPkg, pkgs pkgMap) *astPkg {
+	return &astPkg{
+		pkg:        pkg,
+		pkgs:       pkgs,
+		genImports: make(map[string]string),
+	}
+}
+
+type astPkg struct {
+	pkg *parsedPkg
+
+	pkgs       pkgMap
+	genImports map[string]string
+}
+
+func pkgLookup(pkg *ast.Package, sym string) (obj *ast.Object, file *ast.File) {
+	for _, f := range pkg.Files {
+		obj := f.Scope.Lookup(sym)
+		if obj != nil {
+			return obj, f
+		}
+	}
+
+	return nil, file
 }
 
 type importVisitor struct {
@@ -35,57 +59,6 @@ func (iv importVisitor) Visit(node ast.Node) ast.Visitor {
 	return iv
 }
 
-type astPkg struct {
-	*ast.Package
-	fset       *token.FileSet
-	genImports map[string]string
-}
-
-func (p *astPkg) lookup(sym string) (obj *ast.Object, file *ast.File) {
-	for _, f := range p.Files {
-		obj := f.Scope.Lookup(sym)
-		if obj != nil {
-			return obj, f
-		}
-	}
-
-	return nil, file
-}
-
-func (p *astPkg) typeObj(file *ast.File, ftyp ast.Expr) (obj *ast.Object, rfile *ast.File) {
-
-	return nil, file
-}
-
-func (p *astPkg) stateStruct(file *ast.File, ftyp ast.Expr) (ss *ast.StructType, rfile *ast.File) {
-	switch typ := ftyp.(type) {
-	case *ast.StarExpr:
-		return p.stateStruct(file, typ.X)
-
-	case *ast.StructType:
-		return typ, file
-
-	case *ast.Ident:
-		if typ.Obj == nil {
-			typ.Obj, file = p.lookup(typ.Name)
-		}
-
-		if typ.Obj != nil {
-			if spec, ok := typ.Obj.Decl.(*ast.TypeSpec); ok {
-				if spec.Type != nil {
-					switch et := spec.Type.(type) {
-					case *ast.StructType:
-						return et, file
-					}
-				}
-			}
-		}
-
-	}
-
-	return nil, file
-}
-
 func (p *astPkg) registerImport(name string, path string) string {
 	newName := name
 	var ok bool
@@ -105,9 +78,81 @@ func (p *astPkg) registerImport(name string, path string) string {
 	return newName
 }
 
-func (p *astPkg) typeName(ftyp ast.Expr, file *ast.File) (string, error) {
-	pos := p.fset.Position(ftyp.Pos())
-	end := p.fset.Position(ftyp.End())
+func (p *astPkg) lookupSelector(file *ast.File, selector *ast.SelectorExpr) (
+	ast.Expr, *ast.File, *parsedPkg) {
+
+	ident, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return nil, file, p.pkg
+	}
+
+	sel := selector.Sel.String()
+	for _, imp := range file.Imports {
+		if importName(imp) == ident.Name {
+			impPath := importPath(imp)
+			pdir := importDir(impPath)
+			if pdir != "" {
+				pkg := p.pkgs[impPath]
+				if pkg != nil {
+					obj, file := pkgLookup(pkg.Package, sel)
+					if obj != nil {
+						if typeSpec, ok := obj.Decl.(*ast.TypeSpec); ok {
+							return typeSpec.Type, file, pkg
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil, file, p.pkg
+}
+
+func (p *astPkg) typeObj(file *ast.File, ftyp ast.Expr) (obj *ast.Object, rfile *ast.File) {
+
+	return nil, file
+}
+
+func (p *astPkg) structType(file *ast.File, ftyp ast.Expr) (
+	*ast.StructType, *ast.File, *astPkg) {
+
+	switch typ := ftyp.(type) {
+	case *ast.StarExpr:
+		return p.structType(file, typ.X)
+
+	case *ast.SelectorExpr:
+		itype, file, pkg := p.lookupSelector(file, typ)
+		if itype != nil {
+			apkg := newAstPkg(pkg, p.pkgs)
+			return apkg.structType(file, itype)
+		}
+
+	case *ast.StructType:
+		return typ, file, p
+
+	case *ast.Ident:
+		if typ.Obj == nil {
+			typ.Obj, file = pkgLookup(p.pkg.Package, typ.Name)
+		}
+
+		if typ.Obj != nil {
+			if spec, ok := typ.Obj.Decl.(*ast.TypeSpec); ok {
+				if spec.Type != nil {
+					switch et := spec.Type.(type) {
+					case *ast.StructType:
+						return et, file, p
+					}
+				}
+			}
+		}
+	}
+
+	return nil, file, p
+}
+
+func (p *astPkg) typeName(file *ast.File, ftyp ast.Expr) (string, error) {
+	pos := p.pkg.fset.Position(ftyp.Pos())
+	end := p.pkg.fset.Position(ftyp.End())
 	of, err := os.Open(pos.Filename)
 	if err != nil {
 		return "", err
@@ -144,55 +189,77 @@ func fieldName(f *ast.Field) string {
 	return anonFieldName(f.Type)
 }
 
-func (p *astPkg) getStateField(fields []*ast.Field, file *ast.File) (
-	state *fieldInfo, err error) {
+func (p *astPkg) getStateField(fieldPath, fieldName string, field *ast.Field, file *ast.File) (
+	*fieldInfo, error) {
 
-	var stateField *ast.Field
-	for _, f := range fields {
-		if f.Tag != nil {
-			var stag = reflect.StructTag(f.Tag.Value[1 : len(f.Tag.Value)-1])
-
-			if sf := stag.Get("fuel"); sf == "state" {
-				if stateField != nil {
-					err = efmt("component can only have 1 state field.")
-					return
-				}
-
-				stateField = f
-			}
-		}
-	}
-
-	if stateField == nil {
-		return nil, nil
-	}
-
-	fname := fieldName(stateField)
-	ss, tsfile := p.stateStruct(file, stateField.Type)
-	visitor := importVisitor{
-		pkg:  p,
-		file: file,
-	}
-
-	ast.Walk(visitor, stateField)
-	if ss != nil {
-		ast.Walk(visitor, ss)
-	}
-
-	typeName, err := p.typeName(stateField.Type, file)
+	typeName, err := p.typeName(file, field.Type)
 	if err != nil {
 		return nil, err
 	}
 
-	if typeName[0] != '*' {
-		return nil, efmt("illegal type %v for state field %v: state field must be a pointer",
-			typeName, fname)
+	return &fieldInfo{
+		name:     fieldName,
+		path:     fieldPathDot(fieldPath, fieldName),
+		typeName: typeName,
+	}, nil
+}
+
+func fieldPathDot(prefix, fieldName string) string {
+	if prefix == "" {
+		return fieldName
 	}
 
-	return &fieldInfo{
-		fieldName:      fname,
-		typeName:       typeName,
-		typeStruct:     ss,
-		typeStructFile: tsfile,
-	}, nil
+	return prefix + "." + fieldName
+}
+
+func strListContains(list []string, v string) bool {
+	for _, item := range list {
+		if item == v {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *astPkg) getStateFields(fieldPath string, fields []*ast.Field, file *ast.File) (
+	[]*fieldInfo, error) {
+
+	impVisitor := importVisitor{
+		pkg:  p,
+		file: file,
+	}
+
+	var sfs []*fieldInfo
+
+	for _, f := range fields {
+		fname := fieldName(f)
+		if len(f.Names) == 0 {
+			fstruct, sfile, pkg := p.structType(file, f.Type)
+			if fstruct != nil {
+				fpath := fieldPathDot(fieldPath, fname)
+				stateFields, err := pkg.getStateFields(fpath, fstruct.Fields.List, sfile)
+				if err != nil {
+					return sfs, err
+				}
+
+				sfs = append(sfs, stateFields...)
+			}
+		}
+
+		if f.Tag != nil {
+			stag := f.Tag.Value[1 : len(f.Tag.Value)-1]
+			if strListContains(strings.Split(stag, " "), "fstate") {
+				ast.Walk(impVisitor, f)
+				sf, err := p.getStateField(fieldPath, fname, f, file)
+				if err != nil {
+					return nil, err
+				}
+
+				sfs = append(sfs, sf)
+			}
+		}
+	}
+
+	return sfs, nil
 }

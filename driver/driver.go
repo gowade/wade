@@ -3,7 +3,7 @@ package driver
 import (
 	gourl "net/url"
 
-	"github.com/gowade/wade/utils/dom"
+	"github.com/gowade/wade/dom"
 	"github.com/gowade/wade/vdom"
 )
 
@@ -16,16 +16,11 @@ const (
 
 var (
 	env         EnvironmentType = BrowserEnv
-	vdomDriver  vdom.Driver
 	routeDriver RouteDriver
 	Render      func(newVdom, oldVdom *vdom.Element, domNode dom.Node)
 )
 
 func Init(router Router) {
-	if vdomDriver == nil {
-		panic("DOM Driver has not been set.")
-	}
-
 	if routeDriver == nil {
 		panic("Route Driver has not been set")
 	}
@@ -52,18 +47,6 @@ func GetRouteDriver() RouteDriver {
 
 func SetRouteDriver(drv RouteDriver) {
 	routeDriver = drv
-}
-
-func Vdom() vdom.Driver {
-	if vdomDriver == nil {
-		panic("DOM driver not set.")
-	}
-
-	return vdomDriver
-}
-
-func SetVdomDriver(d vdom.Driver) {
-	vdomDriver = d
 }
 
 func Env() EnvironmentType {

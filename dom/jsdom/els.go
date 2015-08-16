@@ -4,7 +4,7 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-type FormEl struct{ DOMNode }
+type FormEl struct{ Node }
 
 func (e FormEl) IsValid() bool {
 	if e.Get("checkValidity") != js.Undefined {
@@ -14,7 +14,7 @@ func (e FormEl) IsValid() bool {
 	return true
 }
 
-type InputEl struct{ DOMNode }
+type InputEl struct{ Node }
 
 func (e InputEl) Checked() bool {
 	return e.Get("checked").Bool()

@@ -1,11 +1,14 @@
 package dummypkg
 
 import (
-	"github.com/gowade/wade"
+//"github.com/gowade/wade"
 )
 
 type H2 struct {
-	wade.Com
 	RandomIcon bool
 	RandomProp bool
+}
+
+type DemoStruct struct {
+	StateField int `fstate`
 }

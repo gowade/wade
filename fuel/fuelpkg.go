@@ -20,29 +20,45 @@ type comDef struct {
 
 type htmlFile struct {
 	path    string
-	imports map[string]*fuelPkg
+	imports map[string]importedPkg
 	comDefs []comDef //component definitions (top-level capitalized HTML elements)
 }
 
-type fuelPkg struct {
+type importedPkg struct {
+	*fuelPkg
+	importPath string
+}
+
+type parsedPkg struct {
 	*ast.Package
 	fset *token.FileSet
-	dir  string
+}
+
+type pkgMap map[string]*parsedPkg
+
+type comMap map[string]*htmlFile
+
+type comStructInfo struct {
+	stype *ast.StructType
+	file  *ast.File
+}
+
+type comStructMap map[string]comStructInfo
+
+type fuelPkg struct {
+	pkg *parsedPkg
+	dir string
 
 	htmlFiles []*htmlFile
-	imports   []string
+	imports   pkgMap
 
 	comStructs comStructMap
 	coms       comMap
 }
 
-type comMap map[string]*htmlFile
-type comStructMap map[string]*ast.StructType
-
 // getFuelPkg builds a tree containing info about a package and its dependencies
 func getFuelPkg(dir string) (*fuelPkg, error) {
-	fset := token.NewFileSet()
-	pkg, err := parsePkg(dir, fset)
+	pkg, err := parsePkg(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -61,32 +77,42 @@ func getFuelPkg(dir string) (*fuelPkg, error) {
 		return nil, err
 	}
 
-	comStructs := pkgComponents(pkg, coms)
+	comStructs := pkgComponents(pkg.Package, coms)
+
+	imports := make(pkgMap)
+	pkgDeps(imports, pkg.Package)
 
 	return &fuelPkg{
-		fset:       fset,
-		Package:    pkg,
+		pkg:        pkg,
 		htmlFiles:  htmlFiles,
-		imports:    getPkgDeps(pkg, htmlFiles),
+		imports:    imports,
 		coms:       coms,
 		comStructs: comStructs,
 	}, nil
 }
 
 // get dependencies imported from inside the package's source code
-func getPkgDeps(pkg *ast.Package, htmlFiles []*htmlFile) []string {
-	var deps []string
-
+func pkgDeps(imports pkgMap, pkg *ast.Package) {
 	for _, file := range pkg.Files {
 		for _, imp := range file.Imports {
-			pdir := importDir(importPath(imp))
+			importPath := importPath(imp)
+			if _, ok := imports[importPath]; ok {
+				return
+			}
+
+			pdir := importDir(importPath)
 			if pdir != "" {
-				deps = append(deps, pdir)
+				pkg, err := parsePkg(pdir)
+
+				imports[importPath] = pkg
+				if err == nil {
+					pkgDeps(imports, pkg.Package)
+				}
+			} else {
+				imports[importPath] = nil
 			}
 		}
 	}
-
-	return deps
 }
 
 func addPkgFromImport(path string, pkgs *[]*fuelPkg) error {
@@ -103,7 +129,8 @@ func addPkgFromImport(path string, pkgs *[]*fuelPkg) error {
 	return nil
 }
 
-func parsePkg(dir string, fset *token.FileSet) (*ast.Package, error) {
+func parsePkg(dir string) (*parsedPkg, error) {
+	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !isFuelFile(fi.Name())
 	}, 0)
@@ -114,7 +141,7 @@ func parsePkg(dir string, fset *token.FileSet) (*ast.Package, error) {
 
 	for _, pkg := range pkgs {
 		if !strings.HasSuffix(pkg.Name, "_test") {
-			return pkg, nil
+			return &parsedPkg{pkg, fset}, nil
 		}
 	}
 
@@ -148,8 +175,8 @@ func pkgHTMLFiles(dir string) ([]*htmlFile, error) {
 }
 
 // parse a component HTML markup file, returning its imports and component definitions (capitalized top-level elements)
-func parseHTMLFile(filePath string) (imports map[string]*fuelPkg, comDefs []comDef, err error) {
-	imports = make(map[string]*fuelPkg)
+func parseHTMLFile(filePath string) (imports map[string]importedPkg, comDefs []comDef, err error) {
+	imports = make(map[string]importedPkg)
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -187,7 +214,7 @@ func parseHTMLFile(filePath string) (imports map[string]*fuelPkg, comDefs []comD
 }
 
 // process an import tag and the package it imports
-func htmlImportTag(node *html.Node) (name string, pkg *fuelPkg, err error) {
+func htmlImportTag(node *html.Node) (name string, pkg importedPkg, err error) {
 	var path string
 	for _, attr := range node.Attr {
 		switch attr.Key {
@@ -206,14 +233,15 @@ func htmlImportTag(node *html.Node) (name string, pkg *fuelPkg, err error) {
 		}
 	}
 
+	pkg.importPath = path
 	if pdir := importDir(path); pdir != "" {
-		pkg, err = getFuelPkg(pdir)
+		pkg.fuelPkg, err = getFuelPkg(pdir)
 		if err != nil {
-			return name, pkg, err
+			return
 		}
 	}
 
-	return name, pkg, nil
+	return
 }
 
 func htmlComs(htmlFiles []*htmlFile) (comMap, error) {
@@ -245,7 +273,10 @@ func pkgComponents(pkg *ast.Package, comDefs comMap) comStructMap {
 						switch stype := spec.Type.(type) {
 						case *ast.StructType:
 							if comDefs[name] != nil {
-								coms[name] = stype
+								coms[name] = comStructInfo{
+									stype: stype,
+									file:  file,
+								}
 							}
 						}
 					}

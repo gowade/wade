@@ -6,8 +6,8 @@
     <div>
         <c:Title>Worklog</c:Title>
         <dummy:H2>Worklog</dummy:H2>
-        <SearchBar FilterText={{ this.State.FilterText }} OnSearch={{ this.handleSearch }}/>
-        <LogTable FilterText={{ this.State.FilterText }} Projects={{ this.State.Projects }}/>
+        <SearchBar FilterText={{ this.FilterText }} OnSearch={{ this.handleSearch }}/>
+        <LogTable FilterText={{ this.FilterText }} Projects={{ this.Projects }}/>
         <c:Link Path={{ wade.Route("hello", "254m4") }}>Hello World</c:Link>
     </div>
 </Worklog>
@@ -38,12 +38,12 @@
     <div class="row" key={{ this.ID }}>
         <div class="col-md-7"><h4>{{ str.ToUpper(this.Title) }}</h4></div>
         <div class="col-md-2">
-            <button type="button" hidden={{ this.State.Running }}
+            <button type="button" hidden={{ this.Running }}
                 onclick={{ this.toggleClock }}>Start</button>
-            <button type="button" hidden={{ !this.State.Running }}
+            <button type="button" hidden={{ !this.Running }}
                 onclick={{ this.toggleClock }}>Stop</button>
         </div>
-        <div class="col-md-3 elapsed">{{ this.State.Elapsed }}</div>
+        <div class="col-md-3 elapsed">{{ this.Elapsed }}</div>
     </div>
 </LogRow>
 

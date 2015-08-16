@@ -5,11 +5,10 @@ import (
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gowade/wade"
-	"github.com/gowade/wade/utils/dom"
+	"github.com/gowade/wade/dom"
 )
 
 type Link struct {
-	wade.Com
 	Path string
 }
 
@@ -22,14 +21,13 @@ func (lnk *Link) Href() string {
 	return path.Join(wade.App().BasePath, lnk.Path)
 }
 
-type Title struct {
-	wade.Com
-}
+type Title struct{}
 
 func (t *Title) BeforeMount() {
 	var title string
-	if len(t.Children) > 0 {
-		title = t.Children[0].Text()
+	children := t.VDOMChildren()
+	if len(children) > 0 {
+		title = children[0].Text()
 	}
 
 	dom.GetDocument().SetTitle(title)

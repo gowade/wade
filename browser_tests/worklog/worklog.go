@@ -5,23 +5,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gowade/wade"
+	//"github.com/gowade/wade"
+	dummy "github.com/gowade/wade/browser_tests/worklog/dummypkg"
 )
 
 type Project struct {
-	wade.Com
 	ID    int
 	Title string
 }
 
-type WState struct {
-	FilterText string
-	Projects   []*Project
-}
-
 type Worklog struct {
-	wade.Com
-	State *WState `fuel:"state"`
+	Projects   []*Project `fstate`
+	FilterText string     `fstate`
+	demoState  *gourl.URL `fstate`
+	dummy.DemoStruct
+	StateField int `fstate`
 }
 
 func (this *Worklog) handleSearch(filterText string) {
@@ -29,10 +27,8 @@ func (this *Worklog) handleSearch(filterText string) {
 }
 
 type SearchBar struct {
-	wade.Com
 	FilterText string
 	OnSearch   func(string)
-	demoState  *gourl.URL `fuel:"state"`
 }
 
 func (this *SearchBar) handleSearch() {
@@ -40,7 +36,6 @@ func (this *SearchBar) handleSearch() {
 }
 
 type LogTable struct {
-	wade.Com
 	FilterText string
 	Projects   []*Project
 }
@@ -49,27 +44,22 @@ func (this LogTable) filterCheck(text string) bool {
 	return strings.Contains(strings.ToLower(text), this.FilterText)
 }
 
-type LogRowTimerState struct {
-	Elapsed float32
-	Running bool
-}
-
 type LogRow struct {
-	wade.Com
 	*Project
 
-	ticker *time.Ticker
-	State  *LogRowTimerState `fuel:"state"`
+	ticker  *time.Ticker
+	Elapsed float32 `fstate`
+	Running bool    `fstate`
 }
 
 func (this *LogRow) toggleClock() {
-	if !this.State.Running {
-		this.State.Running = true
+	if !this.Running {
+		this.Running = true
 		this.ticker = time.NewTicker(100 * time.Millisecond)
 		go func() {
 			for {
 				<-this.ticker.C
-				this.setElapsed(this.State.Elapsed + 0.1)
+				this.setElapsed(this.Elapsed + 0.1)
 			}
 		}()
 	} else {
@@ -79,6 +69,5 @@ func (this *LogRow) toggleClock() {
 }
 
 type Hello struct {
-	wade.Com
 	Name string
 }
