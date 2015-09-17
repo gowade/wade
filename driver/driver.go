@@ -3,8 +3,8 @@ package driver
 import (
 	gourl "net/url"
 
+	"github.com/gowade/vdom"
 	"github.com/gowade/wade/dom"
-	"github.com/gowade/wade/vdom"
 )
 
 type EnvironmentType int
@@ -17,7 +17,7 @@ const (
 var (
 	env         EnvironmentType = BrowserEnv
 	routeDriver RouteDriver
-	Render      func(newVdom, oldVdom *vdom.Element, domNode dom.Node)
+	Render      func(newVdom, oldVdom vdom.VNode, domNode dom.Node)
 )
 
 func Init(router Router) {

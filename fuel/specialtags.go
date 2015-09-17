@@ -74,7 +74,7 @@ var (
 	`
 
 	forTagVDOMCode = `
-	[[.VarName]] := []vdom.Node{}
+	[[.VarName]] := []vdom.VNode{}
 	for __k, __v := range [[.Items]] {
 		[[if .KeyName]] [[.KeyName]] := __k [[else]] _ = __k [[end]]
 		[[if .ValName]] [[.ValName]] := __v [[else]] _ = __v [[end]]
@@ -84,7 +84,7 @@ var (
 	}`
 
 	ifTagVDOMCode = `
-	[[.VarName]] := []vdom.Node{}
+	[[.VarName]] := []vdom.VNode{}
 	if [[.Cond]] {
 		[[.Decls]]
 		[[.VarName]] = [[template "children" .Children]]
@@ -92,7 +92,7 @@ var (
 	`
 
 	switchTagVDOMCode = `
-	[[.VarName]] := []vdom.Node{}
+	[[.VarName]] := []vdom.VNode{}
 	[[$varName := .VarName]]
 	switch [[.Expr]] {
 	[[range .Cases]]

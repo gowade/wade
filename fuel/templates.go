@@ -76,12 +76,12 @@ type (
 )
 
 const (
-	childrenVDOMCode = `[[if .]]vdom.NewNodeList([[$last := lastIdx .]]` +
+	childrenVDOMCode = `[[if .]]wade.NewVNodeList([[$last := lastIdx .]]` +
 		`[[range $i, $c := .]]` +
 
-		`[[if $c.RefName]](func() vdom.Node {
+		`[[if $c.RefName]](func() vdom.VNode {
 		__ret := [[$c.Code]]
-		__refs.[[$c.RefName]] = __ret.DOMNode().(dom.[[elDOMType $c.ElTag]])
+		__refs["[[$c.RefName]]"] = __ret
 		return __ret
 		})()[[else]][[$c.Code]][[end]]` +
 		`[[if lt $i $last]],[[end]]` +
@@ -89,12 +89,12 @@ const (
 
 		`[[else]]nil[[end]]`
 
-	textNodeVDOMCode = `vdom.NewTextNode([[.Text]])`
+	textNodeVDOMCode = `vdom.VText([[.Text]])`
 
 	elementVDOMCode = `` +
 		`[[define "attrs"]]` +
 		`[[if .Attrs]]` +
-		`vdom.Attributes{` +
+		`vdom.Properties{` +
 		`[[range $key, $value := .Attrs]]
 				"[[$key]]": [[$value]],
 			[[end]]` +
@@ -105,8 +105,8 @@ const (
 		`[[template "children" .Children]])`
 
 	renderFuncCode = `
-func [[if .ComName]](this *[[.ComName]])[[end]] VDOMRender() *vdom.Element {
-	[[if .HasRefs]]__refs := vdom.GetComponentData(this).Refs.(*[[.ComName]]Refs)[[end]]
+func [[if .ComName]](this *[[.ComName]])[[end]] VDOMRender() *vdom.VElement {
+	[[if .HasRefs]]__refs := vdom.GetComponentData(this).Refs[[end]]
 	[[.Decls]]
 	return [[.Return]]
 }
@@ -143,12 +143,12 @@ func init() {
 	[[end]]
 [[end]]
 
-func (this [[$receiver]]) VDOMChildren() []vdom.Node {
+func (this [[$receiver]]) VDOMChildren() []vdom.VNode {
 	return vdom.GetComponentData(this).Children
 }
 
 func (this [[$receiver]]) rerender() {
-	vdom.Rerender(this)
+	vdom.RerenderComponent(this)
 }
 `
 
@@ -159,12 +159,19 @@ type [[.ComName]]Refs struct {
 [[end]]
 }
 
-func (this *[[.ComName]]) Refs() *[[.ComName]]Refs {
-	return vdom.GetComponentData(this).Refs.(*[[.ComName]]Refs)
+func (this *[[.ComName]]) Refs() (ret [[.ComName]]Refs) {
+	[[if .Refs]]
+	refs := vdom.GetComponentData(this).Refs
+	[[range $refField, $elTag := .Refs]]
+		ret.[[$refField]] = refs["[[$refField]]"].DOMNode().(dom.[[elDOMType $elTag]])
+	[[end]]
+	[[end]]
+
+	return
 }`
 
-	comCreateCode = `&vdom.Element{
-	Component: func(old vdom.Component) vdom.Component {
+	comCreateCode = `&vdom.VElement{
+	RenderComponent: func(old vdom.Component) *vdom.VElement {
 		var com *[[.ComType]]
 		var ok bool
 		if old != nil {
@@ -173,16 +180,13 @@ func (this *[[.ComName]]) Refs() *[[.ComName]]Refs {
 		if old == nil || !ok {
 			com = &[[.ComType]]{}
 		}
-		
-		cdata := vdom.CreateComponentData(com, old)
 
-	[[range .FieldsAss]]
-		com.[[.Name]] = [[.Value]]
-	[[end]]
+		[[range .FieldsAss]]
+			com.[[.Name]] = [[.Value]]
+		[[end]]
 		[[.Decls]]
 
-		cdata.Children = [[template "children" .ChildrenCode]]
-		return com
+		return vdom.RenderComponent(com, [[template "children" .ChildrenCode]])
 	},
 }`
 

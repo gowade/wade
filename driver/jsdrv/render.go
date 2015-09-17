@@ -3,20 +3,10 @@ package jsdrv
 import (
 	"github.com/gowade/wade/dom"
 	//"github.com/gowade/wade/dom/jsdom"
-	"github.com/gowade/wade/vdom"
+	"github.com/gowade/vdom"
 )
 
-func Render(newVdom, oldVdom *vdom.Element, domNode dom.Node) {
-	//var container vdom.DOMNode
-	//if oldVdom != nil {
-	//oldVdom = oldVdom.Render().(*vdom.Element)
-	////vdom.Debug(oldVdom)
-	////vdom.Debug(newVdom)
-	//container = oldVdom.DOMNode()
-	//} else {
-	//jsobj := domNode.(jsdom.Node).Object
-	//container = browser.DOMNode{jsobj}
-	//}
-
-	//vdom.PerformDiff(newVdom, oldVdom, container)
+func Render(newVdom, oldVdom vdom.VNode, domNode dom.Node) {
+	diff := vdom.Diff(oldVdom, newVdom)
+	vdom.Patch(domNode.JS(), diff)
 }

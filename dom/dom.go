@@ -29,6 +29,10 @@ func GetDocument() Document {
 	return document
 }
 
+func CreateNode(native interface{}) Node {
+	return driver.CreateNode(native)
+}
+
 type Document interface {
 	Title() string
 	SetTitle(title string)
@@ -64,8 +68,7 @@ type Node interface {
 }
 
 type Driver interface {
-	ToInputEl(Node) InputEl
-	ToFormEl(Node) FormEl
+	CreateNode(interface{}) Node
 }
 
 type FormEl interface {

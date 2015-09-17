@@ -109,7 +109,7 @@ func toImportList(imports map[string]string) []importTD {
 
 func defaultImports(m map[string]string) map[string]string {
 	m["fmt"] = "fmt"
-	m["vdom"] = "github.com/gowade/wade/vdom"
+	m["vdom"] = "github.com/gowade/vdom"
 	m["wade"] = "github.com/gowade/wade"
 	m["dom"] = "github.com/gowade/wade/dom"
 

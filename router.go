@@ -9,6 +9,8 @@ import (
 
 	urlrouter "github.com/naoina/kocha-urlrouter"
 	_ "github.com/phaikawl/regRouter"
+
+	"github.com/gowade/vdom"
 )
 
 type (
@@ -16,15 +18,15 @@ type (
 
 	DefaultRouter struct {
 		*defaultRouter
-		nameMap          map[string]string
-		errorHandler     func(error)
-		currentComponent Component
+		nameMap      map[string]string
+		errorHandler func(error)
 	}
 
 	defaultRouter struct {
 		urlrouter.URLRouter
-		routes          []urlrouter.Record
-		notFoundHandler ControllerFunc
+		routes           []urlrouter.Record
+		notFoundHandler  ControllerFunc
+		currentComponent vdom.Component
 	}
 )
 

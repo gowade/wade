@@ -115,20 +115,6 @@ func pkgDeps(imports pkgMap, pkg *ast.Package) {
 	}
 }
 
-func addPkgFromImport(path string, pkgs *[]*fuelPkg) error {
-	pdir := importDir(path)
-	if pdir != "" {
-		cpkg, err := getFuelPkg(pdir)
-		if err != nil {
-			return err
-		}
-
-		*pkgs = append(*pkgs, cpkg)
-	}
-
-	return nil
-}
-
 func parsePkg(dir string) (*parsedPkg, error) {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {

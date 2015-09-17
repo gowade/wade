@@ -4,9 +4,9 @@ import (
 	"fmt"
 	gourl "net/url"
 
+	"github.com/gowade/vdom"
 	"github.com/gowade/wade/dom"
 	"github.com/gowade/wade/driver"
-	"github.com/gowade/wade/vdom"
 )
 
 type M map[string]interface{}
@@ -44,14 +44,6 @@ func Str(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
-func Render(com Component) vdom.Node {
-	//vnode := com.Render(nil)
-	//c := com.InternalComPtr()
-	//c.VNode = vnode
-
-	return nil
-}
-
 func MergeMaps(m1, m2 map[string]interface{}) map[string]interface{} {
 	if m1 == nil && m2 == nil {
 		return nil
@@ -87,4 +79,24 @@ func WrapEvt(handler func(dom.Event)) interface{} {
 
 func QueryEscape(str string) string {
 	return gourl.QueryEscape(str)
+}
+
+func NewVNodeList(nodes ...interface{}) []vdom.VNode {
+	var l []vdom.VNode
+	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
+
+		switch n := n.(type) {
+		case []vdom.VNode:
+			l = append(l, n...)
+		case *vdom.VElement, vdom.VText:
+			l = append(l, n.(vdom.VNode))
+		default:
+			panic("Invalid node type")
+		}
+	}
+
+	return l
 }

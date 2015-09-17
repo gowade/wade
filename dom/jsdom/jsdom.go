@@ -34,12 +34,16 @@ func newEventHandler(handler dom.EventHandler) interface{} {
 
 type driver struct{}
 
-func (d driver) ToInputEl(el dom.Node) dom.InputEl {
-	return InputEl{el.(Node)}
-}
+func (d driver) CreateNode(native interface{}) dom.Node {
+	node := Node{native.(*js.Object)}
+	switch node.Data() {
+	case "input":
+		return InputEl{node}
+	case "form":
+		return FormEl{node}
+	}
 
-func (d driver) ToFormEl(el dom.Node) dom.FormEl {
-	return FormEl{el.(Node)}
+	return node
 }
 
 func init() {

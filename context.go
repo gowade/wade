@@ -4,8 +4,8 @@ import (
 	"fmt"
 	gourl "net/url"
 
+	"github.com/gowade/vdom"
 	"github.com/gowade/wade/driver"
-	//"github.com/gowade/wade/vdom"
 )
 
 // RouteParams holds the values of named parameters for a route
@@ -53,15 +53,16 @@ func (c *Context) GoToRemoteURL(destURL string) error {
 	return nil
 }
 
-func (c *Context) Render(component Component) error {
-	//var oldVdom *vdom.Element
-	//if c.router.currentComponent != nil {
-	//oldVdom = c.router.currentComponent.InternalComPtr().VNode
-	//}
+func (c *Context) Render(component vdom.Component) error {
+	var oldVdom *vdom.VElement
 
-	//vnode := Render(component)
-	////driver.Render(vnode.Render().(*vdom.Element), oldVdom, app.Container)
-	//c.router.currentComponent = component
-	//vdom.InternalRenderUnlock()
+	if c.router.currentComponent != nil {
+		cdata := vdom.GetComponentData(c.router.currentComponent)
+		oldVdom = cdata.VNode()
+	}
+
+	vtree := component.VDOMRender()
+	driver.Render(vtree, oldVdom, app.Container)
+	c.router.currentComponent = component
 	return nil
 }
