@@ -64,11 +64,11 @@ const (
 	keyAttrName = "key"
 )
 
-func extractKeyFromAttrs(attrs []html.Attribute) (key string, retAttrs []html.Attribute) {
+func extractKeyFromAttrs(attrs []html.Attribute) (key html.Attribute, retAttrs []html.Attribute) {
 	retAttrs = make([]html.Attribute, 0, len(attrs))
 	for _, attr := range attrs {
 		if attr.Key == keyAttrName {
-			key = attr.Val
+			key = attr
 		} else {
 			retAttrs = append(retAttrs, attr)
 		}
@@ -156,7 +156,7 @@ func (z *htmlCompiler) elementGenerate(
 
 	return must(elementVDOMTpl.Execute(w, elementVDOMTD{
 		Tag:      el.Data,
-		Key:      strAttributeValueCode(parseTextMustache(key)),
+		Key:      attributeValueCode(key),
 		Attrs:    toTplAttrs(htmlAttrs),
 		Children: children,
 	}))

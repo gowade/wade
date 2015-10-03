@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gowade/vdom"
 	"github.com/gowade/wade"
 	"github.com/gowade/wade/driver"
 	_ "github.com/gowade/wade/driver/jsdrv"
@@ -31,6 +32,6 @@ func main() {
 	}
 
 	ctn := wade.FindContainer("#container")
-	vnode := worklog.VDOMRender()
+	vnode := vdom.RenderComponent(worklog, nil)
 	driver.Render(vnode, nil, ctn)
 }

@@ -81,7 +81,9 @@ const (
 
 		`[[if $c.RefName]](func() vdom.VNode {
 		__ret := [[$c.Code]]
-		__refs["[[$c.RefName]]"] = __ret
+		__ret.OnRendered(func(domNode dom.Node) {
+			__refs.[[$c.RefName]] = domNode.(dom.[[elDOMType $c.ElTag]])
+		})
 		return __ret
 		})()[[else]][[$c.Code]][[end]]` +
 		`[[if lt $i $last]],[[end]]` +
@@ -101,12 +103,12 @@ const (
 		`}[[else]]nil[[end]]` +
 		`[[end]]` +
 
-		`vdom.NewElement("[[.Tag]]", [[.Key]], [[template "attrs" .]],` +
+		`vdom.NewElement("[[.Tag]]", wade.Str([[.Key]]), [[template "attrs" .]],` +
 		`[[template "children" .Children]])`
 
 	renderFuncCode = `
 func [[if .ComName]](this *[[.ComName]])[[end]] VDOMRender() *vdom.VElement {
-	[[if .HasRefs]]__refs := vdom.GetComponentData(this).Refs[[end]]
+	[[if .HasRefs]]__refs := vdom.GetComponentData(this).Refs.(*[[.ComName]]Refs)[[end]]
 	[[.Decls]]
 	return [[.Return]]
 }
@@ -159,15 +161,12 @@ type [[.ComName]]Refs struct {
 [[end]]
 }
 
-func (this *[[.ComName]]) Refs() (ret [[.ComName]]Refs) {
-	[[if .Refs]]
-	refs := vdom.GetComponentData(this).Refs
-	[[range $refField, $elTag := .Refs]]
-		ret.[[$refField]] = refs["[[$refField]]"].DOMNode().(dom.[[elDOMType $elTag]])
-	[[end]]
-	[[end]]
+func (this *[[.ComName]]) VDOMCreateRefs() interface{} {
+	return &[[.ComName]]Refs{}
+}
 
-	return
+func (this *[[.ComName]]) Refs() (ret *[[.ComName]]Refs) {
+	return vdom.GetComponentData(this).Refs.(*[[.ComName]]Refs)
 }`
 
 	comCreateCode = `&vdom.VElement{
