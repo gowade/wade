@@ -6,7 +6,7 @@ import (
 	"strings"
 	//"fmt"
 
-	"github.com/gowade/html"
+	"github.com/gowade/whtml"
 )
 
 const (
@@ -20,7 +20,7 @@ type comSpec struct {
 
 type comSpecMap map[string]comSpec
 
-func newHTMLCompiler(htmlFileName string, w io.Writer, root *html.Node) *htmlCompiler {
+func newHTMLCompiler(htmlFileName string, w io.Writer, root *whtml.Node) *htmlCompiler {
 	return &htmlCompiler{
 		htmlFile: &htmlFile{
 			path: htmlFileName,
@@ -46,7 +46,7 @@ func newComponentHTMLCompiler(
 	}
 }
 
-func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
+func compileHTML(fileName string, w io.Writer, root *whtml.Node) error {
 	compiler := newHTMLCompiler(fileName, w, root)
 	return compiler.Generate()
 }
@@ -54,7 +54,7 @@ func compileHTMLFile(fileName string, w io.Writer, root *html.Node) error {
 type htmlCompiler struct {
 	htmlFile *htmlFile
 	w        io.Writer
-	root     *html.Node
+	root     *whtml.Node
 	pkg      *fuelPkg
 	comSpec  comSpecMap
 	comName  string
@@ -64,8 +64,8 @@ const (
 	keyAttrName = "key"
 )
 
-func extractKeyFromAttrs(attrs []html.Attribute) (key html.Attribute, retAttrs []html.Attribute) {
-	retAttrs = make([]html.Attribute, 0, len(attrs))
+func extractKeyFromAttrs(attrs []whtml.Attribute) (key whtml.Attribute, retAttrs []whtml.Attribute) {
+	retAttrs = make([]whtml.Attribute, 0, len(attrs))
 	for _, attr := range attrs {
 		if attr.Key == keyAttrName {
 			key = attr
@@ -77,7 +77,7 @@ func extractKeyFromAttrs(attrs []html.Attribute) (key html.Attribute, retAttrs [
 	return key, attrs
 }
 
-func toTplAttrs(attrs []html.Attribute) map[string]string {
+func toTplAttrs(attrs []whtml.Attribute) map[string]string {
 	m := make(map[string]string)
 	for _, attr := range attrs {
 		m[attr.Key] = attributeValueCode(attr)
@@ -103,13 +103,13 @@ func refNameFromAttr(attrName string) string {
 	return buf.String()
 }
 
-func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea, refs refsMap) (
+func (z *htmlCompiler) childrenGenerate(parent *whtml.Node, da *declArea, refs refsMap) (
 	[]childCode, error) {
 
 	var children []childCode
 	for c := parent.FirstChild; c != nil; c = c.NextSibling {
 		// clean pesky linebreaks and tabs in the HTML code
-		if c.Type == html.TextNode && []rune(c.Data)[0] == '\n' &&
+		if c.Type == whtml.TextNode && []rune(c.Data)[0] == '\n' &&
 			justPeskySpaces(c.Data) &&
 			strings.ToLower(parent.Data) != "pre" {
 			continue
@@ -124,8 +124,8 @@ func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea, refs re
 
 		// ref
 		var refName string
-		if refs != nil && c.Type == html.ElementNode {
-			for _, attr := range c.Attr {
+		if refs != nil && c.Type == whtml.ElementNode {
+			for _, attr := range c.Attrs {
 				if attr.Key == RefAttrName {
 					refName = refNameFromAttr(attr.Val)
 					refs[refName] = c.Data
@@ -144,10 +144,10 @@ func (z *htmlCompiler) childrenGenerate(parent *html.Node, da *declArea, refs re
 }
 
 func (z *htmlCompiler) elementGenerate(
-	w io.Writer, el *html.Node,
+	w io.Writer, el *whtml.Node,
 	da *declArea, refs refsMap) error {
 
-	key, htmlAttrs := extractKeyFromAttrs(el.Attr)
+	key, htmlAttrs := extractKeyFromAttrs(el.Attrs)
 
 	children, err := z.childrenGenerate(el, da, refs)
 	if err != nil {
@@ -162,22 +162,26 @@ func (z *htmlCompiler) elementGenerate(
 	}))
 }
 
-func (z *htmlCompiler) textNodeGenerate(w io.Writer, node *html.Node) error {
-	parts := parseTextMustache(node.Data)
-
+func (z *htmlCompiler) mustacheNodeGenerate(w io.Writer, node *whtml.Node) error {
 	return must(textNodeVDOMTpl.Execute(w, textNodeVDOMTD{
-		Text: strAttributeValueCode(parts),
+		Text: valueToStrCode(node.Data),
+	}))
+}
+
+func (z *htmlCompiler) textNodeGenerate(w io.Writer, node *whtml.Node) error {
+	return must(textNodeVDOMTpl.Execute(w, textNodeVDOMTD{
+		Text: sfmt(`"%v"`, node.Data),
 	}))
 }
 
 func (z *htmlCompiler) comInstGenerate(
 	w io.Writer,
-	node *html.Node,
+	node *whtml.Node,
 	da *declArea, refs refsMap,
 	info *comInfo) error {
 
-	fieldsAss := make([]fieldAssTD, 0, len(node.Attr))
-	for _, attr := range node.Attr {
+	fieldsAss := make([]fieldAssTD, 0, len(node.Attrs))
+	for _, attr := range node.Attrs {
 		if isCapitalized(attr.Key) {
 			fieldsAss = append(fieldsAss, fieldAssTD{
 				Name:  attr.Key,
@@ -210,7 +214,7 @@ type comInfo struct {
 	name, importSelector string
 }
 
-func (z *htmlCompiler) elComponent(node *html.Node) (
+func (z *htmlCompiler) elComponent(node *whtml.Node) (
 	*comInfo, error) {
 
 	pkg := z.pkg
@@ -248,11 +252,11 @@ func (z *htmlCompiler) elComponent(node *html.Node) (
 	// element is not considered a component
 	return nil, nil
 }
-func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node,
+func (z *htmlCompiler) nodeGenerate(w io.Writer, node *whtml.Node,
 	da *declArea, refs refsMap) error {
 
 	switch node.Type {
-	case html.ElementNode:
+	case whtml.ElementNode:
 		if fn := z.specialTag(node.Data); fn != nil {
 			return fn(w, node, da, refs)
 		}
@@ -269,7 +273,9 @@ func (z *htmlCompiler) nodeGenerate(w io.Writer, node *html.Node,
 		}
 
 		return z.elementGenerate(w, node, da, refs)
-	case html.TextNode:
+	case whtml.MustacheNode:
+		return z.mustacheNodeGenerate(w, node)
+	case whtml.TextNode:
 		return z.textNodeGenerate(w, node)
 	}
 
@@ -289,7 +295,7 @@ func (z *htmlCompiler) Generate() error {
 	return nil
 }
 
-func (z *htmlCompiler) generate(root *html.Node, refs refsMap) error {
+func (z *htmlCompiler) generate(root *whtml.Node, refs refsMap) error {
 	var buf bytes.Buffer
 	var decls bytes.Buffer
 	if root != nil {

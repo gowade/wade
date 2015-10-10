@@ -2,24 +2,14 @@ package htmlutils
 
 import (
 	"bytes"
-	"io"
 	"strings"
 
-	"github.com/gowade/html"
-	"golang.org/x/net/html/atom"
+	html "github.com/gowade/whtml"
 )
-
-func ParseFragment(source io.Reader) ([]*html.Node, error) {
-	return html.ParseFragment(source, &html.Node{
-		Type:     html.ElementNode,
-		Data:     "body",
-		DataAtom: atom.Body,
-	})
-}
 
 func FragmentFromString(htmlCode string) *html.Node {
 	buf := bytes.NewBufferString(strings.TrimSpace(htmlCode))
-	nodes, err := ParseFragment(buf)
+	nodes, err := html.Parse(buf)
 
 	if err != nil {
 		panic(err)
@@ -49,6 +39,6 @@ func RemoveGarbageTextChildren(node *html.Node) {
 
 func Render(node *html.Node) string {
 	var buf bytes.Buffer
-	html.Render(&buf, node)
+	node.Render(&buf)
 	return buf.String()
 }

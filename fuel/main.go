@@ -7,8 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/gowade/html"
-	"github.com/gowade/wade/utils/htmlutils"
+	"github.com/gowade/whtml"
 )
 
 const (
@@ -17,7 +16,7 @@ const (
 
 func buildCmd(dir string, target string) {
 	if target != "" {
-		buildHtmlFile(target)
+		buildSingleHTML(target)
 	} else {
 		err := fuelBuild(dir)
 		checkFatal(err)
@@ -61,7 +60,7 @@ func cleanCmd(dir string) {
 	}
 }
 
-func generateVDOMFile(htmlNode *html.Node, outputFileName string) error {
+func generateVDOMFile(htmlNode *whtml.Node, outputFileName string) error {
 	ofile, err := os.Create(outputFileName)
 	defer ofile.Close()
 	checkFatal(err)
@@ -71,20 +70,20 @@ func generateVDOMFile(htmlNode *html.Node, outputFileName string) error {
 		Imports: toImportList(defaultImports(make(map[string]string))),
 	})
 
-	return compileHTMLFile(outputFileName, ofile, htmlNode)
+	return compileHTML(outputFileName, ofile, htmlNode)
 }
 
-func buildHtmlFile(filename string) {
+func buildSingleHTML(filename string) {
 	outputFileName := filename + ".go"
 
 	ifile, err := os.Open(filename)
 	defer ifile.Close()
 	checkFatal(err)
 
-	n, err := htmlutils.ParseFragment(ifile)
+	n, err := whtmlParseElem(ifile)
 	checkFatal(err)
 
-	err = generateVDOMFile(n[0], outputFileName)
+	err = generateVDOMFile(n, outputFileName)
 	checkFatal(err)
 
 	runGofmt(outputFileName)

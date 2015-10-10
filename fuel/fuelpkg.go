@@ -9,13 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gowade/html"
-	"github.com/gowade/wade/utils/htmlutils"
+	"github.com/gowade/whtml"
 )
 
 type comDef struct {
 	name   string
-	markup *html.Node
+	markup *whtml.Node
 }
 
 type htmlFile struct {
@@ -174,13 +173,13 @@ func parseHTMLFile(filePath string) (
 		return nil, nil, err
 	}
 
-	nodes, err := htmlutils.ParseFragment(file)
+	nodes, err := whtml.Parse(file)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	for _, node := range nodes {
-		if node.Type == html.ElementNode {
+		if node.Type == whtml.ElementNode {
 			// import tag
 			if node.Data == importSTag {
 				impName, pkg, err := htmlImportTag(node)
@@ -207,9 +206,9 @@ func parseHTMLFile(filePath string) (
 }
 
 // process an import tag and the package it imports
-func htmlImportTag(node *html.Node) (name string, pkg importedPkg, err error) {
+func htmlImportTag(node *whtml.Node) (name string, pkg importedPkg, err error) {
 	var path string
-	for _, attr := range node.Attr {
+	for _, attr := range node.Attrs {
 		switch attr.Key {
 		case "from":
 			if err = attrRequireNotEmpty(importSTag, attr); err != nil {

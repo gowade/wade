@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gowade/html"
+	"github.com/gowade/whtml"
 )
 
 // textPart represents either a typical HTML text node or a {{mustache node}}
@@ -62,38 +62,32 @@ func parseTextMustache(text string) []textPart {
 
 // attributeValueCode returns the Go code that represents a string,
 // formatted according to the mustaches in the value
-func strAttributeValueCode(parts []textPart) string {
-	if len(parts) == 1 && !parts[0].isMustache {
-		return `"` + escapeNewlines(parts[0].content) + `"`
-	}
-
-	fmtStr := ""
-	mustaches := []string{}
-	for _, part := range parts {
-		if part.isMustache {
-			fmtStr += "%v"
-			mustaches = append(mustaches, part.content)
-		} else {
-			fmtStr += escapeNewlines(part.content)
-		}
-	}
-
+func interpStrValueCode(fmtStr string, mustaches []string) string {
 	mStr := strings.Join(mustaches, ", ")
-	return sfmt(`fmt.Sprintf("%v", %v)`, fmtStr, mStr)
+	return sfmt(`fmt.Sprintf(%v, %v)`, fmtStr, mStr)
+}
+
+func valueToStrCode(value string) string {
+	return sfmt(`wade.Str(%v)`, value)
 }
 
 // attributeValueCode returns the Go code that represents either a string or
 // a single mustache value
-func attributeValueCode(attr html.Attribute) string {
-	if attr.IsEmpty {
+func attributeValueCode(attr whtml.Attribute) string {
+	switch attr.Type {
+	case whtml.BoolAttribute:
 		return "true"
-	}
-
-	if attr.IsMustache {
+	case whtml.StringAttribute:
+		if len(attr.Mustaches) == 0 {
+			return sfmt("`%v`", attr.Val)
+		}
+		return interpStrValueCode(attr.Val, attr.Mustaches)
+	case whtml.MustacheAttribute:
 		return attr.Val
 	}
-	parts := parseTextMustache(attr.Val)
-	return strAttributeValueCode(parts)
+
+	panic("Unhandled attribute type")
+	return ""
 }
 
 func justPeskySpaces(str string) bool {

@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/template"
 
-	"github.com/gowade/html"
+	"github.com/gowade/whtml"
 )
 
 func must(err error) error {
@@ -26,10 +27,20 @@ func isCapitalized(name string) bool {
 	return c >= 'A' && c <= 'Z'
 }
 
-func cleanGarbageTextChildren(node *html.Node) {
+func whtmlParseElem(rd io.Reader) (*whtml.Node, error) {
+	nodes, err := whtml.Parse(rd)
+	var ret *whtml.Node
+	if len(nodes) > 0 {
+		ret = nodes[0]
+	}
+
+	return ret, err
+}
+
+func cleanGarbageTextChildren(node *whtml.Node) {
 	prev := node.FirstChild
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.TextNode && strings.TrimSpace(c.Data) == "" {
+		if c.Type == whtml.TextNode && strings.TrimSpace(c.Data) == "" {
 			if c == node.FirstChild {
 				node.FirstChild = c.NextSibling
 				prev = node.FirstChild
