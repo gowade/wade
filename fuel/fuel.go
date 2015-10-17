@@ -12,6 +12,7 @@ const (
 	genPrefix  = "~"
 	fuelSuffix = ".fuel.go"
 	importSTag = "import"
+	htmlExt    = ".whtml"
 )
 
 func generatedFileName(name string) string {
@@ -19,11 +20,8 @@ func generatedFileName(name string) string {
 }
 
 var (
-	methodsFile = generatedFileName("spice")
-)
-
-var (
 	gSrcPath string
+	c        = 0
 )
 
 func srcPath() string {
@@ -71,8 +69,7 @@ func fieldNameFromPath(fieldPath string) string {
 	return strings.Join(frags, "")
 }
 
-func toTplStateFields(fields []*fieldInfo) []stateFieldTD {
-	//detect name clashes
+func toTemplateStateFields(fields []*fieldInfo) []stateFieldTD {
 	m := make(map[string]int)
 	for _, field := range fields {
 		m[field.name]++
@@ -173,7 +170,7 @@ func htmlFileVDOMGenerate(pkg *fuelPkg, file *htmlFile) error {
 		}
 
 		// generate other methods
-		stateFields := toTplStateFields(comSfMap[com.name])
+		stateFields := toTemplateStateFields(comSfMap[com.name])
 		comMethodsTpl.Execute(ofile, comMethodsTD{
 			Receiver:    "*" + com.name,
 			StateFields: stateFields,
@@ -204,6 +201,15 @@ func fuelBuildRec(pkg *fuelPkg) error {
 				if err != nil {
 					return err
 				}
+			}
+		}
+	}
+
+	for _, pkg := range pkg.imports {
+		if pkg != nil && pkg.HasMarkup() {
+			err := fuelBuildRec(pkg)
+			if err != nil {
+				return err
 			}
 		}
 	}

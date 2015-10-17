@@ -94,10 +94,10 @@ func (p *astPkg) lookupSelector(file *ast.File, selector *ast.SelectorExpr) (
 			if pdir != "" {
 				pkg := p.pkgs[impPath]
 				if pkg != nil {
-					obj, file := pkgLookup(pkg.Package, sel)
+					obj, file := pkgLookup(pkg.pkg.Package, sel)
 					if obj != nil {
 						if typeSpec, ok := obj.Decl.(*ast.TypeSpec); ok {
-							return typeSpec.Type, file, pkg
+							return typeSpec.Type, file, pkg.pkg
 						}
 					}
 				}

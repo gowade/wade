@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +32,7 @@ type parsedPkg struct {
 	fset *token.FileSet
 }
 
-type pkgMap map[string]*parsedPkg
+type pkgMap map[string]*fuelPkg
 
 type comMap map[string]*htmlFile
 
@@ -55,6 +54,10 @@ type fuelPkg struct {
 	coms       comMap
 }
 
+func (fp *fuelPkg) HasMarkup() bool {
+	return len(fp.htmlFiles) > 0
+}
+
 // getFuelPkg builds a tree containing info about a package and its dependencies
 func getFuelPkg(dir string) (*fuelPkg, error) {
 	pkg, err := parsePkg(dir)
@@ -66,28 +69,33 @@ func getFuelPkg(dir string) (*fuelPkg, error) {
 		return nil, nil
 	}
 
+	imports := make(pkgMap)
+	pkgDeps(imports, pkg.Package)
+
 	htmlFiles, err := pkgHTMLFiles(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	coms, err := htmlComs(htmlFiles)
+	ret := &fuelPkg{
+		dir:       dir,
+		pkg:       pkg,
+		htmlFiles: htmlFiles,
+		imports:   imports,
+	}
+
+	if !ret.HasMarkup() {
+		return ret, nil
+	}
+
+	ret.coms, err = htmlComs(htmlFiles)
 	if err != nil {
 		return nil, err
 	}
 
-	comStructs := pkgComponents(pkg.Package, coms)
+	ret.comStructs = pkgComponents(pkg.Package, ret.coms)
 
-	imports := make(pkgMap)
-	pkgDeps(imports, pkg.Package)
-
-	return &fuelPkg{
-		pkg:        pkg,
-		htmlFiles:  htmlFiles,
-		imports:    imports,
-		coms:       coms,
-		comStructs: comStructs,
-	}, nil
+	return ret, nil
 }
 
 // get dependencies imported from inside the package's source code
@@ -101,11 +109,14 @@ func pkgDeps(imports pkgMap, pkg *ast.Package) {
 
 			pdir := importDir(importPath)
 			if pdir != "" {
-				pkg, err := parsePkg(pdir)
+				fpkg, err := getFuelPkg(pdir)
+				if err != nil {
+					printErr(efmt("%v: %v", importPath, err))
+				}
 
-				imports[importPath] = pkg
-				if err == nil {
-					pkgDeps(imports, pkg.Package)
+				imports[importPath] = fpkg
+				if fpkg != nil && err == nil {
+					pkgDeps(imports, fpkg.pkg.Package)
 				}
 			} else {
 				imports[importPath] = nil
@@ -126,7 +137,10 @@ func parsePkg(dir string) (*parsedPkg, error) {
 
 	for _, pkg := range pkgs {
 		if !strings.HasSuffix(pkg.Name, "_test") {
-			return &parsedPkg{pkg, fset}, nil
+			return &parsedPkg{
+				Package: pkg,
+				fset:    fset,
+			}, nil
 		}
 	}
 
@@ -134,26 +148,23 @@ func parsePkg(dir string) (*parsedPkg, error) {
 }
 
 func pkgHTMLFiles(dir string) ([]*htmlFile, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := filepath.Glob(filepath.Join(dir, "*"+htmlExt))
 	if err != nil {
 		return nil, err
 	}
 
 	var htmlFiles []*htmlFile
-	for _, fi := range files {
-		if strings.HasSuffix(fi.Name(), ".html") {
-			filePath := filepath.Join(dir, fi.Name())
-			imports, comDefs, err := parseHTMLFile(filePath)
-			if err != nil {
-				return nil, err
-			}
-
-			htmlFiles = append(htmlFiles, &htmlFile{
-				path:    filePath,
-				imports: imports,
-				comDefs: comDefs,
-			})
+	for _, filePath := range files {
+		imports, comDefs, err := parseHTMLFile(filePath)
+		if err != nil {
+			return nil, err
 		}
+
+		htmlFiles = append(htmlFiles, &htmlFile{
+			path:    filePath,
+			imports: imports,
+			comDefs: comDefs,
+		})
 	}
 
 	return htmlFiles, nil
